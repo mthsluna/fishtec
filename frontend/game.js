@@ -232,9 +232,13 @@ function rodPose(R, b) {                                   // soma a animação 
 // mantêm o tamanho (só sobem). Nada é esticado: cada parte é desenhada já com o comprimento certo dentro de drawFisherBase/Turn.
 const LEG_SHARE = 0.73;                                                         // fatia do ganho de altura que vai para as pernas (o resto vai para o tronco)
 let LEGX = 0, TORSOX = 0, AL = 8;                                               // AL: comprimento do braço (cresce com a altura, junto com as pernas)
+function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
+  ctx.fillStyle = col; roundPath(sx - 2.2, y - 2.8, 4.4, 5.4, 1.7); ctx.fill();
+  rect("rgba(255,255,255,.22)", sx - 1.2, y - 2.4, 2.4, 0.8);                    // luz em cima
+}
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
   const E = ((look && look.hs || 1) - 1) * FISHER_TOP, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
-  LEGS = [shade(pants, 0.75), pants]; LEGX = E * LEG_SHARE; TORSOX = E - LEGX; AL = 8 + E * 0.5;
+  LEGS = [shade(pants, 0.75), pants]; LEGX = E * LEG_SHARE; TORSOX = E - LEGX; AL = 8 + TORSOX;
   const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
   return tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
 }
@@ -265,7 +269,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
     ctx.restore();
   };
   const farX = AW * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
-  arm(farX, farY, farA, 1);
+  arm(farX, farY, farA, 1); shoulder(farX, farY, sleeve);
   // tronco
   rect(shirt, -TW, -24, TW * 2, 14 + TORSOX);
   rect("rgba(0,0,0,.25)", -TW, -24, mix(3.5, 2.5, kt), 14 + TORSOX); rect("rgba(255,255,255,.18)", mix(TW - 3, TW - 2.5, kt), -24, mix(2, 2.5, kt), 14 + TORSOX);
@@ -273,8 +277,8 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2);
   if (st > 0.15) rect("#e8c34a", TW * ct - st, -12 + TORSOX, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
-  if (fa > 0) arm(farX, farY, farA, fa);                                                // de frente: o braço do outro lado passa a ficar por cima
-  arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1);                // braço de perto
+  if (fa > 0) { arm(farX, farY, farA, fa); ctx.globalAlpha *= fa; shoulder(farX, farY, sleeve); ctx.globalAlpha /= fa; }                                                // de frente: o braço do outro lado passa a ficar por cima
+  arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
   // pescoço, cabeça e rosto (a cabeça gira antes do resto)
   const hx = ch, nx = -ch;
   rect("#e0ac69", nx - 2, -26, 4, 2.5);
@@ -323,6 +327,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
       rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
     if (idle) { arm(-AW, Math.PI / 2 + 0.12); arm(AW, Math.PI / 2 - 0.12); }
     else { arm(-AW, -Math.PI + 1.0 - wv * 0.12); arm(AW, -1.0 + wv * 0.12); }
+    shoulder(-AW, -21.5, sleeve); shoulder(AW, -21.5, sleeve);
     rect("#e0ac69", -2, -26, 4, 2.5);
     rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
     rect("#2a1a10", -2.6, -30.2, 1.6, 1.8); rect("#2a1a10", 1, -30.2, 1.6, 1.8);       // olhos
@@ -333,6 +338,12 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect("rgba(0,0,0,.25)", -7.5, -34, 15, 1.2); rect("rgba(255,255,255,.35)", -4.5, -36.5, 9, 1.2);
     ctx.restore();
     return { x, y: PIER_Y - 30 };
+  }
+  if (P.crank === undefined) {                                                     // braço livre, desenhado ANTES das pernas: fica atrás delas e não atravessa a calça (na hora de puxar o peixe ele gira a manivela)
+    const ak = AL / 8;
+    ctx.save(); ctx.translate(0, -(LEGX + TORSOX) - 22 + bob); ctx.rotate((P.brake ? -sw * 0.6 : armSw) + 0.1 + (P.off || 0));   // braço livre: oposto ao braço da vara (e contrapeso no arremesso)
+    rect(sleeve, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 9 * ak); rect("#d9ab6f", -1.7, 8.5 * ak, 3.4, 3);
+    ctx.restore();
   }
   const leg = (th, kn, col) => {                                                 // coxa gira no quadril; a canela gira no joelho (dobra para trás)
     const Lt = (9 + LEGX) / 2;
@@ -348,12 +359,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     leg(GA * gs, KB * Math.max(0, -gc), LEGS[1]);
   }
   ctx.translate(0, -(LEGX + TORSOX));                                               // tudo de cima (tronco, braços, cabeça) sobe
-  if (P.crank === undefined) {                                                     // (na hora de puxar o peixe, esse braço vai girar a manivela)
-    const ak = AL / 8;
-    ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate((P.brake ? -sw * 0.6 : armSw) + 0.1 + (P.off || 0));   // braço livre: oposto ao braço da vara (e contrapeso no arremesso)
-    rect(sleeve, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 9 * ak); rect("#d9ab6f", -1.7, 8.5 * ak, 3.4, 3);
-    ctx.restore();
-  }
+
   ctx.translate(0, bob); ctx.translate(0, -11 + TORSOX); ctx.rotate(P.lean); ctx.translate(0, 11 - TORSOX);   // tronco inclina a partir do quadril
   const ca = Math.cos(A), sa = Math.sin(A);
   const hx = SHX + AL * ca, hy = SHY + AL * sa;                    // posição da mão
@@ -367,6 +373,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.save(); ctx.translate(SHX, SHY); ctx.rotate(A);                                // antebraço gira no ombro (no centro do tronco)
     rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
     ctx.restore();
+    shoulder(SHX, SHY, sleeve);
   };
   if (s <= 0) foreArm();                                                               // durante guardar/sacar o braço é desenhado por cima (a mão não some atrás da cabeça)
   
