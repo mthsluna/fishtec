@@ -464,7 +464,7 @@ function postRipples(now, wxp) {                           // ondinhas em volta 
     const x = wxp + i + 4;
     if (x < -20 || x > W + 20) continue;
     for (let r = 0; r < 2; r++) {
-      const a = ((now / 2200 + r * 0.5 + i * 0.13) % 1);
+      const a = (((now / 2200 + r * 0.5 + i * 0.13) % 1) + 1) % 1;      // sempre entre 0 e 1 (i pode ser negativo)
       ctx.strokeStyle = `rgba(215,240,250,${0.32 * (1 - a)})`; ctx.lineWidth = 0.7;
       ctx.beginPath(); ctx.ellipse(x, WATER_Y + 5, 5 + a * 11, 1 + a * 2.2, 0, 0, 7); ctx.stroke();
     }
