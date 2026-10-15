@@ -197,10 +197,10 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
 }
 // zoom: reaproveita o quadro pronto (assim o reflexo continua certo) e redesenha só um pedaço dele, ampliado
 const zb = document.createElement("canvas"); let zctx = null;
-function zoomView(z, fx, fy) {
+function zoomView(z, fx, fy, side = 0.5) {                       // side: onde o personagem fica na tela (0 = esquerda, 0.5 = meio)
   if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
   zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
-  const sw = W / z, sh = H / z, sx = Math.max(0, Math.min(W - sw, fx - sw / 2)), sy = Math.max(0, Math.min(H - sh, fy - sh / 2));
+  const sw = W / z, sh = H / z, sx = Math.max(0, Math.min(W - sw, fx - side * sw)), sy = Math.max(0, Math.min(H - sh, fy - sh / 2));
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(zb, sx * S, sy * S, sw * S, sh * S, 0, 0, W, H);
 }
@@ -556,7 +556,7 @@ function draw(now) {
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
   ctx.restore();
 
-  if (zk > 0.003) zoomView(1 + 0.9 * zk, wx + px + dir * 16, PIER_Y - 6);   // aproxima no pescador enquanto puxa o peixe (a interface abaixo não é ampliada)
+  if (zk > 0.003) zoomView(1 + 0.45 * zk, wx + px, PIER_Y - 6, 0.3);   // aproxima no pescador enquanto puxa o peixe (a interface abaixo não é ampliada)
 
   // minigame estilo Stardew
   if (state === "reel") {
