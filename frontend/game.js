@@ -506,17 +506,21 @@ function drawWaves(now, ox) {
   ctx.drawImage(WV.cv, 0, WATER_Y, cols * WV.cw, rows * WV.ch);
 }
 
-// ---------- Água batendo nos postes: no pé de cada poste ela sobe só um pouquinho e desce, molhando a madeira ----------
+// ---------- Água batendo nos postes: no pé de cada poste a própria água sobe só um pouquinho e desce ----------
+// A faixa que cobre o poste é copiada da água logo abaixo dele (mesma cor, ondas e brilho), então a água "vai junto";
+// uma linha clara fina na borda de cima dá o contraste.
 function postWaves(now, wxp) {
   const t = now / 1000, BOTTOM = PIER_Y + 8 + 32;                       // base dos postes (onde encostam na água)
   for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {
-    const x = wxp + i;
-    if (x < -12 || x > W + 4) continue;
+    const x0 = Math.max(0, wxp + i), x1 = Math.min(W, wxp + i + 8);
+    if (x1 - x0 < 1) continue;
     const ph = i * 0.37;
-    const h = Math.max(0.2, 1.3 + 1.0 * Math.sin(t * 1.6 + ph) + 0.6 * Math.sin(t * 2.7 + ph * 1.7));   // quanto a água sobe no poste (0 a ~3px)
-    rect("rgba(0,0,0,.18)", x, BOTTOM - 4, 8, 4 - h + 0.01);                     // madeira úmida logo acima da água
-    rect("rgba(20,12,8,.5)", x, BOTTOM - h, 8, h);                               // parte molhada: escurece a madeira (sem pintar de azul)
-    rect(`rgba(225,240,248,${0.25 + 0.15 * h})`, x - 0.5, BOTTOM - h - 0.6, 9, 1);   // espuminha na crista
+    const h = Math.max(0.6, 1.3 + 1.0 * Math.sin(t * 1.6 + ph) + 0.6 * Math.sin(t * 2.7 + ph * 1.7));   // quanto a água sobe no poste (0 a ~3px)
+    rect("rgba(0,0,0,.18)", x0, BOTTOM - 4, x1 - x0, 4 - h + 0.01);              // madeira úmida logo acima da água
+    ctx.globalAlpha = 0.93;
+    ctx.drawImage(buf, x0 * S, (BOTTOM + 1) * S, (x1 - x0) * S, h * S, x0, BOTTOM - h, x1 - x0, h);   // água de verdade cobrindo o pé do poste
+    ctx.globalAlpha = 1;
+    rect(`rgba(225,240,250,${0.3 + 0.12 * h})`, x0, BOTTOM - h, x1 - x0, 0.9);   // borda de cima mais clara (contraste)
   }
 }
 
