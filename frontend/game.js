@@ -640,12 +640,11 @@ function roundPath(x, y, w, h, r) {
 }
 function nokiaScreen(sw, sh, inv) {                                      // layout do LCD (coordenadas em px lógicos a partir do canto da tela)
   sh = Math.round(sh);
-  for (let i = 0; i < 4; i++) rect(LCD_INK, 2, 4 + i * 3, 6 - i, 2);      // sinal: barrinhas na lateral esquerda
-  rect(LCD_INK, sw - 6, 3, 3, 1);                                        // bateria na lateral direita
-  for (let i = 0; i < 4; i++) rect(LCD_INK, sw - 8, 5 + i * 3, 7, 2);
+  sw = Math.round(sw);                                                   // largura inteira: tudo alinhado em pixels
   ctx.font = NOKIA_FONT; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
   ctx.fillStyle = LCD_INK; ctx.fillText("Menu", 11, 11);
-  rect(LCD_INK, 11, 14, sw - 22, 1);
+  const lx = 11, lw = sw - 22;
+  rect(LCD_INK, lx, 14, lw, 1);                                          // linha abaixo de "Menu"
   if (inv) rect(LCD_INK, 2, 17, sw - 4, 19);                              // opção selecionada em vídeo invertido (largura total, abaixo dos ícones)
   ctx.fillStyle = inv ? LCD_BG : LCD_INK;
   const fit = (str, x, y, maxW) => {                                      // se a fonte for mais larga que a tela, comprime só esse texto (nunca corta)
@@ -655,7 +654,8 @@ function nokiaScreen(sw, sh, inv) {                                      // layo
   };
   fit("Personalizar", 5, 26, sw - 10); fit("personagem", 5, 34, sw - 10);
   const m = ctx.measureText("Selec."), tw = Math.round(m.width), asc = Math.ceil(m.actualBoundingBoxAscent || 6);   // botão de baixo: caixa se ajusta ao texto
-  const bw = tw + 8, bh = asc + 6, bx = Math.round((sw - bw) / 2), by = sh - bh - 2;
+  let bw = tw + 8; if ((bw - lw) % 2) bw++;                                                                        // mesma paridade da linha: os centros coincidem
+  const bh = asc + 6, bx = lx + (lw - bw) / 2, by = sh - bh - 2;                                                  // botão centralizado com a linha de baixo do "Menu"
   rect(LCD_INK, bx + 1, by, bw - 2, 1); rect(LCD_INK, bx + 1, by + bh - 1, bw - 2, 1);                            // contorno arredondado feito em pixels inteiros
   rect(LCD_INK, bx, by + 1, 1, bh - 2); rect(LCD_INK, bx + bw - 1, by + 1, 1, bh - 2);
   ctx.fillStyle = LCD_INK; ctx.fillText("Selec.", bx + 4, by + 3 + asc);
