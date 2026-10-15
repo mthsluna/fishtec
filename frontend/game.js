@@ -605,15 +605,37 @@ function buildLayers(now) {
       if (rn() < 0.5) rect(`rgba(70,36,100,${0.08 + 0.1 * k})`, x + len * 0.3, y + 1.6, len * 0.7, 0.8);
     }
   });
-  const deck = layer(() => {
+  const deck = layer(() => {                                           // cais: topo iluminado pelo sol, tábuas de tons variados, frente em viga sombreada
     ctx.translate(EXT, 0);
-    rect("#1a1230", -EXT, PIER_Y + 8, LW, WATER_Y - PIER_Y - 8);
-    rect("#6b4226", -EXT, PIER_Y, LW, 8); rect("#a06f42", -EXT, PIER_Y, LW, 3); rect("#4a2d19", -EXT, PIER_Y + 6, LW, 2);
-    for (let i = -EXT; i < WORLD + EXT; i += 24) rect("rgba(0,0,0,.35)", i, PIER_Y, 0.8, 6);
+    let rr = 31; const rn = () => (rr = rr * 16807 % 2147483647) / 2147483647;
+    const g = ctx.createLinearGradient(0, PIER_Y + 3, 0, PIER_Y + 8);   // frente (viga): de madeira morna para sombra roxa embaixo
+    g.addColorStop(0, "#8f5d3c"); g.addColorStop(0.5, "#73482f"); g.addColorStop(1, "#47293a");
+    ctx.fillStyle = g; ctx.fillRect(-EXT, PIER_Y + 3, LW, 5);
+    const TONES = ["#d29a64", "#c58b57", "#dca56e", "#b97f4f"];
+    for (let x = -EXT; x < WORLD + EXT;) {                               // tábuas do topo, cada uma com seu tom, veio e pregos
+      const w = 16 + rn() * 16, tone = TONES[rn() * 4 | 0];
+      rect(tone, x, PIER_Y, w - 0.8, 3);
+      rect("rgba(255,226,180,.3)", x + rn() * w * 0.4, PIER_Y + 0.9, w * (0.2 + rn() * 0.3), 0.6);
+      rect("rgba(90,50,30,.35)", x + rn() * w * 0.5, PIER_Y + 2, w * (0.2 + rn() * 0.3), 0.6);
+      rect("#6b3f28", x + w - 0.8, PIER_Y, 0.8, 8);                      // fresta entre tábuas (desce pela frente)
+      rect("rgba(60,34,22,.6)", x + 1.8, PIER_Y + 1.2, 0.8, 0.8); rect("rgba(60,34,22,.6)", x + w - 3, PIER_Y + 1.2, 0.8, 0.8);
+      x += w;
+    }
+    rect("rgba(255,214,160,.65)", -EXT, PIER_Y, LW, 0.8);               // fio de luz na quina de cima
+    rect("rgba(40,22,30,.5)", -EXT, PIER_Y + 3, LW, 0.8);               // sombra logo abaixo da quina
+    rect("rgba(255,200,150,.18)", -EXT, PIER_Y + 4.2, LW, 0.6);         // reflexo rosado do céu na viga
+    rect("rgba(20,10,36,.6)", -EXT, PIER_Y + 7, LW, 1);                 // sombra da borda de baixo
   });
-  const posts = layer(() => {
+  const posts = layer(() => {                                          // postes: sombra à esquerda, luz do sol à direita, faixas, e escurecem na água
     ctx.translate(EXT, 0);
-    for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) { rect("#3b2314", i, PIER_Y + 8, 8, 32); rect("#5a3b22", i + 1, PIER_Y + 8, 2.5, 32); }
+    for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {
+      rect("#3a2230", i, PIER_Y + 8, 3, 32); rect("#6b4329", i + 3, PIER_Y + 8, 3, 32); rect("#b8704c", i + 6, PIER_Y + 8, 2, 32);
+      for (let y = PIER_Y + 14; y < PIER_Y + 38; y += 6.5) rect("rgba(20,10,30,.22)", i, y, 8, 0.8);
+      rect("rgba(255,210,170,.25)", i + 6, PIER_Y + 8, 0.8, 32);
+      const g = ctx.createLinearGradient(0, PIER_Y + 8, 0, PIER_Y + 40);
+      g.addColorStop(0, "rgba(20,8,34,.5)"); g.addColorStop(0.2, "rgba(20,8,34,0)"); g.addColorStop(0.6, "rgba(20,8,34,0)"); g.addColorStop(1, "rgba(30,20,58,.5)");
+      ctx.fillStyle = g; ctx.fillRect(i, PIER_Y + 8, 8, 32);             // sombra do deck no topo e umidade na base
+    }
   });
   const water = layer(() => {
     const g = ctx.createLinearGradient(0, WATER_Y, 0, H);
@@ -699,6 +721,17 @@ function drawWaves(now, ox) {
 // ---------- Água batendo nos postes: no pé de cada poste a própria água sobe só um pouquinho e desce ----------
 // A faixa que cobre o poste é copiada da água logo abaixo dele (mesma cor, ondas e brilho), então a água "vai junto";
 // uma linha clara fina na borda de cima dá o contraste.
+function pierShadow(now, wxp) {            // sombra do cais caindo na água logo abaixo: forte junto do deck e sumindo para a frente
+  const t = now / 1000, g = ctx.createLinearGradient(0, PIER_Y + 8, 0, PIER_Y + 52);
+  g.addColorStop(0, "rgba(22,10,44,.75)"); g.addColorStop(0.3, "rgba(22,10,44,.6)"); g.addColorStop(0.65, "rgba(22,10,44,.28)"); g.addColorStop(1, "rgba(22,10,44,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, PIER_Y + 8, W, 44);
+  for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {                   // sombra de cada poste, balançando de leve com a água
+    const x = wxp + i; if (x < -20 || x > W + 20) continue;
+    const sw = Math.sin(t * 1.4 + i * 0.37) * 1.2, pg = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 22);
+    pg.addColorStop(0, "rgba(14,6,30,.38)"); pg.addColorStop(1, "rgba(14,6,30,0)");
+    ctx.fillStyle = pg; ctx.fillRect(x - 1 + sw, WATER_Y, 11, 22);
+  }
+}
 function postWaves(now, wxp) {
   const t = now / 1000, BOTTOM = PIER_Y + 8 + 32;                       // base dos postes (onde encostam na água)
   for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {
@@ -754,6 +787,7 @@ function draw(now) {
   ctx.drawImage(layers.water, 0, 0, W, H);
   drawReflection(now);
   drawWaves(now, ox);                                      // ondas, sombras e o brilho do sol na água
+  pierShadow(now, ox + camX);
   ctx.drawImage(layers.posts, lx(PAR.pier), 0, LW, H);
   postWaves(now, ox + camX);
 
