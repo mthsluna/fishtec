@@ -540,6 +540,35 @@ function drawGulls(now) {
     ctx.beginPath(); ctx.moveTo(x - tx, ty); ctx.lineTo(x - ex, ey); ctx.lineTo(x, y); ctx.lineTo(x + ex, ey); ctx.lineTo(x + tx, ty); ctx.stroke();
   }
 }
+// ---------- Neblina: faixas baixas e irregulares (nada de manchas redondas), na cor do pôr do sol, que derivam bem devagar ----------
+function periodicNoise(seed, period) {                                  // ruído que "fecha" nas pontas, para a faixa poder emendar ao derivar
+  let r = seed; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
+  const t = Array.from({ length: period }, rnd);
+  return x => { const i = Math.floor(x), f = x - i, k = f * f * (3 - 2 * f); return t[((i % period) + period) % period] * (1 - k) + t[(((i + 1) % period) + period) % period] * k; };
+}
+const FOGS = [                                                          // y0/bh = posição e altura da faixa; str = força; sp = px/s (negativo = vai para a esquerda)
+  { y0: 92,  bh: 40, str: 0.30, rgb: [255, 192, 164], seed: 5,  sc: 0.012, par: 0.31, sp: 4 },     // entre as montanhas de trás e as do meio
+  { y0: 100, bh: 34, str: 0.34, rgb: [255, 196, 170], seed: 17, sc: 0.016, par: 0.44, sp: -5 },    // entre as do meio e as da frente
+  { y0: HZ - 20, bh: 34, str: 0.50, rgb: [255, 208, 186], seed: 29, sc: 0.010, par: 0.75, sp: 2.5 },  // rente à margem e à água distante
+];
+function makeFog(f) {
+  const w = Math.round(LW * S), h = Math.round(f.bh * S), period = Math.max(2, Math.round(LW * f.sc));
+  const n1 = periodicNoise(f.seed, period), n2 = periodicNoise(f.seed + 9, period * 2);
+  const im = new ImageData(w, h), d = im.data, sm = (a, b, v) => { const k = clamp01((v - a) / (b - a)); return k * k * (3 - 2 * k); };
+  for (let i = 0; i < w; i++) {
+    const x = i * LW / w, m = clamp01((0.62 * n1(x * f.sc) + 0.38 * n2(x * f.sc * 2) - 0.22) * 1.9);   // trechos mais densos e trechos quase limpos
+    for (let j = 0; j < h; j++) {
+      const v = j / (h - 1), a = f.str * sm(0, 0.62, v) * (1 - sm(0.72, 1, v)) * (0.15 + 0.85 * m), p = (j * w + i) * 4;
+      d[p] = f.rgb[0]; d[p + 1] = f.rgb[1]; d[p + 2] = f.rgb[2]; d[p + 3] = a * 255;
+    }
+  }
+  const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").putImageData(im, 0, 0); return c;
+}
+function drawFog(i, now, ox) {
+  const f = FOGS[i], x0 = ox + camX * f.par - EXT, d = ((now / 1000 * f.sp) % LW + LW) % LW;
+  ctx.drawImage(layers.fogs[i], x0 + d - LW, f.y0, LW, f.bh);
+  ctx.drawImage(layers.fogs[i], x0 + d, f.y0, LW, f.bh);
+}
 function buildLayers(now) {
   // todas as camadas usam coordenadas do mundo (0..480) e têm EXT px de sobra de cada lado
   const sky = layer(() => {
@@ -552,11 +581,11 @@ function buildLayers(now) {
     ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
   });
   const far = mountains({ seed: 5, base: 120, amp: 64, f: 0.011, sharp: 1.0, skew: 0.55, k: 0.16, fd: 55, shA: 0.75, ltA: 0.55,
-    top: "#8a4684", bot: "#d27088", shadow: "#5e3274", lit: "#ffb88a", mist: 0.35, mistH: 55 });
+    top: "#8a4684", bot: "#d27088", shadow: "#5e3274", lit: "#ffb88a", mist: 0.5, mistH: 62 });
   const mid = mountains({ seed: 23, base: 125, amp: 46, f: 0.017, sharp: 1.0, skew: 0.5, k: 0.18, fd: 45, shA: 0.8, ltA: 0.55,
-    top: "#6a3a78", bot: "#b4587f", shadow: "#46285f", lit: "#f0907f", mist: 0.25, mistH: 45 });
+    top: "#6a3a78", bot: "#b4587f", shadow: "#46285f", lit: "#f0907f", mist: 0.38, mistH: 52 });
   const near = mountains({ seed: 71, base: 129, amp: 32, f: 0.026, sharp: 1.0, skew: 0.45, k: 0.2, fd: 36, shA: 0.85, ltA: 0.5,
-    top: "#46285f", bot: "#7c4079", shadow: "#2c1a48", lit: "#c8658a", mist: 0.12, mistH: 30 });
+    top: "#46285f", bot: "#7c4079", shadow: "#2c1a48", lit: "#c8658a", mist: 0.22, mistH: 38 });
   const hills = pineHills(9);
   const lake = layer(() => {                                          // lago distante entre a margem e o cais
     ctx.translate(EXT, 0);
@@ -596,7 +625,7 @@ function buildLayers(now) {
     const n = Math.floor((now / 1000 + c.seed * 3.7) / c.m);
     return { n, a: makeCloud(c.w, c.h, c.seed + n * 101, c.tone), b: makeCloud(c.w, c.h, c.seed + (n + 1) * 101, c.tone) };
   });
-  layers = { sky, far, mid, near, hills, lake, deck, posts, water, clouds };
+  layers = { sky, far, mid, near, hills, lake, deck, posts, water, clouds, fogs: FOGS.map(makeFog) };
 }
 
 // ---------- Parallax: cada camada acompanha a câmera numa fração diferente (0 = parada no fundo, 1 = mesma do cais) ----------
@@ -706,10 +735,13 @@ function draw(now) {
   });
   drawGulls(now);                                          // gaivotas bem ao fundo, atrás das montanhas
   ctx.drawImage(layers.far, lx(PAR.far), 0, LW, H);
+  drawFog(0, now, ox);
   ctx.drawImage(layers.mid, lx(PAR.mid), 0, LW, H);
+  drawFog(1, now, ox);
   ctx.drawImage(layers.near, lx(PAR.near), 0, LW, H);
   ctx.drawImage(layers.hills, lx(PAR.hills), 0, LW, H);
   ctx.drawImage(layers.lake, lx(PAR.lake), 0, LW, H);
+  drawFog(2, now, ox);
   drawLakeGlints(now, ox + camX * PAR.sky + 366);
   ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
   ctx.save(); ctx.translate(wx, 0);
