@@ -147,6 +147,13 @@ const keys = {};
 
 // ---------- Multiplayer ----------
 const others = {};
+// Aparência (personalizável): camiseta, calça e altura. TW = meia largura do tronco (fino o bastante para a altura máxima não passar o Malto).
+const TW = 5, AW = TW - 0.5;
+const MALTO_TOP = 51, FISHER_TOP = 40, MAX_H = MALTO_TOP / FISHER_TOP;       // altura máxima = a do Malto (quepe a 51px do chão; o chapéu do pescador a 40px)
+const hScale = h => 1 + (MAX_H - 1) * Math.max(0, Math.min(1, +h || 0));    // h: 0 (altura normal) ... 1 (altura do Malto)
+const DEF_SHIRT = "#c0392b", DEF_PANTS = "#26384a";
+const shade = (hex, f) => "#" + [1, 3, 5].map(i => Math.round(parseInt(hex.substr(i, 2), 16) * f).toString(16).padStart(2, "0")).join("");
+let LEGS = [shade(DEF_PANTS, 0.75), DEF_PANTS];                              // perna de trás (escura) e da frente
 let myName = "";
 const me = { shirt: DEF_SHIRT, pants: DEF_PANTS, h: 0 };                        // minha aparência (h: 0 a 1)
 let ready = false;                                                              // só entra na sala depois da tela de personalizar
@@ -222,13 +229,6 @@ function rodPose(R, b) {                                   // soma a animação 
 // ---------- Giro de lado -> de frente, parte por parte: primeiro a cabeça, depois o tronco, depois as pernas ----------
 // Cada parte é desenhada como um cilindro girando em torno do eixo vertical: x_tela = profundidade*cos(a) + lateral*sen(a)
 // (a = 0 é de lado, a = 90° é de frente). Os detalhes do rosto, do cinto e dos braços deslizam pela superfície enquanto giram.
-// Aparência (personalizável): camiseta, calça e altura. TW = meia largura do tronco (fino o bastante para a altura máxima não passar o Malto).
-const TW = 5, AW = TW - 0.5;
-const MALTO_TOP = 51, FISHER_TOP = 40, MAX_H = MALTO_TOP / FISHER_TOP;       // altura máxima = a do Malto (quepe a 51px do chão; o chapéu do pescador a 40px)
-const hScale = h => 1 + (MAX_H - 1) * Math.max(0, Math.min(1, +h || 0));    // h: 0 (altura normal) ... 1 (altura do Malto)
-const DEF_SHIRT = "#c0392b", DEF_PANTS = "#26384a";
-const shade = (hex, f) => "#" + [1, 3, 5].map(i => Math.round(parseInt(hex.substr(i, 2), 16) * f).toString(16).padStart(2, "0")).join("");
-let LEGS = [shade(DEF_PANTS, 0.75), DEF_PANTS];                              // perna de trás (escura) e da frente
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
   const hs = look && look.hs || 1, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
   LEGS = [shade(pants, 0.75), pants];
