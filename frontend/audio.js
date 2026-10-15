@@ -12,7 +12,7 @@ const SND = (() => {
     "catch_splash", "catch_chime", "fish_escaped",
   ];
   const AMBIENCE = [["ambient_sea", 0.3], ["ambient_wind", 0.08], ["ambient_water_lap", 0.18]];   // volumes de cada loop (0 a 1)
-  const CREAK_VOL = 0.22, CREAK_EVERY = [0.75, 1.25];      // ranger constante do cais: volume e intervalo (s)
+  const CREAK_VOL = 0.28;                                  // volume do ranger da madeira a cada passo
 
   let ac = null, master = null, sfx = null, amb = null;
   const buf = {};
@@ -41,18 +41,13 @@ const SND = (() => {
       s.connect(g); g.connect(amb);
       s.start(0, Math.random() * buf[n].duration);       // cada visita começa num ponto diferente
     });
-    creak();
   }
 
-  // madeira do cais rangendo o tempo todo: "nhec... nhec... nhec"
+  // ranger da madeira: só toca junto com cada passo ("nhec... nhec... nhec")
   let lastCreak = 0;
   function creak() {
-    if (buf.pier_creak_1 || buf.pier_creak_2) {
-      lastCreak = lastCreak === 1 ? 2 : 1;               // alterna 1, 2, 1, 2...
-      const n = buf["pier_creak_" + lastCreak] ? lastCreak : 3 - lastCreak;
-      play("pier_creak_" + n, { vol: CREAK_VOL, jitter: 0.12 });
-    }
-    setTimeout(creak, rnd(CREAK_EVERY[0], CREAK_EVERY[1]) * 1000);
+    lastCreak = lastCreak === 1 ? 2 : 1;                 // alterna 1, 2, 1, 2...
+    play("pier_creak_" + lastCreak, { vol: CREAK_VOL, jitter: 0.12, delay: 0.02 });
   }
 
   // carretilha em loop: liga/desliga com fade enquanto segura ESPAÇO
@@ -105,6 +100,7 @@ const SND = (() => {
     step() {                                              // nunca repete o mesmo passo duas vezes seguidas
       let i; do { i = 1 + (Math.random() * 4 | 0); } while (i === lastStep); lastStep = i;
       play("step_wood_" + i, { vol: 0.45, jitter: 0.08 });
+      creak();
     },
     cast() { play("cast_whoosh", { vol: 0.6, delay: 0.25 }); },          // o swish acompanha o chicote da vara
     splash() { play("bobber_splash_" + (1 + (Math.random() * 3 | 0)), { vol: 0.5 }); },   // toca quando a isca cai na água
