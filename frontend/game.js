@@ -139,8 +139,8 @@ let stepDist = 0, reelT = 0;                       // controle dos sons de passo
 const WALK = 90, RUN = 165;                       // velocidades (px/s): andar e correr (SHIFT)
 let spd = 0, runK = 0, brake = 0, dustT = 0, wasBraking = false;   // velocidade atual, quanto está correndo (0-1), quanto está freando (0-1)
 const dust = [];                                  // fumacinha da freada
-const rodL = newRod();
-let wantDraw = false, stowGoal = 0, runT = 0, calmT = 0, vigK = 0;   // stowGoal/runT/calmT: histerese (só guarda correndo de verdade, só saca depois de calmo); vigK: vinheta                  // vara: 0 = na mão, 1 = nas costas; wantDraw = quer lançar mas ainda está sacando a vara
+const rodL = newRod(1);                           // a vara começa (e fica) nas costas; só é sacada para pescar
+let wantDraw = false, vigK = 0;                    // wantDraw: quer lançar mas ainda está sacando a vara; vigK: vinheta
 const STOW_T = 0.6, DRAW_T = 0.55;                // segundos para guardar nas costas / sacar de volta
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
@@ -162,8 +162,7 @@ function net(now) {
   if (!socket || !socket.connected) return;
   if (now - lastNet < 66 && state === lastSt) return;            // 15x por segundo, ou na hora se o estado mudou
   lastNet = now; lastSt = state;
-  const rs = state === "walk" && stowGoal === 1;   // vara guardada nas costas (correndo)
-  socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x, rs });
+  socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
 }
 function softShadow(x, y, rx, ry, a, maxY) {                       // sombra macia: centro mais escuro e bordas que somem (maxY: não passa da borda do deck)
   ctx.save();
@@ -200,7 +199,7 @@ function spl(K, x) {                                       // interpolação cú
   return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * m(i) * h + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * m(i + 1) * h;
 }
 const ease3 = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-function newRod() { return { k: 0, v: 0, st: 9 }; }        // k: progresso, v: velocidade suavizada, st: tempo desde que parou
+function newRod(k = 0) { return { k, v: 0, st: 9 }; }        // k: progresso, v: velocidade suavizada, st: tempo desde que parou
 function stepRod(R, goal, dt) {
   const o = R.k;
   R.k += Math.sign(goal - R.k) * Math.min(Math.abs(goal - R.k), dt / (goal ? STOW_T : DRAW_T));
@@ -221,7 +220,7 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const bob = (P.brake ? 1.1 * P.brake : -Math.abs(Math.cos(ph)) * 1.4 * amp) + (P.sb || 0);   // freando: agacha um pouco
   const s = P.stow !== undefined ? P.stow : 0;                                      // vara: 0 na mão ... 1 nas costas
   const sv = P.sv || 0, wig = P.wig || 0;
-  const A0 = P.run !== undefined && !P.brake ? 1.05 + sw * 0.85 : P.arm;             // para onde o braço volta ao soltar a vara (correndo: balança com o corpo)
+  const A0 = P.run !== undefined && !P.brake ? (1.4 - 0.35 * (P.run || 0)) + sw * (0.55 + 0.3 * (P.run || 0)) : P.arm;             // para onde o braço volta ao soltar a vara (correndo: balança com o corpo)
   const A = s <= 0 ? P.arm : s < SL0 ? spl(K_ARM, s) + P.arm * Math.max(0, 1 - s / 0.3) : s < 0.70 ? RA : lerp(RA, A0 - 2 * Math.PI, spl(K_REL, (s - 0.70) / 0.30));   // o braço cai por trás das costas (não atravessa o rosto)   // sobe, segura no alto e só então solta (com sobra)
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
   softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
@@ -519,10 +518,9 @@ function drawOther(p, now) {
     if (p.state === "reel") p.ra = 0;
   }
   let pose = null;
-  const goal = p.state === "walk" && p.rs ? 1 : 0;                // vara dele: guarda nas costas ao correr e saca ao parar
-  const rd = p.rd || (p.rd = newRod());
-  if (p.state !== "walk") { rd.k = 0; rd.v = 0; rd.st = 9; } else stepRod(rd, goal, dt);
-  if (p.state === "walk" && (rd.k > 0.001 || rd.st < 1.4)) pose = rodPose(rd, { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 });
+  const rd = p.rd || (p.rd = newRod(1));                       // quem não está pescando anda com a vara nas costas
+  if (p.state !== "walk") { rd.k = 0; rd.v = 0; rd.st = 9; } else stepRod(rd, 1, dt);
+  if (p.state === "walk") pose = rodPose(rd, { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 });
   if (p.state === "cast" && p.cs) {
     p.cs.t = (now - p.c0) / 1000;
     pose = castPose(p.cs.t);
@@ -670,8 +668,7 @@ function movePose() {                                                           
   let base = null;
   if (brake > 0.08) base = { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
   else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
-  if (!base && rodL.k <= 0.001 && rodL.st >= 1.4) return null;
-  return rodPose(rodL, base || { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 });
+  return rodPose(rodL, base || { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 });   // (sempre com a animação da vara: nas costas, guardando ou sacando)
 }
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
@@ -680,12 +677,9 @@ function update(dt) {
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
   vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
-  if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; rodL.k = 0; rodL.v = 0; rodL.st = 9; wantDraw = false; stowGoal = 0; runT = 0; calmT = 0; }
-  else {                                                                       // vara: guarda nas costas ao correr e saca de volta ao parar
-    if (runK > 0.3) { runT += dt; calmT = 0; } else { runT = 0; if (runK > 0.05 || brake > 0.08) calmT = 0; else calmT += dt; }
-    if (!stowGoal && runT > 0.2) stowGoal = 1;                                  // só guarda depois de correr de verdade por um instante
-    if (stowGoal && (calmT > 0.25 || wantDraw)) stowGoal = 0;                   // só saca depois de ficar calmo (ou ao querer lançar)
-    stepRod(rodL, stowGoal, dt * (wantDraw ? 1.5 : 1));                         // quer lançar: saca a vara mais depressa
+  if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; rodL.k = state === "show" ? 1 : 0; rodL.v = 0; rodL.st = 9; wantDraw = false; }   // pescando: vara na mão; comemorando: já guardada
+  else {                                                                       // andando: a vara fica nas costas; ao fim da pescaria ela é guardada de novo
+    stepRod(rodL, wantDraw ? 0 : 1, dt * (wantDraw ? 1.5 : 1));                 // andando/correndo: vara nas costas; quer lançar: saca (mais depressa)
     if (wantDraw && rodL.k <= 0.001) { wantDraw = false; rodL.k = 0; startCast(); return; }   // vara na mão: agora sim lança
   }
   for (let i = dust.length - 1; i >= 0; i--) {                                  // fumacinha da freada sobe e some
