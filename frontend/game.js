@@ -140,6 +140,15 @@ function net(now) {
   socket.volatile.emit("move", { x: px, dir, state: state === "cast" ? "wait" : state, bx: bobber.x });   // o servidor só conhece walk/wait/bite/reel
 }
 const REST = -0.846, POSE0 = { rod: REST, arm: 0, lean: 0, flex: 0 };   // pose parada da vara
+// formas arredondadas (o personagem é feito de curvas, não de retângulos)
+function rrPath(x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+const rr = (c, x, y, w, h, r) => { ctx.fillStyle = c; rrPath(x, y, w, h, r); ctx.fill(); };
+const dot = (c, x, y, r) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
   const ph = x * dir / 11, sw = Math.sin(ph) * amp, bob = -Math.abs(Math.cos(ph)) * 1.4 * amp;
@@ -147,26 +156,32 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 9, 2, 0, 0, 7); ctx.fill();
   const leg = (a, col) => {                                                      // perna gira a partir do quadril
     ctx.save(); ctx.translate(0, -11 + bob); ctx.rotate(a);
-    rect(col, -2.3, 0, 4.6, 9); rect("#15110e", -3, 8.5, 6.6, 2.5);
+    rr(col, -2.3, -1, 4.6, 10, 2.3); rr("#15110e", -3, 8, 6.6, 3, 1.5);
     ctx.restore();
   };
   leg(-sw * 0.75, "#1c2a38"); leg(sw * 0.75, "#26384a");                         // trás (escura) e frente
   ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
-  rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
+  rr(shirt, -1.7, -1, 3.4, 10, 1.7); rr("rgba(0,0,0,.35)", -1.7, -1, 3.4, 10, 1.7); dot("#d9ab6f", 0, 10, 1.9);
   ctx.restore();
-  ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril                                                         // tronco sobe e desce ao andar
-  rect(shirt, -6, -24, 12, 14);
+  ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril
+  ctx.save(); rr(shirt, -6, -24, 12, 14, 5); ctx.clip();                          // tronco arredondado, com sombra, luz e cinto recortados na forma
   rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
-  rect("#5a3b22", -6, -12, 12, 2);
-  ctx.save(); ctx.translate(3, -20.25); ctx.rotate(P.arm);                                 // antebraço gira no ombro
-  rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5);
+  rect("#5a3b22", -6, -12.5, 12, 2);
   ctx.restore();
-  
-  rect("#e0ac69", -3, -26, 4, 2.5);
-  rect("#f1c27d", -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
-  rect("#2a1a10", 2.5, -30, 1.6, 1.8); rect("#c98d5a", 4, -27.5, 2, 1);
-  rect(hat, -6, -35.5, 14, 3); rect(hat, -3.5, -40, 9, 5);
-  rect("rgba(0,0,0,.25)", -6, -34, 14, 1.2); rect("rgba(255,255,255,.35)", -3.5, -36.5, 9, 1.2);
+  ctx.save(); ctx.translate(3, -20.25); ctx.rotate(P.arm);                                 // antebraço gira no ombro
+  rr(shirt, -1.5, -1.75, 9.5, 3.5, 1.75); rr("rgba(0,0,0,.2)", 0, 0.6, 7.5, 1.1, 0.55); dot("#f1c27d", 8.8, 0, 2);
+  ctx.restore();
+
+  rr("#e0ac69", -3, -27, 4, 4, 1.6);                                                // pescoço
+  ctx.save(); rr("#f1c27d", -3.5, -33, 9, 8.5, 4); ctx.clip();                      // cabeça redonda
+  rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
+  ctx.restore();
+  dot("#e0ac69", -0.6, -28.8, 1.2);                                                 // orelha
+  dot("#2a1a10", 3.4, -29.2, 1); dot("#c98d5a", 5.3, -27.2, 1.1);                    // olho e nariz
+  ctx.fillStyle = hat; ctx.beginPath(); ctx.ellipse(1, -34, 7.2, 1.9, 0, 0, 7); ctx.fill();   // aba do chapéu
+  ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(1, -33.4, 6.6, 0.9, 0, 0, 7); ctx.fill();
+  rr(hat, -3.5, -40.5, 9, 7.5, 3.5);                                                // copa do chapéu
+  rr("rgba(255,255,255,.35)", -3.5, -37.2, 9, 1.2, 0.6);
   const ca = Math.cos(P.arm), sa = Math.sin(P.arm);
   const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
   const ra = P.rod - P.flex * 0.25, RL = 33.1;                       // a ponta da vara atrasa quando ela chicoteia
@@ -174,7 +189,7 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const cx = (hx + tx) / 2 + P.flex * 6.6 * Math.sin(P.rod), cy = (hy + ty) / 2 - P.flex * 6.6 * Math.cos(P.rod);
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke();
-  rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
+  dot("#b8b8b8", hx, hy, 1.7);                                                      // carretilha
   ctx.restore();
   const dy = ty + 11, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
   return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - 11 + bob };
