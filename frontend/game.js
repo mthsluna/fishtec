@@ -464,7 +464,7 @@ function mountains(o) {
     ctx.drawImage(tmp, 0, 0, LW, BASE);
   });
 }
-function pineHills(seed) {                  // floresta da frente: 2 fileiras (a de trás mais clara e enevoada), em grupos com clareiras
+function pineHills(seed) {                  // mata da frente: copas arredondadas (2 fileiras), com luz do sol na borda e pouquíssimos pinheiros
   return layer(() => {
     ctx.translate(EXT, 0);
     const BASE = 160, nz = valueNoise(seed + 3);
@@ -476,49 +476,60 @@ function pineHills(seed) {                  // floresta da frente: 2 fileiras (a
       P.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(P[n][0], BASE); ctx.closePath(); ctx.fill();
       return x => { const f = (x + EXT) / step, i = Math.max(0, Math.min(n - 1, Math.floor(f))); return lerp(P[i][1], P[i + 1][1], f - i); };
     };
-    const pine = (x, y, h, w, col, litCol) => {                       // 4 andares de copa, cada um com borda irregular, e o lado do sol iluminado
-      ctx.fillStyle = col; ctx.fillRect(x - 0.7, y - 2, 1.4, 3);
-      for (let t = 0; t < 4; t++) {
-        const ty = y - h + t * h * 0.22, hw = w * (0.38 + 0.2 * t), by = ty + h * 0.38, j = (rnd() - 0.5) * 0.8;
-        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, ty);
-        ctx.lineTo(x + hw * 0.55 + j, ty + (by - ty) * 0.55); ctx.lineTo(x + hw, by);
-        ctx.lineTo(x - hw, by + j * 0.5); ctx.lineTo(x - hw * 0.55 - j, ty + (by - ty) * 0.55); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = litCol; ctx.beginPath(); ctx.moveTo(x, ty); ctx.lineTo(x + hw * 0.55 + j, ty + (by - ty) * 0.55);
-        ctx.lineTo(x + hw, by); ctx.lineTo(x + hw * 0.3, by); ctx.lineTo(x + hw * 0.1, ty + (by - ty) * 0.5); ctx.closePath(); ctx.fill();
+    const canopy = (yAt, col, shade, lit, rMin, rMax, bump, so) => {      // fileira de copas arredondadas de tamanhos e alturas variados
+      const blobs = [];
+      for (let x = -EXT; x < WORLD + EXT;) {
+        const r = rMin + (rMax - rMin) * (0.5 * nz(x * 0.04 + so) + 0.5 * rnd());
+        blobs.push({ x, y: yAt(x) - r * 0.4 - bump * nz(x * 0.09 + so + 5), r });
+        x += r * (0.85 + rnd() * 0.6);
+      }
+      blobs.forEach(b => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); });
+      blobs.forEach(b => {                                                                  // cada copa: sombra embaixo/esquerda e luz em cima/direita (recortado na própria copa)
+        ctx.save(); ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.clip();
+        let g = ctx.createRadialGradient(b.x - b.r * 0.3, b.y + b.r * 0.5, 0, b.x - b.r * 0.3, b.y + b.r * 0.5, b.r * 1.1);
+        g.addColorStop(0, shade); g.addColorStop(1, shade.replace(/[\d.]+\)$/, "0)"));
+        ctx.fillStyle = g; ctx.fillRect(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
+        g = ctx.createRadialGradient(b.x + b.r * 0.35, b.y - b.r * 0.45, 0, b.x + b.r * 0.35, b.y - b.r * 0.45, b.r * 0.8);
+        g.addColorStop(0, lit); g.addColorStop(1, lit.replace(/[\d.]+\)$/, "0)"));
+        ctx.fillStyle = g; ctx.fillRect(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
+        ctx.restore();
+      });
+    };
+    const pine = (x, y, h, col, litCol) => {                       // pinheiro macio (poucos, só para quebrar a linha das copas)
+      const w = h * 0.4;
+      ctx.fillStyle = col; ctx.fillRect(x - 0.8, y - 2, 1.6, 3);
+      for (let t = 0; t < 3; t++) {
+        const ty = y - h + t * h * 0.27, hw = w * (0.5 + 0.28 * t), by = ty + h * 0.45;
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, ty); ctx.quadraticCurveTo(x + hw * 0.5, by - (by - ty) * 0.35, x + hw, by);
+        ctx.lineTo(x - hw, by); ctx.quadraticCurveTo(x - hw * 0.5, by - (by - ty) * 0.35, x, ty); ctx.fill();
+        ctx.fillStyle = litCol; ctx.beginPath(); ctx.moveTo(x, ty); ctx.quadraticCurveTo(x + hw * 0.5, by - (by - ty) * 0.35, x + hw, by); ctx.lineTo(x + hw * 0.25, by); ctx.closePath(); ctx.fill();
       }
     };
-    const forest = (yAt, col, lit, hMin, hMax, gap, off, nOff) => {
-      for (let x = -EXT; x < WORLD + EXT; x += gap * (0.55 + rnd() * 0.9)) {
-        const dens = nz(x * 0.035 + nOff);                                  // grupos de árvores e algumas clareiras
-        if (dens < 0.32 && rnd() < 0.8) continue;
-        const hh = hMin + (hMax - hMin) * Math.pow(0.55 * nz(x * 0.06 + nOff + 9) + 0.45 * rnd(), 1.1);
-        pine(x, yAt(x) + off, hh, hh * 0.46, col, lit);
-      }
-    };
-    const back = hill(seed, 146, 9, "#3c2360", "#2a1848");
-    forest(back, "#3a2260", "rgba(214,120,146,.42)", 7, 14, 5, 1, 0);
-    const front = hill(seed + 5, 152, 9, "#241540", "#1a1230");
-    forest(front, "#1f1334", "rgba(176,96,130,.5)", 10, 21, 5.5, 2, 40);
+    const back = hill(seed, 144, 6, "#3b2362", "#3b2362");
+    canopy(back, "#3b2362", "rgba(40,22,70,.5)", "rgba(222,128,150,.55)", 5, 9, 7, 0);
+    for (let x = -EXT + 10; x < WORLD + EXT; x += 38 + rnd() * 50) pine(x, back(x) + 1, 16 + rnd() * 8, "#33205a", "rgba(214,120,146,.4)");
+    const front = hill(seed + 5, 150, 5, "#21123a", "#1a1230");
+    canopy(front, "#21123a", "rgba(14,6,28,.6)", "rgba(190,100,135,.5)", 6, 11, 5, 40);
   });
 }
-// ---------- Gaivotas ao longe: silhuetas pequenas que batem as asas, planam e seguem em bandos soltos ----------
-const GULLS = [
-  { x: 40,  y: 52, s: 5,   v: 9,   ph: 0,   f: 5.5 }, { x: 62,  y: 60, s: 4.2, v: 9.5, ph: 1.7, f: 6.2 }, { x: 78, y: 49, s: 4.6, v: 8.6, ph: 3.1, f: 5.8 },
-  { x: 330, y: 96, s: 3.4, v: -6,  ph: 2.2, f: 6.5 }, { x: 352, y: 90, s: 3,  v: -6.4, ph: 4.0, f: 7 },
-  { x: 560, y: 34, s: 4,   v: 7,   ph: 5.1, f: 5 },   { x: 700, y: 72, s: 3.2, v: -5, ph: 0.9, f: 6.8 },
-];
-function drawGulls(now, off) {
-  const t = now / 1000, span = LW + 80;
+// ---------- Gaivotas ao longe: só de vez em quando passa um bando pequeno (1 a 3), pequenas, de asas quase retas ----------
+function drawGulls(now) {
+  const t = now / 1000, P = 70, CROSS = 30, k = Math.floor(t / P), u0 = (t - k * P) / CROSS;   // a cada 70s sorteia se passa um bando; atravessa a tela em ~30s
+  if (u0 > 1.2) return;
+  let r = k * 7919 + 13; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647; rnd(); rnd();
+  if (rnd() > 0.6) return;                                                   // ~40% das vezes não passa ninguém
+  const n = 1 + (rnd() * 3 | 0), dir = rnd() < 0.5 ? -1 : 1, y0 = 40 + rnd() * 55, off = camX * 0.08;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
-  GULLS.forEach(g => {
-    const x = (((g.x + t * g.v) % span) + span) % span - 40 + off;
-    const y = g.y + Math.sin(t * 0.5 + g.ph) * 3;
-    const glide = Math.sin(t * 0.35 + g.ph * 2) > 0.35 ? 0.12 : 1;               // de vez em quando planam de asas quase paradas
-    const fl = Math.sin(t * g.f + g.ph) * glide, s = g.s * 1.3, tipY = y - s * 0.15 + fl * s * 0.75, midY = y - s * 0.55 - fl * s * 0.2;
-    ctx.strokeStyle = "rgba(52,28,76,.85)"; ctx.lineWidth = Math.max(0.9, s * 0.28);
-    ctx.beginPath(); ctx.moveTo(x - s * 1.6, tipY); ctx.quadraticCurveTo(x - s * 0.8, midY, x, y);
-    ctx.quadraticCurveTo(x + s * 0.8, midY, x + s * 1.6, tipY); ctx.stroke();
-  });
+  for (let i = 0; i < n; i++) {
+    const ph = rnd() * 6.28, fr = 4.2 + rnd() * 1.4, s = 2 + rnd() * 0.7, dy = (rnd() - 0.5) * 12, u = u0 - i * 0.03;
+    if (u < 0 || u > 1) continue;
+    const x = (dir > 0 ? -20 + (W + 40) * u : W + 20 - (W + 40) * u) + off;
+    const y = y0 + dy + Math.sin(t * 0.5 + ph) * 2 - (u - 0.5) * 6;
+    const glide = Math.sin(t * 0.3 + ph * 2) > 0.3 ? 0.1 : 1, f = Math.sin(t * fr + ph) * glide;   // de vez em quando só planam
+    const ex = s * 0.95, ey = y - s * 0.3 + f * s * 0.2, tx = s * 1.9, ty = y + s * 0.1 + f * s * 0.6;
+    ctx.strokeStyle = "rgba(58,30,84,.8)"; ctx.lineWidth = 0.9;
+    ctx.beginPath(); ctx.moveTo(x - tx, ty); ctx.lineTo(x - ex, ey); ctx.lineTo(x, y); ctx.lineTo(x + ex, ey); ctx.lineTo(x + tx, ty); ctx.stroke();
+  }
 }
 function buildLayers(now) {
   // todas as camadas usam coordenadas do mundo (0..480) e têm EXT px de sobra de cada lado
@@ -666,7 +677,7 @@ function draw(now) {
     ctx.globalAlpha = e * k;       ctx.drawImage(cl.b, x, c.y, c.w, c.h);    // ...enquanto a outra aparece
     ctx.globalAlpha = 1;
   });
-  drawGulls(now, lx(PAR.sky + 0.03));                                          // gaivotas bem ao fundo, atrás das montanhas
+  drawGulls(now);                                          // gaivotas bem ao fundo, atrás das montanhas
   ctx.drawImage(layers.far, lx(PAR.far), 0, LW, H);
   ctx.drawImage(layers.mid, lx(PAR.mid), 0, LW, H);
   ctx.drawImage(layers.near, lx(PAR.near), 0, LW, H);
