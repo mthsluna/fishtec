@@ -283,8 +283,7 @@ function drawMalto(now) {
   ctx.beginPath(); ctx.moveTo(-6, S); ctx.lineTo(-2.2, S); ctx.lineTo(-3, -10.5); ctx.lineTo(-8.2, -10.5); ctx.lineTo(-6.6, -20); ctx.closePath();
   ctx.fillStyle = "rgba(20,28,50,.32)"; ctx.fill();                                // lado esquerdo na sombra
   rect("rgba(255,255,255,.14)", 4.6, S + 6, 1.2, 15);                              // luz do lado direito
-  coat(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.8; ctx.stroke();
-  rect("#0b0b10", -0.4, S + 8, 0.8, 21 - by);                                      // abertura da frente
+  rect("rgba(20,28,50,.4)", -0.4, S + 8, 0.8, 21 - by);                                      // abertura da frente
   [[-2.9, -22.4], [1.7, -22.4], [-3.1, -15.5], [1.9, -15.5]].forEach(([x, y]) => rect("#d9a441", x, y + by, 1.3, 1.3));   // botões dourados
   rect("#5a4631", -6.7, -20 + by * 0.5, 13.4, 2); rect("#d9a441", -1.1, -20.2 + by * 0.5, 2.2, 2.4); rect("#2a1d10", -0.4, -19.5 + by * 0.5, 0.8, 1);   // cinto com fivela
 
@@ -292,15 +291,13 @@ function drawMalto(now) {
   const hy = by - 5;
   ctx.beginPath(); ctx.moveTo(-2.4, S - 3); ctx.lineTo(2.4, S - 3); ctx.lineTo(0, S + 9); ctx.closePath(); ctx.fillStyle = "#1f2733"; ctx.fill();
   rect("#e8b98f", -1.8, S - 4, 3.6, 4.2);                                                                       // pescoço
-  ctx.lineWidth = 0.7; ctx.strokeStyle = "#0b0b10";
   ctx.beginPath(); ctx.moveTo(-1.8, S - 4); ctx.lineTo(-6.4, S - 3.4); ctx.lineTo(-6.8, S + 1); ctx.lineTo(-3.8, S + 5); ctx.lineTo(-0.5, S + 9); ctx.lineTo(-2, S + 1); ctx.closePath();
-  ctx.fillStyle = "#6f7d92"; ctx.fill(); ctx.stroke();                                                         // aba esquerda (na sombra)
+  ctx.fillStyle = "#6f7d92"; ctx.fill();                                                         // aba esquerda (na sombra)
   ctx.beginPath(); ctx.moveTo(1.8, S - 4); ctx.lineTo(6.4, S - 3.4); ctx.lineTo(6.8, S + 1); ctx.lineTo(3.8, S + 5); ctx.lineTo(0.5, S + 9); ctx.lineTo(2, S + 1); ctx.closePath();
-  ctx.fillStyle = "#a9b5c6"; ctx.fill(); ctx.stroke();                                                         // aba direita (na luz)
+  ctx.fillStyle = "#a9b5c6"; ctx.fill();                                                         // aba direita (na luz)
 
   // braço esquerdo solto
   ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.6, -14); ctx.stroke();
   ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.6, -14); ctx.stroke();
   rect("#f3c8a0", -9.2, -14.6, 3.2, 3.4);
 
@@ -325,8 +322,6 @@ function drawMalto(now) {
   const drag = u >= 3.8 && u < 5.2 ? Math.min(1, (u - 3.8) / 0.3, (5.2 - u) / 0.3) : 0;           // intensidade do trago
   const L = (a, b) => a + (b - a) * k;
   const hx = L(7.6, 3.7), hyy = L(-14.6, -36.4 + hy + 5), ex = L(6.7, 9.6), ey = L(-22, -25 + by);   // mão e cotovelo
-  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(ex, ey); ctx.lineTo(hx, hyy); ctx.stroke();
   ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(ex, ey); ctx.lineTo(hx, hyy); ctx.stroke();
   const th = -Math.PI / 2 * (1 - k), ox = L(-0.5, -3.9), CL = 5.6, cc = Math.cos(th), ss = Math.sin(th);   // cigarro gira de "pra cima" até "pra boca"
