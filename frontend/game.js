@@ -375,7 +375,11 @@ function layer(fn, w = LW, h = H) {        // desenha uma vez num canvas separad
   const prev = ctx; ctx = x; fn(); ctx = prev; return c;
 }
 // ---------- Nuvens realistas: volumes com sombra, corpo e luz do sol (vinda da direita/cima) ----------
-const CLOUDS = [                          // m = segundos que a nuvem leva para se transformar numa nova forma (bem lento)
+const CLOUDS = [                          // back: nuvens distantes (pequenas, lentas, mais apagadas), passam atrás das montanhas                          // m = segundos que a nuvem leva para se transformar numa nova forma (bem lento)
+  { back: 1, w: 62, h: 20, y: 92,  x: 60,  v: 1.1, tone: 2, seed: 61, m: 95 },
+  { back: 1, w: 48, h: 16, y: 104, x: 250, v: 0.8, tone: 2, seed: 67, m: 110 },
+  { back: 1, w: 70, h: 22, y: 84,  x: 420, v: 1.3, tone: 2, seed: 73, m: 85 },
+  { back: 1, w: 40, h: 14, y: 112, x: 560, v: 0.9, tone: 2, seed: 79, m: 100 },
   { w: 130, h: 46, y: 20, x: 200, v: 3.6, tone: 0, seed: 19, m: 75 },
   { w: 200, h: 72, y: 52, x: 30,  v: 2.4, tone: 1, seed: 7,  m: 60 },
   { w: 160, h: 56, y: 76, x: 330, v: 2.0, tone: 1, seed: 33, m: 90 },
@@ -383,7 +387,7 @@ const CLOUDS = [                          // m = segundos que a nuvem leva para 
 ];
 function makeCloud(w, h, seed, tone) {
   let r = seed; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
-  const T = [{ hi: "255,236,200", mid: "244,150,140", sh: "100,52,112" }, { hi: "255,214,190", mid: "220,112,150", sh: "74,40,104" }][tone];
+  const T = [{ hi: "255,236,200", mid: "244,150,140", sh: "100,52,112" }, { hi: "255,214,190", mid: "220,112,150", sh: "74,40,104" }, { hi: "255,214,180", mid: "238,150,150", sh: "150,84,130" }][tone];   // tone 2 = nuvem de longe, mais clara e sem contraste forte
   return layer(() => {
     const puffs = [], n = 14 + (rnd() * 6 | 0), yb = h * 0.78;
     for (let i = 0; i < n; i++) {
@@ -416,51 +420,48 @@ function ridgePts(seed, base, amp, rough, pow = 1.25, n = 128) {
   const mn = Math.min(...h), mx = Math.max(...h);
   return h.map((v, i) => [-EXT + i * LW / n, base - Math.pow((v - mn) / (mx - mn), pow) * amp]);
 }
+const hexRGB = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mixC = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+function valueNoise(seed) {
+  let r = seed; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
+  const t = Array.from({ length: 512 }, rnd);
+  return x => { const i = Math.floor(x), f = x - i, k = f * f * (3 - 2 * f), a = t[((i % 512) + 512) % 512], b = t[(((i + 1) % 512) + 512) % 512]; return a + (b - a) * k; };
+}
+// Montanhas pintadas: a crista vem de ruído suave (picos arredondados) e o sombreado é calculado por pixel.
+// Esporões descem diagonalmente de cada pico; os voltados para o sol (direita) clareiam, os outros escurecem,
+// e tudo some na névoa quente perto da base, igual ao resto do cenário.
 function mountains(o) {
   return layer(() => {
-    ctx.translate(EXT, 0);
-    const BASE = 160, P = ridgePts(o.seed, o.base, o.amp, o.rough, o.pow), n = P.length - 1;
-    const top = Math.min(...P.map(p => p[1]));
-    let rs = o.seed * 7 + 1; const rnd = () => (rs = rs * 16807 % 2147483647) / 2147483647;
-    const body = () => { ctx.beginPath(); ctx.moveTo(P[0][0], BASE); P.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(P[n][0], BASE); ctx.closePath(); };
-    let g = ctx.createLinearGradient(0, top, 0, BASE); g.addColorStop(0, o.top); g.addColorStop(1, o.bot);
-    ctx.fillStyle = g; body(); ctx.fill();
-    const peaks = [];
-    for (let i = 1; i < n; i++) if (P[i][1] < P[i - 1][1] && P[i][1] <= P[i + 1][1]) peaks.push(i);
-    // faces voltadas para o sol (direita): cunha clara que desce do pico e some na névoa
-    ctx.save(); body(); ctx.clip();
-    const litC = o.lit.replace(/,[\d.]+\)$/, ",");
-    peaks.forEach(p => {
-      let v = p; while (v < n && P[v + 1][1] >= P[v][1]) v++;
-      if (P[v][1] - P[p][1] < 6) return;
-      const xp = P[p][0], yp = P[p][1], xv = P[v][0], lean = 0.65 * (BASE - yp);
-      const lg = ctx.createLinearGradient(0, yp, 0, BASE); lg.addColorStop(0, o.lit); lg.addColorStop(1, litC + "0)");
-      ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(xp, yp);
-      for (let k = p + 1; k <= v; k++) ctx.lineTo(P[k][0], P[k][1]);
-      ctx.lineTo(xv, BASE); ctx.lineTo(xp - lean, BASE);
-      ctx.lineTo(xp - lean * 0.5 + (rnd() - 0.5) * 6, yp + (BASE - yp) * 0.5); ctx.closePath(); ctx.fill();
-    });
-    ctx.restore();
-    // neve nos picos mais altos (lado do sol em rosa-claro, lado da sombra em lilás)
-    if (o.snow) peaks.forEach(p => {
-      const yp = P[p][1]; if (yp > top + o.snow) return;
-      const cap = 8 + (BASE - yp) * 0.06;
-      let l = p, r = p; while (l > 0 && P[l - 1][1] <= yp + cap) l--; while (r < n && P[r + 1][1] <= yp + cap) r++;
-      const bot = k => Math.max(P[k][1], yp + cap * (0.55 + 0.45 * ((k * 7) % 5) / 4));
-      const poly = (a, b, col) => {
-        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(P[a][0], P[a][1]);
-        for (let k = a + 1; k <= b; k++) ctx.lineTo(P[k][0], P[k][1]);
-        for (let k = b; k >= a; k--) ctx.lineTo(P[k][0], bot(k));
-        ctx.closePath(); ctx.fill();
-      };
-      poly(l, r, o.snowSh); poly(p, r, o.snowLit);
-    });
-    // névoa quente na base (mistura a montanha com o horizonte)
-    ctx.globalCompositeOperation = "source-atop";
-    g = ctx.createLinearGradient(0, BASE - o.mistH, 0, BASE);
-    g.addColorStop(0, "rgba(255,196,150,0)"); g.addColorStop(1, `rgba(255,196,150,${o.mist})`);
-    ctx.fillStyle = g; ctx.fillRect(-EXT, 0, LW, BASE);
-    ctx.globalCompositeOperation = "source-over";
+    const BASE = 160, X0 = -EXT - 80, RES = 4, nz = valueNoise(o.seed);
+    const N = Math.ceil((LW + 160) * RES), tab = new Float32Array(N + 2);
+    for (let i = 0; i < tab.length; i++) {                               // tabela da forma (0..1), 4 oitavas, as 2 primeiras "em pico"
+      const x = X0 + i / RES; let v = 0, a = 0.55, f = o.f, sum = 0;
+      for (let k = 0; k < 4; k++) { const n = nz(x * f + k * 17.3), rg = 1 - Math.abs(2 * n - 1); v += a * (k < 2 ? Math.pow(rg, o.sharp) : n); sum += a; a *= 0.5; f *= 2.1; }
+      tab[i] = v / sum;
+    }
+    const R = u => tab[Math.max(0, Math.min(N, Math.round((u - X0) * RES)))];
+    const top = hexRGB(o.top), bot = hexRGB(o.bot), shd = hexRGB(o.shadow), lit = hexRGB(o.lit), mist = [255, 196, 150];
+    const w = Math.round(LW * S), h = Math.round(BASE * S), im = new ImageData(w, h), d = im.data;
+    const yTop = o.base - o.amp;
+    for (let i = 0; i < w; i++) {
+      const x = i * LW / w - EXT, yr = o.base - o.amp * R(x);
+      for (let j = 0; j < h; j++) {
+        const y = j * BASE / h, dy = y - yr;
+        if (dy < -0.6 / S) continue;
+        const u = x + dy * o.skew, ds = -o.amp * (R(u + 1.2) - R(u - 1.2));       // inclinação do esporão naquele ponto
+        const L = clamp01(0.5 + ds * o.k), fade = Math.exp(-Math.max(0, dy) / o.fd);
+        let c = mixC(top, bot, clamp01((y - yTop) / (BASE - yTop)));
+        c = mixC(c, shd, clamp01(0.5 - L) * 2 * o.shA * (0.35 + 0.65 * fade));
+        c = mixC(c, lit, clamp01(L - 0.5) * 2 * o.ltA * (0.25 + 0.75 * fade));
+        if (dy < 1.6 && L > 0.5) c = mixC(c, lit, 0.55 * (1 - dy / 1.6));          // fio de luz na crista
+        c = mixC(c, mist, o.mist * clamp01((y - (BASE - o.mistH)) / o.mistH));      // névoa quente na base
+        const p = (j * w + i) * 4;
+        d[p] = c[0]; d[p + 1] = c[1]; d[p + 2] = c[2]; d[p + 3] = clamp01(dy * S + 0.5) * 255;
+      }
+    }
+    const tmp = document.createElement("canvas"); tmp.width = w; tmp.height = h; tmp.getContext("2d").putImageData(im, 0, 0);
+    ctx.drawImage(tmp, 0, 0, LW, BASE);
   });
 }
 function pineHills(seed) {                  // colinas da frente, cobertas de pinheiros
@@ -492,12 +493,12 @@ function buildLayers(now) {
     g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
     ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
   });
-  const far = mountains({ seed: 5, base: 136, amp: 78, rough: 0.6, pow: 1.1, top: "#8a3f86", bot: "#c4607e",
-    lit: "rgba(255,190,150,.55)", snow: 16, snowSh: "#d7a0c8", snowLit: "#ffe6c8", mist: 0.32, mistH: 50 });
-  const mid = mountains({ seed: 23, base: 142, amp: 56, rough: 0.58, pow: 1.1, top: "#5e3069", bot: "#a24d7c",
-    lit: "rgba(238,134,130,.5)", snow: 6, snowSh: "#b88cc0", snowLit: "#f8c9b8", mist: 0.24, mistH: 42 });
-  const near = mountains({ seed: 71, base: 147, amp: 38, rough: 0.55, pow: 1.0, top: "#3a2054", bot: "#6c3a74",
-    lit: "rgba(196,100,128,.5)", snow: 0, mist: 0.12, mistH: 30 });
+  const far = mountains({ seed: 5, base: 140, amp: 62, f: 0.011, sharp: 1.0, skew: 0.55, k: 0.16, fd: 55, shA: 0.75, ltA: 0.55,
+    top: "#8a4684", bot: "#d27088", shadow: "#5e3274", lit: "#ffb88a", mist: 0.35, mistH: 55 });
+  const mid = mountains({ seed: 23, base: 146, amp: 46, f: 0.017, sharp: 1.0, skew: 0.5, k: 0.18, fd: 45, shA: 0.8, ltA: 0.55,
+    top: "#6a3a78", bot: "#b4587f", shadow: "#46285f", lit: "#f0907f", mist: 0.25, mistH: 45 });
+  const near = mountains({ seed: 71, base: 150, amp: 32, f: 0.026, sharp: 1.0, skew: 0.45, k: 0.2, fd: 36, shA: 0.85, ltA: 0.5,
+    top: "#46285f", bot: "#7c4079", shadow: "#2c1a48", lit: "#c8658a", mist: 0.12, mistH: 30 });
   const hills = pineHills(9);
   const deck = layer(() => {
     ctx.translate(EXT, 0);
@@ -621,9 +622,10 @@ function draw(now) {
       cl.a = n === cl.n + 1 ? cl.b : makeCloud(c.w, c.h, c.seed + n * 101, c.tone);
       cl.b = makeCloud(c.w, c.h, c.seed + (n + 1) * 101, c.tone); cl.n = n;
     }
-    const e = f * f * (3 - 2 * f), x = (c.x + now / 1000 * c.v) % (LW + c.w) - c.w + lx(PAR.cloud);
-    ctx.globalAlpha = 1 - e; ctx.drawImage(cl.a, x, c.y, c.w, c.h);          // uma forma some devagar...
-    ctx.globalAlpha = e;     ctx.drawImage(cl.b, x, c.y, c.w, c.h);          // ...enquanto a outra aparece
+    const e = f * f * (3 - 2 * f), x = (c.x + now / 1000 * c.v) % (LW + c.w) - c.w + lx(c.back ? PAR.sky + 0.03 : PAR.cloud);
+    const k = c.back ? 0.8 : 1;                                              // nuvem de longe é mais apagada
+    ctx.globalAlpha = (1 - e) * k; ctx.drawImage(cl.a, x, c.y, c.w, c.h);    // uma forma some devagar...
+    ctx.globalAlpha = e * k;       ctx.drawImage(cl.b, x, c.y, c.w, c.h);    // ...enquanto a outra aparece
     ctx.globalAlpha = 1;
   });
   ctx.drawImage(layers.far, lx(PAR.far), 0, LW, H);
