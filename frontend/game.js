@@ -135,7 +135,7 @@ const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
 let cs = { t: 0, rel: null, hang: null }; const fxs = [];            // arremesso em andamento e respingos
-let stepDist = 0, reelT = 0;                       // controle dos sons de passo e de carretilha
+let gaitPh = 0, stepIdx = -1, reelT = 0;                       // controle dos sons de passo e de carretilha
 const WALK = 90, RUN = 165;                       // velocidades (px/s): andar e correr (SHIFT)
 let spd = 0, runK = 0, brake = 0, dustT = 0, wasBraking = false;   // velocidade atual, quanto está correndo (0-1), quanto está freando (0-1)
 const dust = [];                                  // fumacinha da freada
@@ -148,7 +148,7 @@ const keys = {};
 // ---------- Multiplayer ----------
 const others = {};
 // Aparência (personalizável): camiseta, calça e altura. TW = meia largura do tronco (fino o bastante para a altura máxima não passar o Malto).
-const TW = 5, AW = TW - 1.75;                                                    // AW: o braço (3,5 de largura) fica rente à borda do tronco, centralizado nele
+const TW = 5, AW = TW + 1.25;                                                    // AW: centro do braço de frente: encostado na lateral do tronco (não escondido dentro dele)
 const MALTO_TOP = 51, FISHER_TOP = 40, MAX_H = MALTO_TOP / FISHER_TOP;       // altura máxima = a do Malto (quepe a 51px do chão; o chapéu do pescador a 40px)
 const hScale = h => 1 + (MAX_H - 1) * Math.max(0, Math.min(1, +h || 0));    // h: 0 (altura normal) ... 1 (altura do Malto)
 const DEF_SHIRT = "#c0392b", DEF_PANTS = "#26384a";
@@ -234,11 +234,12 @@ const LEG_SHARE = 0.73;                                                         
 let LEGX = 0, TORSOX = 0, AL = 8;                                               // AL: comprimento do braço (cresce com a altura, junto com as pernas)
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
   const E = ((look && look.hs || 1) - 1) * FISHER_TOP, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
-  LEGS = [shade(pants, 0.75), pants]; LEGX = E * LEG_SHARE; TORSOX = E - LEGX; AL = 8 * (look && look.hs || 1);
+  LEGS = [shade(pants, 0.75), pants]; LEGX = E * LEG_SHARE; TORSOX = E - LEGX; AL = 8 + E * 0.5;
   const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
   return tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
 }
 function drawFisherTurn(x, dir, shirt, hat, tn) {
+  const sleeve = shade(shirt, 0.84);                                                   // manga: mais escura que o tronco, o braço não some nele
   const ang = v => v * v * (3 - 2 * v) * Math.PI / 2, mix = (a, b, k) => a + (b - a) * k;
   const ah = ang(tn[0]), at = ang(tn[1]), al = ang(tn[2]);
   const ch = Math.cos(ah), sh = Math.sin(ah), ct = Math.cos(at), st = Math.sin(at), cl = Math.cos(al), sl = Math.sin(al);
@@ -260,7 +261,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   // braço de longe (atrás do tronco; só aparece de fora quando já está bem de frente)
   const arm = (sx, y, a, alpha) => {
     ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(sx, y); ctx.rotate(a);
-    rect(shirt, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
+    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
     ctx.restore();
   };
   const farX = AW * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
@@ -290,8 +291,9 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
 }
 function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
+  const sleeve = shade(shirt, 0.84);
   const rk = P.run || 0;
-  const ph = x * dir / (11 + 3 * rk + LEGX * 0.5);                        // fase da passada: avança com o chão percorrido (pernas mais longas dão passadas mais longas)
+  const ph = P.gait !== undefined ? P.gait : x * dir / (11 + 3 * rk + LEGX * 0.5);   // fase da passada: avança com o chão percorrido (pernas mais longas dão passadas mais longas)
   const gs = Math.sin(ph), gc = Math.cos(ph);
   const GA = amp * 0.5, KB = amp * (0.2 + 0.45 * rk), LG = 11 + LEGX;       // GA: abertura da coxa; KB: quanto o joelho dobra na perna que vai pra frente; LG: comprimento da perna
   const sw = P.brake ? 0.85 * P.brake : gs * amp;                                    // freando: pernas abertas e firmes
@@ -318,7 +320,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TORSOX);
     rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
-      rect(shirt, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
+      rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
     if (idle) { arm(-AW, Math.PI / 2 + 0.12); arm(AW, Math.PI / 2 - 0.12); }
     else { arm(-AW, -Math.PI + 1.0 - wv * 0.12); arm(AW, -1.0 + wv * 0.12); }
     rect("#e0ac69", -2, -26, 4, 2.5);
@@ -349,7 +351,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   if (P.crank === undefined) {                                                     // (na hora de puxar o peixe, esse braço vai girar a manivela)
     const ak = AL / 8;
     ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate((P.brake ? -sw * 0.6 : armSw) + 0.1 + (P.off || 0));   // braço livre: oposto ao braço da vara (e contrapeso no arremesso)
-    rect(shirt, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9 * ak); rect("#d9ab6f", -1.7, 8.5 * ak, 3.4, 3);
+    rect(sleeve, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 9 * ak); rect("#d9ab6f", -1.7, 8.5 * ak, 3.4, 3);
     ctx.restore();
   }
   ctx.translate(0, bob); ctx.translate(0, -11 + TORSOX); ctx.rotate(P.lean); ctx.translate(0, 11 - TORSOX);   // tronco inclina a partir do quadril
@@ -363,7 +365,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2);
   const foreArm = () => {
     ctx.save(); ctx.translate(SHX, SHY); ctx.rotate(A);                                // antebraço gira no ombro (no centro do tronco)
-    rect(shirt, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
+    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
     ctx.restore();
   };
   if (s <= 0) foreArm();                                                               // durante guardar/sacar o braço é desenhado por cima (a mão não some atrás da cabeça)
@@ -417,7 +419,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.beginPath(); ctx.moveTo(rcx, rcy); ctx.lineTo(kx, ky); ctx.stroke();
     const ax = SHX, ay = -20.5, vx = kx - ax, vy = ky - ay, L = Math.max(6, Math.hypot(vx, vy) - 1.5);
     ctx.save(); ctx.translate(ax, ay); ctx.rotate(Math.atan2(vy, vx));                // braço livre estica até a manivela
-    rect(shirt, 0, -1.7, L, 3.4); rect("rgba(0,0,0,.2)", 0, 1.25, L, 0.8); rect("#d9ab6f", L - 0.8, -1.7, 3, 3.4);
+    rect(sleeve, 0, -1.7, L, 3.4); rect("rgba(0,0,0,.2)", 0, 1.25, L, 0.8); rect("#d9ab6f", L - 0.8, -1.7, 3, 3.4);
     ctx.restore();
     rect("#e8c34a", kx - 1, ky - 1, 2, 2);                                              // cabo da manivela
   }
@@ -895,6 +897,7 @@ function movePose() {                                                           
   else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
   const b = base || { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
   if (frontK > 0.001) { b.front = frontK; b.turn = [turnH, turnT, turnL]; }
+  b.gait = gaitPh;
   if (PH.hold > 0.001) { b.phone = PH.hold; b.lean = (b.lean || 0) + 0.05 * PH.hold; }   // celular na mão: braço erguido, cabeça baixa, tronco levemente inclinado
   return rodPose(rodL, b);   // (sempre com a animação da vara: nas costas, guardando ou sacando)
 }
@@ -925,9 +928,9 @@ function update(dt) {
     px = Math.max(16, Math.min(WORLD - 16, px + spd * dt));
     if ((px <= 16 && spd < 0) || (px >= WORLD - 16 && spd > 0)) spd = 0;
     moving = Math.abs(spd) > 1;
-    stepDist += Math.abs(px - ox);
-    const stride = Math.abs(spd) > WALK + 20 ? 28 : 22;           // passos mais espaçados ao correr
-    if (stepDist >= stride) { stepDist -= stride; SND.step(); }
+    gaitPh += Math.abs(px - ox) / (11 + 3 * (runK > 0.05 ? runK : 0) + (hScale(me.h) - 1) * FISHER_TOP * LEG_SHARE * 0.5);   // mesma conta do desenho das pernas
+    const si = Math.floor((gaitPh - Math.PI / 2) / Math.PI);          // o pé toca o chão quando as pernas estão mais abertas (a cada meia volta da fase)
+    if (si > stepIdx) { stepIdx = si; SND.step(); }
     const braking = Math.abs(spd) > WALK + 20 && Math.abs(aim) < Math.abs(spd) - 20;   // vinha correndo e soltou: está freando
     if (braking && !wasBraking) { SND.play("pier_creak_1", { vol: 0.3, rate: 1.25 }); spawnDust(6, Math.sign(spd)); dustT = 0; }
     wasBraking = braking;
