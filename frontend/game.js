@@ -148,7 +148,7 @@ const keys = {};
 // ---------- Multiplayer ----------
 const others = {};
 // Aparência (personalizável): camiseta, calça e altura. TW = meia largura do tronco (fino o bastante para a altura máxima não passar o Malto).
-const TW = 5, AW = TW + 1.25;                                                    // AW: centro do braço de frente: encostado na lateral do tronco (não escondido dentro dele)
+const TW = 5, AW = TW + 1.75;                                                    // AW: centro do braço de frente: colado na lateral do tronco (sem folga e sem esconder dentro dele)
 const MALTO_TOP = 51, FISHER_TOP = 40, MAX_H = MALTO_TOP / FISHER_TOP;       // altura máxima = a do Malto (quepe a 51px do chão; o chapéu do pescador a 40px)
 const hScale = h => 1 + (MAX_H - 1) * Math.max(0, Math.min(1, +h || 0));    // h: 0 (altura normal) ... 1 (altura do Malto)
 const DEF_SHIRT = "#c0392b", DEF_PANTS = "#26384a";
@@ -232,9 +232,22 @@ function rodPose(R, b) {                                   // soma a animação 
 // mantêm o tamanho (só sobem). Nada é esticado: cada parte é desenhada já com o comprimento certo dentro de drawFisherBase/Turn.
 const LEG_SHARE = 0.73;                                                         // fatia do ganho de altura que vai para as pernas (o resto vai para o tronco)
 let LEGX = 0, TORSOX = 0, AL = 8;                                               // AL: comprimento do braço (cresce com a altura, junto com as pernas)
+function collarFront(col) {                                                    // gola de frente: "V" do pescoço e duas abas viradas
+  ctx.fillStyle = "#e0ac69"; ctx.beginPath(); ctx.moveTo(-2.3, -24.2); ctx.lineTo(2.3, -24.2); ctx.lineTo(0, -21.2); ctx.closePath(); ctx.fill();
+  for (const m of [-1, 1]) {
+    const path = () => { ctx.beginPath(); ctx.moveTo(m * 2.2, -24.7); ctx.lineTo(m * 4.8, -24); ctx.lineTo(m * 3, -21.8); ctx.lineTo(0, -21); ctx.closePath(); };
+    path(); ctx.fillStyle = col; ctx.fill(); path(); ctx.fillStyle = "rgba(255,255,255,.3)"; ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,.3)"; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(m * 2.2, -24.7); ctx.lineTo(0, -21); ctx.stroke();   // dobra
+  }
+}
+function collarSide(col) {                                                     // gola de lado: faixa em volta do pescoço e a aba da frente
+  rect(col, -4.2, -25.2, 7.4, 1.9); rect("rgba(255,255,255,.3)", -4.2, -25.2, 7.4, 1.9); rect("rgba(0,0,0,.22)", -4.2, -23.6, 7.4, 0.5);
+  ctx.beginPath(); ctx.moveTo(1.2, -25.2); ctx.lineTo(3.9, -24.5); ctx.lineTo(1.8, -21.8); ctx.closePath();
+  ctx.fillStyle = col; ctx.fill(); ctx.fillStyle = "rgba(255,255,255,.3)"; ctx.fill();
+}
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
-  ctx.fillStyle = col; roundPath(sx - 2.2, y - 2.8, 4.4, 5.4, 1.7); ctx.fill();
-  rect("rgba(255,255,255,.22)", sx - 1.2, y - 2.4, 2.4, 0.8);                    // luz em cima
+  ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
+  rect("rgba(255,255,255,.22)", sx - 1, y - 2.1, 2, 0.7);                        // luz em cima
 }
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
   const E = ((look && look.hs || 1) - 1) * FISHER_TOP, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
@@ -282,6 +295,8 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   // pescoço, cabeça e rosto (a cabeça gira antes do resto)
   const hx = ch, nx = -ch;
   rect("#e0ac69", nx - 2, -26, 4, 2.5);
+  if (sh < 0.99) { ctx.save(); ctx.globalAlpha *= 1 - sh; collarSide(shirt); ctx.restore(); }          // a gola gira junto com a cabeça: faixa de lado -> abas de frente
+  if (sh > 0.01) { ctx.save(); ctx.globalAlpha *= sh; collarFront(shirt); ctx.restore(); }
   rect("#f1c27d", hx - 4.5, -33, 9, 8.5); rect(`rgba(0,0,0,${mix(0.12, 0.1, sh)})`, hx - 4.5, -33, mix(3, 2, sh), 8.5);
   for (const w of [-1.8, 1.8]) if (3.3 * sh - w * ch > 0.1) rect("#2a1a10", 3.3 * ch + w * sh - 0.8, mix(-30, -30.2, sh), 1.6, 1.8);   // olhos (o de longe só aparece quando a cabeça já virou)
   if (ch > 0.25) rect("#c98d5a", 5 * ch - ch, -27.5, 2 * ch, 1);                       // nariz (some quando fica de frente)
@@ -325,10 +340,10 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
       rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
-    if (idle) { arm(-AW, Math.PI / 2 + 0.12); arm(AW, Math.PI / 2 - 0.12); }
+    if (idle) { arm(-AW, Math.PI / 2 + 0.03); arm(AW, Math.PI / 2 - 0.03); }
     else { arm(-AW, -Math.PI + 1.0 - wv * 0.12); arm(AW, -1.0 + wv * 0.12); }
     shoulder(-AW, -21.5, sleeve); shoulder(AW, -21.5, sleeve);
-    rect("#e0ac69", -2, -26, 4, 2.5);
+    rect("#e0ac69", -2, -26, 4, 2.5); collarFront(shirt);
     rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
     rect("#2a1a10", -2.6, -30.2, 1.6, 1.8); rect("#2a1a10", 1, -30.2, 1.6, 1.8);       // olhos
     rect("rgba(230,120,100,.45)", -3.8, -28.6, 1.4, 1.2); rect("rgba(230,120,100,.45)", 2.4, -28.6, 1.4, 1.2);
@@ -377,7 +392,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   };
   if (s <= 0) foreArm();                                                               // durante guardar/sacar o braço é desenhado por cima (a mão não some atrás da cabeça)
   
-  rect("#e0ac69", -3, -26, 4, 2.5);
+  rect("#e0ac69", -3, -26, 4, 2.5); collarSide(shirt);
   ctx.save(); if (hold) { ctx.translate(0, -25); ctx.rotate(0.22 * hold); ctx.translate(0, 25); }     // cabeça baixa olhando o celular
   rect("#f1c27d", -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
   rect("#2a1a10", 2.5, -30, 1.6, 1.8); rect("#c98d5a", 4, -27.5, 2, 1);
