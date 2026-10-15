@@ -139,6 +139,8 @@ let stepDist = 0, reelT = 0;                       // controle dos sons de passo
 const WALK = 90, RUN = 165;                       // velocidades (px/s): andar e correr (SHIFT)
 let spd = 0, runK = 0, brake = 0, dustT = 0, wasBraking = false;   // velocidade atual, quanto está correndo (0-1), quanto está freando (0-1)
 const dust = [];                                  // fumacinha da freada
+let stowK = 0, wantDraw = false;                  // vara: 0 = na mão, 1 = nas costas; wantDraw = quer lançar mas ainda está sacando a vara
+const STOW_T = 0.4, DRAW_T = 0.32;                // segundos para guardar nas costas / sacar de volta
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
 
@@ -175,7 +177,10 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const ph = x * dir / (11 + 3 * (P.run || 0));
   const sw = P.brake ? 0.85 * P.brake : Math.sin(ph) * amp;                          // freando: pernas abertas e firmes
   const bob = P.brake ? 1.1 * P.brake : -Math.abs(Math.cos(ph)) * 1.4 * amp;         // freando: agacha um pouco
-  const A = P.run ? 1.05 + sw * 0.85 : P.arm;                                        // correndo: o braço da frente balança junto com o corpo
+  const s = P.stow !== undefined ? P.stow : (P.run !== undefined ? 1 : 0);          // vara: 0 na mão ... 1 nas costas
+  const K1 = 0.45, RA = -2.2, RUP = -1.9;                                            // até K1: a mão leva a vara por cima do ombro; depois ela desliza para as costas
+  const A0 = P.run !== undefined && !P.brake ? 1.05 + sw * 0.85 : P.arm;             // correndo: o braço da frente balança junto com o corpo
+  const A = s <= 0 ? A0 : s < K1 ? lerp(P.arm, RA, easeInOut(s / K1)) : lerp(RA, A0, easeInOut((s - K1) / (1 - K1)));
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
   softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
   const leg = (a, col) => {                                                      // perna gira a partir do quadril
@@ -190,10 +195,19 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.restore();
   }
   ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril
-  if (P.run !== undefined) {                                                         // correndo/freando: vara guardada nas costas, na diagonal
+  const ca = Math.cos(A), sa = Math.sin(A);
+  const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
+  const ra = P.rod - P.flex * 0.25, RL = 33.1;                       // a ponta da vara atrasa quando ela chicoteia
+  const tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
+  const BB = [-9, -5], BT = [-3, -43];                               // base e ponta da vara guardada nas costas (diagonal)
+  if (s >= K1) {                                                     // 2a fase: a vara desliza por trás do corpo até as costas (ou sai de lá)
+    const k = easeInOut((s - K1) / (1 - K1));
+    const h1x = 3 + 8 * Math.cos(RA), h1y = -20.25 + 8 * Math.sin(RA);
+    const t1x = h1x + RL * Math.cos(RUP), t1y = h1y + RL * Math.sin(RUP);
+    const bx = lerp(h1x, BB[0], k), by = lerp(h1y, BB[1], k), ex = lerp(t1x, BT[0], k), ey = lerp(t1y, BT[1], k);
     ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(-9, -5); ctx.lineTo(-3, -43); ctx.stroke();
-    rect("#b8b8b8", -7.6, -17, 2.4, 2.4);                                            // carretilha
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+    rect("#b8b8b8", bx + (ex - bx) * 0.32 - 0.5, by + (ey - by) * 0.32 - 1.2, 2.4, 2.4);   // carretilha
   }
   rect(shirt, -6, -24, 12, 14);
   rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
@@ -207,14 +221,15 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   rect("#2a1a10", 2.5, -30, 1.6, 1.8); rect("#c98d5a", 4, -27.5, 2, 1);
   rect(hat, -6, -35.5, 14, 3); rect(hat, -3.5, -40, 9, 5);
   rect("rgba(0,0,0,.25)", -6, -34, 14, 1.2); rect("rgba(255,255,255,.35)", -3.5, -36.5, 9, 1.2);
-  const ca = Math.cos(A), sa = Math.sin(A);
-  const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
-  const ra = P.rod - P.flex * 0.25, RL = 33.1;                       // a ponta da vara atrasa quando ela chicoteia
-  const tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const cx = (hx + tx) / 2 + P.flex * 6.6 * Math.sin(P.rod), cy = (hy + ty) / 2 - P.flex * 6.6 * Math.cos(P.rod);
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
-  if (P.cheer === undefined && P.run === undefined) { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke(); }   // (comemorando: sem vara)
-  if (P.cheer !== undefined || P.run !== undefined) { /* braços pro alto / vara nas costas: mãos vazias */ }
+  if (P.cheer === undefined && s < K1) {                                              // (comemorando: sem vara)
+    const k = easeInOut(s / K1), r2 = lerp(ra, RUP, k), fl = P.flex * (1 - k);          // guardando/sacando: a vara gira para cima, por cima do ombro
+    const ex = hx + RL * Math.cos(r2), ey = hy + RL * Math.sin(r2);
+    const qx = (hx + ex) / 2 + fl * 6.6 * Math.sin(P.rod), qy = (hy + ey) / 2 - fl * 6.6 * Math.cos(P.rod);
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(qx, qy, ex, ey); ctx.stroke();
+  }
+  if (P.cheer !== undefined || s >= K1) { /* braços pro alto / vara nas costas: mãos vazias */ }
   else if (P.crank === undefined) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
   else {                                                                              // carretilha de verdade: corpo, manivela girando e a mão da frente puxando
     const rdx = Math.cos(ra), rdy = Math.sin(ra);
@@ -511,13 +526,18 @@ function say(m) { msg = m; msgT = 2.5; }
 
 function press() {
   if (state === "walk") {
-    state = "cast"; cs = { t: 0, rel: null, hang: null };
-    bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
-    fish = null; SND.cast();
-    post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
+    if (stowK > 0.001) wantDraw = true;                                // vara nas costas: saca primeiro, o arremesso começa quando ela estiver na mão
+    else startCast();
   } else if (state === "wait") { state = "walk"; SND.retract(); say("Você recolheu a linha"); }
   else if (state === "bite") startReel();
   else if (state === "show" && showT > 0.8) state = "walk";          // pode pular a comemoração
+}
+
+function startCast() {
+  state = "cast"; cs = { t: 0, rel: null, hang: null };
+  bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
+  fish = null; SND.cast();
+  post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
 }
 
 function startReel() {
@@ -568,8 +588,9 @@ function drawDust() {
 }
 function movePose() {                                                           // pose de corrida (inclinado, vara nas costas) ou de freada (corpo pra trás, braços abertos)
   if (state !== "walk") return null;
-  if (brake > 0.08) return { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
-  if (runK > 0.05) return { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
+  if (brake > 0.08) return { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake, stow: stowK };
+  if (runK > 0.05) return { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK, stow: stowK };
+  if (stowK > 0.001) return { rod: REST, arm: 0, lean: 0, off: 0, flex: 0, run: 0, stow: stowK };   // parou: ainda sacando a vara das costas
   return null;
 }
 function update(dt) {
@@ -578,13 +599,18 @@ function update(dt) {
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
-  if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; }
+  if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; stowK = 0; wantDraw = false; }
+  else {                                                                       // vara: guarda nas costas ao correr e saca de volta ao parar
+    const goal = !wantDraw && (runK > 0.05 || brake > 0.08) ? 1 : 0;
+    stowK += Math.sign(goal - stowK) * Math.min(Math.abs(goal - stowK), dt / (goal ? STOW_T : DRAW_T));
+    if (wantDraw && stowK <= 0.001) { wantDraw = false; stowK = 0; startCast(); return; }   // vara na mão: agora sim lança
+  }
   for (let i = dust.length - 1; i >= 0; i--) {                                  // fumacinha da freada sobe e some
     const d = dust[i]; d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy *= 0.95; d.vx *= 0.97;
     if (d.t > d.life) dust.splice(i, 1);
   }
   if (state === "walk") {
-    const m = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
+    const m = wantDraw ? 0 : (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);   // sacando a vara: para de andar
     const ox = px, run = keys.ShiftLeft || keys.ShiftRight;
     const aim = m ? (run ? RUN : WALK) * m : 0;                   // velocidade desejada
     if (Math.abs(spd) <= WALK + 1 && Math.abs(aim) <= WALK) spd = aim;                       // andar normal: resposta imediata
