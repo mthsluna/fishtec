@@ -116,7 +116,8 @@ let fish = null, score = 0, msg = "", msgT = 0, bite = 0;
 const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
-let camX = 0;                                      // câmera: acompanha o pescador (base do parallax)
+let stepDist = 0, reelT = 0;                       // controle dos sons de passo e de carretilha
+let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
 
 // ---------- Multiplayer ----------
@@ -186,12 +187,15 @@ function drawOtherLine(p, now) {                                 // linha e nome
 }
 
 addEventListener("keydown", e => {
+  SND.unlock();                                         // o navegador só libera o som depois de uma tecla/toque
   keys[e.code] = true;
+  if (e.code === "KeyM" && !e.repeat) say(SND.toggleMute() ? "Som desligado" : "Som ligado");
   if (e.code === "Space") { e.preventDefault(); if (!e.repeat) press(); }
 });
 addEventListener("keyup", e => keys[e.code] = false);
 cv.addEventListener("pointerdown", e => {
   if (state === "walk" && e.clientX) { /* toque: metade esquerda/direita move, centro lança */ }
+  SND.unlock();
   keys.Space = true; press();
 });
 addEventListener("pointerup", () => keys.Space = false);
@@ -202,23 +206,23 @@ function press() {
   if (state === "walk") {
     state = "wait"; t = 2 + Math.random() * 3;
     bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
-    fish = null;
+    fish = null; SND.cast();
     post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
-  } else if (state === "wait") { state = "walk"; say("Você recolheu a linha"); }
+  } else if (state === "wait") { state = "walk"; SND.retract(); say("Você recolheu a linha"); }
   else if (state === "bite") startReel();
 }
 
 function startReel() {
   if (!fish) fish = fishList[0];
-  state = "reel"; prog = 25;
+  state = "reel"; prog = 25; reelT = 0; SND.hook();
   bar.y = TRACK.h - bar.h; bar.v = 0;
   fp.y = TRACK.h / 2; fp.target = fp.y; fp.timer = 0;
 }
 
 function finish(win) {
   state = "walk";
-  if (win) { score += fish.points; say(`Pegou: ${fish.name}! +${fish.points}`); post("/api/catch", { id: fish.id }).catch(() => {}); }
-  else say("O peixe escapou...");
+  if (win) { score += fish.points; SND.win(); say(`Pegou: ${fish.name}! +${fish.points}`); post("/api/catch", { id: fish.id }).catch(() => {}); }
+  else { SND.lose(); say("O peixe escapou..."); }
 }
 
 function update(dt) {
@@ -230,11 +234,14 @@ function update(dt) {
     const ox = px;
     if (m) { dir = m; px = Math.max(16, Math.min(WORLD - 16, px + m * 90 * dt)); }
     moving = Math.abs(px - ox) > 0.001;
+    stepDist += Math.abs(px - ox);
+    if (stepDist >= 22) { stepDist -= 22; SND.step(); }          // um passo a cada ~22px andados
   } else if (state === "wait") {
-    t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; }
+    t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; SND.bite(); }
   } else if (state === "bite") {
-    bite -= dt; if (bite <= 0) { state = "walk"; say("Fisgou tarde demais"); }
+    bite -= dt; if (bite <= 0) { state = "walk"; SND.lose(); say("Fisgou tarde demais"); }
   } else if (state === "reel") {
+    if (keys.Space && (reelT -= dt) <= 0) { SND.reel(); reelT = 0.55; }   // carretilha enquanto segura ESPAÇO
     const d = fish.difficulty;
     bar.v += (keys.Space ? -900 : 700) * dt * 0.012 * 60 / 60;
     bar.v = Math.max(-6, Math.min(6, bar.v));

@@ -1,0 +1,20 @@
+Sons do jogo de pesca
+
+Gravações reais (domínio público / CC0), do acervo
+https://github.com/lavenderdotpet/CC0-Public-Domain-Sounds
+
+  step_wood_1..4        Kenney - Impact Sounds (footstep_wood_000..003)
+  bobber_splash_1..3    40 CC0 Water Splash & Slime SFX (splash_09, 14, 15)
+  catch_splash          40 CC0 Water Splash & Slime SFX (splash_04)
+  bite_alert            40 CC0 Water Splash & Slime SFX (bubble_01)
+  cast_whoosh, hook_set Micro Pack - Organic Wooshes, bb (Swish 3, Swish 4)
+  reel_1, reel_2        bb - Smol Mechanisms (Cable Coiler 5, 1)
+  reel_ratchet          bb - Smol Mechanisms (Ratchet Muted 2)
+  pier_creak_1..2       100 CC0 Wood & Metal SFX (wood_squeak_01, 02)
+  fish_escaped          Warfork CC0 (water_out)
+
+Sintetizados (gerados por código, sem direitos autorais):
+  ambient_wind, ambient_sea, ambient_water_lap, catch_chime
+  -> substitua por gravações reais de vento/mar quando tiver (mesmo nome de arquivo).
+
+Texto da licença CC0: LICENSE_CC0.txt
