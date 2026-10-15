@@ -1,0 +1,84 @@
+/* ---------- Telefish: celular que sobe da parte de baixo da tela ao apertar F ---------- */
+
+/* Fonte do Nokia: baixe "Nokia Cellphone FC" e coloque em assets/fonts/nokia-cellphone-fc.ttf
+   (enquanto o arquivo não existir, usa a VT323 / monospace como reserva) */
+@font-face {
+  font-family: "Nokia Cellphone FC";
+  src: local("Nokia Cellphone FC"), url("assets/fonts/nokia-cellphone-fc.woff2") format("woff2"),
+       url("assets/fonts/nokia-cellphone-fc.ttf") format("truetype");
+  font-display: swap;
+}
+
+#telefish {
+  --tf-h: clamp(460px, 86vh, 1000px);   /* altura total da imagem do celular */
+  --tf-visible: 0.62;                    /* quanto do celular aparece (0.62 = de cima até um pouco abaixo do direcional) */
+  --tf-right: 2.5vh;                     /* distância da borda direita da tela */
+  --ink: #1d281b;                        /* cor dos "pixels" do LCD */
+  --lcd: #889a7b;                        /* cor do fundo da tela acesa (a apagada é a da própria imagem) */
+
+  position: fixed; right: var(--tf-right); bottom: 0; z-index: 20;
+  height: var(--tf-h); aspect-ratio: 963 / 1634;
+  transform: translateY(104%);           /* escondido embaixo da tela */
+  transition: transform .6s cubic-bezier(.2, .85, .25, 1.04);
+  pointer-events: none; user-select: none;
+  will-change: transform;
+}
+#telefish.open { transform: translateY(calc((1 - var(--tf-visible)) * 100%)); }
+
+#telefish .tf-img {
+  display: block; width: 100%; height: 100%;
+  filter: drop-shadow(0 0 2.2vh rgba(0, 0, 0, .55));
+}
+
+/* vidro da tela (posição medida em cima do PNG: 404 x 284 px dentro de 963 x 1634) */
+#telefish .tf-screen {
+  position: absolute; left: 28.66%; top: 24.48%; width: 41.95%; height: 17.38%;
+  container-type: size; overflow: hidden; border-radius: 2.2cqw / 3cqh;
+  font-family: "Nokia Cellphone FC", "VT323", ui-monospace, monospace;
+  color: var(--ink);
+}
+
+/* tela acendendo: fica um pouco mais clara */
+#telefish .tf-glass {
+  position: absolute; inset: 0; opacity: 0;
+  background: linear-gradient(180deg, #92a485 0%, var(--lcd) 55%, #7d8f71 100%);
+  box-shadow: inset 0 0 5cqw rgba(10, 20, 8, .45);
+  transition: opacity .45s ease-out;
+}
+#telefish .tf-glass::after {              /* grade fininha do LCD */
+  content: ""; position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(0, 0, 0, .06) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, .06) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+#telefish.lit .tf-glass { opacity: 1; }
+
+/* conteúdo da tela */
+#telefish .tf-ui {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  padding: 4cqh 5cqw 4cqh; opacity: 0; line-height: 1;
+  text-shadow: .5cqw .5cqw 0 rgba(29, 40, 27, .16);   /* sombrinha de LCD */
+  -webkit-font-smoothing: none; font-smooth: never;
+  transition: opacity .3s steps(3);
+}
+#telefish.lit .tf-ui { opacity: 1; transition-delay: .18s; }
+
+#telefish .tf-status { display: flex; justify-content: space-between; align-items: flex-end; height: 9cqh; }
+#telefish .tf-signal { display: flex; align-items: flex-end; gap: .9cqw; height: 100%; }
+#telefish .tf-signal i { display: block; width: 2.4cqw; background: var(--ink); }
+#telefish .tf-signal i:nth-child(1) { height: 28%; } #telefish .tf-signal i:nth-child(2) { height: 52%; }
+#telefish .tf-signal i:nth-child(3) { height: 76%; } #telefish .tf-signal i:nth-child(4) { height: 100%; }
+#telefish .tf-batt { position: relative; width: 9cqw; height: 100%; border: .7cqw solid var(--ink); padding: .6cqw; display: flex; gap: .6cqw; }
+#telefish .tf-batt::after { content: ""; position: absolute; right: -2cqw; top: 28%; width: 1.3cqw; height: 44%; background: var(--ink); }
+#telefish .tf-batt i { flex: 1; background: var(--ink); }
+
+#telefish .tf-title { margin-top: 3cqh; padding-bottom: 2cqh; font-size: 7.6cqw; border-bottom: .8cqw solid var(--ink); border-bottom-width: max(1px, .6cqw); }
+
+#telefish .tf-list { list-style: none; margin: 3cqh 0 0; padding: 0; flex: 1; }
+#telefish .tf-list li { padding: 2.4cqh 3cqw; font-size: 8.4cqw; line-height: 1.05; }
+#telefish .tf-list li.sel { background: var(--ink); color: #9fb08f; text-shadow: none; }
+
+#telefish .tf-soft { align-self: center; padding: 1.6cqh 5cqw 0; font-size: 7.4cqw; border-top: max(1px, .6cqw) solid var(--ink); width: 100%; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  #telefish, #telefish .tf-glass, #telefish .tf-ui { transition-duration: .01s; transition-delay: 0s !important; }
+}
