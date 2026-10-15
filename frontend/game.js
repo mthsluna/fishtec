@@ -229,25 +229,15 @@ function rodPose(R, b) {                                   // soma a animação 
 // ---------- Giro de lado -> de frente, parte por parte: primeiro a cabeça, depois o tronco, depois as pernas ----------
 // Cada parte é desenhada como um cilindro girando em torno do eixo vertical: x_tela = profundidade*cos(a) + lateral*sen(a)
 // (a = 0 é de lado, a = 90° é de frente). Os detalhes do rosto, do cinto e dos braços deslizam pela superfície enquanto giram.
-// Altura: a cabeça NÃO cresce. Só o corpo (pernas + tronco) é esticado na vertical e a cabeça sobe junto, então no máximo ele fica
-// com as proporções do Malto (cabeça pequena, corpo comprido). O corte fica logo abaixo do queixo (CUT px acima dos pés).
-const CUT = 24.5;
+// Altura de verdade: quem cresce são principalmente as PERNAS (LEGX); o tronco cresce só um pouco (TORSOX); cabeça, braços e chapéu
+// mantêm o tamanho (só sobem). Nada é esticado: cada parte é desenhada já com o comprimento certo dentro de drawFisherBase/Turn.
+const LEG_SHARE = 0.73;                                                         // fatia do ganho de altura que vai para as pernas (o resto vai para o tronco)
+let LEGX = 0, TORSOX = 0;
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
-  const hs = look && look.hs || 1, E = (hs - 1) * FISHER_TOP, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
-  LEGS = [shade(pants, 0.75), pants];
+  const E = ((look && look.hs || 1) - 1) * FISHER_TOP, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
+  LEGS = [shade(pants, 0.75), pants]; LEGX = E * LEG_SHARE; TORSOX = E - LEGX;
   const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
-  const one = () => tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
-  if (E < 0.01) return one();
-  const f = (CUT + E) / CUT, top = PIER_Y - CUT;
-  ctx.save();                                                                   // corpo: esticado para baixo do corte (0,5px a mais para não aparecer fresta)
-  ctx.translate(0, PIER_Y); ctx.scale(1, f); ctx.translate(0, -PIER_Y);
-  ctx.beginPath(); ctx.rect(x - 70, top - 0.5, 140, 80); ctx.clip();
-  const r = one(); ctx.restore();
-  ctx.save();                                                                   // cabeça: tamanho normal, só sobe
-  ctx.translate(0, -E); ctx.beginPath(); ctx.rect(x - 70, top - 300, 140, 300.5); ctx.clip();
-  one(); ctx.restore();
-  const ly = r.y - PIER_Y;                                                      // a ponta da vara segue a parte do corpo em que está
-  return { x: r.x, y: PIER_Y + (ly < -CUT ? ly - E : ly * f) };
+  return tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
 }
 function drawFisherTurn(x, dir, shirt, hat, tn) {
   const ang = v => v * v * (3 - 2 * v) * Math.PI / 2, mix = (a, b, k) => a + (b - a) * k;
@@ -259,13 +249,15 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   ctx.translate(0, Math.sin(performance.now() / 600) * 0.3 * avg);                   // respira (igual ao parado de frente)
   // vara nas costas (atrás de tudo): a ponta de baixo e a de cima giram junto com o tronco
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(-9 * ct - 4 * st, mix(-5, -14, st)); ctx.lineTo(-3 * ct + 4.5 * st, mix(-43, -44, st)); ctx.stroke();
+  const UP = LEGX + TORSOX;
+  ctx.beginPath(); ctx.moveTo(-9 * ct - 4 * st, mix(-5, -14, st) - UP); ctx.lineTo(-3 * ct + 4.5 * st, mix(-43, -44, st) - UP); ctx.stroke();
   // pernas (a de trás escura, a da frente clara)
   const leg = (wl, col) => {
     const cx = wl * sl, hw = Math.hypot(2.3 * cl, 2 * sl), sx = Math.hypot(3.3 * cl, 2.5 * sl);
-    rect(col, cx - hw, -11, hw * 2, 9); rect("#15110e", cx + 0.3 * cl - sx, -2.5, sx * 2, 2.5);
+    rect(col, cx - hw, -11 - LEGX, hw * 2, 9 + LEGX); rect("#15110e", cx + 0.3 * cl - sx, -2.5, sx * 2, 2.5);
   };
   leg(-2.6, LEGS[0]); leg(2.6, LEGS[1]);
+  ctx.translate(0, -UP);                                                              // tudo de cima sobe
   // braço de longe (atrás do tronco; só aparece de fora quando já está bem de frente)
   const arm = (sx, y, a, alpha) => {
     ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(sx, y); ctx.rotate(a);
@@ -275,11 +267,11 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   const farX = AW * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
   arm(farX, farY, farA, 1);
   // tronco
-  rect(shirt, -TW, -24, TW * 2, 14);
-  rect("rgba(0,0,0,.25)", -TW, -24, mix(3.5, 2.5, kt), 14); rect("rgba(255,255,255,.18)", mix(TW - 3, TW - 2.5, kt), -24, mix(2, 2.5, kt), 14);
-  if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TW * ct - 0.3, -24, 0.6, 12);        // costura da frente deslizando para o meio
-  rect("#5a3b22", -TW, -12, TW * 2, 2);
-  if (st > 0.15) rect("#e8c34a", TW * ct - st, -12, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
+  rect(shirt, -TW, -24, TW * 2, 14 + TORSOX);
+  rect("rgba(0,0,0,.25)", -TW, -24, mix(3.5, 2.5, kt), 14 + TORSOX); rect("rgba(255,255,255,.18)", mix(TW - 3, TW - 2.5, kt), -24, mix(2, 2.5, kt), 14 + TORSOX);
+  if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TW * ct - 0.3, -24, 0.6, 12 + TORSOX);        // costura da frente deslizando para o meio
+  rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2);
+  if (st > 0.15) rect("#e8c34a", TW * ct - st, -12 + TORSOX, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
   if (fa > 0) arm(farX, farY, farA, fa);                                                // de frente: o braço do outro lado passa a ficar por cima
   arm(3 * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1);                // braço de perto
@@ -295,11 +287,11 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   rect(hat, hx - hb, -35.5, hb * 2, 3); rect(hat, hx - 4.5, -40, 9, 5);
   rect("rgba(0,0,0,.25)", hx - hb, -34, hb * 2, 1.2); rect("rgba(255,255,255,.35)", hx - 4.5, -36.5, 9, 1.2);
   ctx.restore();
-  return { x, y: PIER_Y - 30 };
+  return { x, y: PIER_Y - 30 - UP };
 }
 function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
-  const ph = x * dir / (11 + 3 * (P.run || 0));
+  const ph = x * dir / (11 + 3 * (P.run || 0) + LEGX * 0.5);              // pernas mais longas dão passadas mais longas
   const sw = P.brake ? 0.85 * P.brake : Math.sin(ph) * amp;                          // freando: pernas abertas e firmes
   const bob = (P.brake ? 1.1 * P.brake : -Math.abs(Math.cos(ph)) * 1.4 * amp) + (P.sb || 0);   // freando: agacha um pouco
   const s = P.stow !== undefined ? P.stow : 0;                                      // vara: 0 na mão ... 1 nas costas
@@ -313,11 +305,12 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   if (P.cheer !== undefined || fk >= 0.5) {                                          // comemorando (braços pro alto) ou parado (braços caídos): de frente para o jogador
     const wv = P.wv || 0, idle = P.cheer === undefined;
     ctx.translate(0, idle ? Math.sin(performance.now() / 600) * 0.3 : -(P.hop || 0));    // parado: respira de leve
-    if (idle) { ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-4, -14); ctx.lineTo(4.5, -44); ctx.stroke(); }   // vara nas costas, aparecendo atrás dele
-    const lg = (lx, col) => { rect(col, lx, -11, 4, 9); rect("#15110e", lx - 0.5, -2.5, 5, 2.5); };
+    if (idle) { ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-4, -14 - LEGX - TORSOX); ctx.lineTo(4.5, -44 - LEGX - TORSOX); ctx.stroke(); }   // vara nas costas, aparecendo atrás dele
+    const lg = (lx, col) => { rect(col, lx, -11 - LEGX, 4, 9 + LEGX); rect("#15110e", lx - 0.5, -2.5, 5, 2.5); };
     lg(-4.6, LEGS[0]); lg(0.6, LEGS[1]);
-    rect(shirt, -TW, -24, TW * 2, 14); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14);
-    rect("#5a3b22", -TW, -12, TW * 2, 2); rect("#e8c34a", -1, -12, 2, 2);
+    ctx.translate(0, -(LEGX + TORSOX));                                              // tudo de cima (tronco, braços, cabeça) sobe
+    rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TORSOX);
+    rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
       rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5); ctx.restore(); };
     if (idle) { arm(-AW, Math.PI / 2 + 0.12); arm(AW, Math.PI / 2 - 0.12); }
@@ -334,25 +327,26 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     return { x, y: PIER_Y - 30 };
   }
   const leg = (a, col) => {                                                      // perna gira a partir do quadril
-    ctx.save(); ctx.translate(0, -11 + bob); ctx.rotate(a);
-    rect(col, -2.3, 0, 4.6, 9); rect("#15110e", -3, 8.5, 6.6, 2.5);
+    ctx.save(); ctx.translate(0, -11 - LEGX + bob); ctx.rotate(a);
+    rect(col, -2.3, 0, 4.6, 9 + LEGX); rect("#15110e", -3, 8.5 + LEGX, 6.6, 2.5);
     ctx.restore();
   };
   leg(-sw * 0.75, LEGS[0]); leg(sw * 0.75, LEGS[1]);                         // trás (escura) e frente
+  ctx.translate(0, -(LEGX + TORSOX));                                               // tudo de cima (tronco, braços, cabeça) sobe
   if (P.crank === undefined) {                                                     // (na hora de puxar o peixe, esse braço vai girar a manivela)
     ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * (0.6 + 0.7 * (P.run || 0)) + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
     rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
     ctx.restore();
   }
-  ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril
+  ctx.translate(0, bob); ctx.translate(0, -11 + TORSOX); ctx.rotate(P.lean); ctx.translate(0, 11 - TORSOX);   // tronco inclina a partir do quadril
   const ca = Math.cos(A), sa = Math.sin(A);
   const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
   const ra = P.rod - P.flex * 0.25;                                  // a ponta da vara atrasa quando ela chicoteia
   let tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const kS = s < SL0 ? 0 : ease3(Math.min(1, (s - SL0) / (SL1 - SL0)));   // quanto a vara já deslizou para as costas
-  rect(shirt, -TW, -24, TW * 2, 14);
-  rect("rgba(0,0,0,.25)", -TW, -24, 3.5, 14); rect("rgba(255,255,255,.18)", TW - 3, -24, 2, 14);
-  rect("#5a3b22", -TW, -12, TW * 2, 2);
+  rect(shirt, -TW, -24, TW * 2, 14 + TORSOX);
+  rect("rgba(0,0,0,.25)", -TW, -24, 3.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 3, -24, 2, 14 + TORSOX);
+  rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2);
   const foreArm = () => {
     ctx.save(); ctx.translate(3, -20.25); ctx.rotate(A);                               // antebraço gira no ombro
     rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5);
@@ -414,8 +408,8 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect("#e8c34a", kx - 1, ky - 1, 2, 2);                                              // cabo da manivela
   }
   ctx.restore();
-  const dy = ty + 11, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
-  return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - 11 + bob };
+  const py = -11 + TORSOX, dy = ty - py, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
+  return { x: x + dir * (tx * c - dy * sn), y: PIER_Y - (LEGX + TORSOX) + (tx * sn + dy * c) + py + bob };
 }
 // ---------- Malto: marinheiro andarilho de pé na frente das caixas (NPC só do seu navegador) ----------
 // Chegue perto e aperte E (ou toque nele) para conversar. Para mexer nas falas, edite MALTO_LINES.
