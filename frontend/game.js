@@ -586,11 +586,83 @@ function drawFx(now) {                                                   // ané
   }
 }
 
+// ---------- Telefish: celular que sobe ao apertar F (desenhado dentro do canvas, então recebe o mesmo filtro do jogo) ----------
+// E interage com o menu. Ao lançar a vara, ou ao sair do modo andar, ele desce sozinho.
+const PHONE_SRC = "assets/imgs/telefish.png";
+const NOKIA_FONT = '8px "Nokia Cellphone FC", monospace';              // a fonte vem de assets/fonts (ver @font-face no index.html)
+const PH_H = 336, PH_VIS = 0.64, PH_MARGIN = 6;                          // altura do celular (px lógicos), quanto dele aparece e distância da borda direita
+const PH_SCR = { x: 0.2845, y: 0.2436, w: 0.4237, h: 0.1763, r: 0.0228 };   // posição do vidro da tela dentro do PNG (medida na imagem)
+const LCD_INK = "#1b2619", LCD_BG = "#97a888";                           // "pixel" escuro e fundo da tela acesa
+const phoneImg = Object.assign(new Image(), { src: PHONE_SRC });
+if (document.fonts) document.fonts.load(NOKIA_FONT).catch(() => {});
+const PH = { open: false, pos: 0, vel: 0, lit: 0, delay: 0, blink: 0 };
+function openPhone() {
+  if (PH.open || state !== "walk") return;
+  PH.open = true; PH.delay = 0.45; mTalk = null;                         // sobe; a tela acende depois que ele chega
+}
+function closePhone() { PH.open = false; }
+function togglePhone() { PH.open ? closePhone() : openPhone(); }
+function phoneSelect() {                                                // E: seleciona a opção (ainda sem função, só o visual)
+  if (!PH.open || PH.lit < 0.9) return;
+  PH.blink = 0.22; SND.play("step_wood_1", { vol: 0.12, rate: 2.2, jitter: 0.1 });
+}
+function updatePhone(dt) {
+  if (PH.open && state !== "walk") closePhone();
+  if (PH.open) PH.delay -= dt;
+  PH.vel += (((PH.open ? 1 : 0) - PH.pos) * 170 - PH.vel * 21) * dt;     // mola: sobe com uma folguinha e assenta
+  PH.pos += PH.vel * dt;
+  if (PH.pos < 0) { PH.pos = 0; PH.vel = 0; }
+  PH.lit += (((PH.open && PH.delay <= 0) ? 1 : 0) - PH.lit) * Math.min(1, dt * (PH.open ? 6 : 14));
+  PH.blink = Math.max(0, PH.blink - dt);
+}
+function roundPath(x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function nokiaScreen(sw, sh, inv) {                                      // layout do LCD (coordenadas em px lógicos a partir do canto da tela)
+  sh = Math.round(sh);
+  for (let i = 0; i < 4; i++) rect(LCD_INK, 2, 4 + i * 3, 6 - i, 2);      // sinal: barrinhas na lateral esquerda
+  rect(LCD_INK, sw - 6, 3, 3, 1);                                        // bateria na lateral direita
+  for (let i = 0; i < 4; i++) rect(LCD_INK, sw - 8, 5 + i * 3, 7, 2);
+  ctx.font = NOKIA_FONT; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+  ctx.fillStyle = LCD_INK; ctx.fillText("Menu", 11, 11);
+  rect(LCD_INK, 11, 14, sw - 22, 1);
+  if (inv) rect(LCD_INK, 11, 17, sw - 22, 19);                            // opção selecionada em vídeo invertido
+  ctx.fillStyle = inv ? LCD_BG : LCD_INK;
+  ctx.fillText("Personalizar", 14, 26); ctx.fillText("personagem", 14, 34);
+  const bw = 36, bx = Math.round((sw - bw) / 2), by = sh - 13;            // botão de baixo ("Selec.") dentro de uma caixinha arredondada
+  ctx.strokeStyle = LCD_INK; ctx.lineWidth = 1; roundPath(bx + 0.5, by + 0.5, bw - 1, 11, 3); ctx.stroke();
+  ctx.fillStyle = LCD_INK; ctx.textAlign = "center"; ctx.fillText("Selec.", sw / 2, by + 8); ctx.textAlign = "left";
+}
+function drawPhone() {
+  if (PH.pos <= 0.003 || !phoneImg.complete || !phoneImg.naturalWidth) return;
+  const ph = PH_H, pw = ph * phoneImg.naturalWidth / phoneImg.naturalHeight;
+  const x = Math.round(W - pw - PH_MARGIN), y = Math.round(H - ph * PH_VIS * Math.min(PH.pos, 1.08));
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 12 * S;
+  ctx.drawImage(phoneImg, x, y, pw, ph);
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+  const sx = Math.round(x + pw * PH_SCR.x), sy = Math.round(y + ph * PH_SCR.y), sw = pw * PH_SCR.w, sh = ph * PH_SCR.h;
+  if (PH.lit > 0.003) {
+    roundPath(sx, sy, sw, sh, pw * PH_SCR.r); ctx.clip();
+    const g = ctx.createLinearGradient(0, sy, 0, sy + sh); g.addColorStop(0, LCD_BG); g.addColorStop(1, "#8a9b7c");
+    ctx.globalAlpha = PH.lit; ctx.fillStyle = g; ctx.fillRect(sx, sy, sw, sh);              // a tela fica mais clara (sem sombra nas bordas)
+    const ca = Math.floor(clamp01((PH.lit - 0.35) / 0.5) * 3) / 3;                          // as opções aparecem em 3 "quadros", como num LCD
+    if (ca > 0) {
+      ctx.globalAlpha = ca; ctx.translate(sx, sy);
+      nokiaScreen(sw, sh, !(PH.blink > 0 && ((PH.blink * 20) | 0) % 2 === 0));
+    }
+  }
+  ctx.restore();
+}
+
 addEventListener("keydown", e => {
   SND.unlock();                                         // o navegador só libera o som depois de uma tecla/toque
   keys[e.code] = true;
   if (e.code === "KeyM" && !e.repeat) say(SND.toggleMute() ? "Som desligado" : "Som ligado");
-  if (e.code === "KeyE" && !e.repeat) talkMalto();
+  if (e.code === "KeyF" && !e.repeat) togglePhone();
+  if (e.code === "Escape" && PH.open) closePhone();
+  if (e.code === "KeyE" && !e.repeat) { if (PH.open) phoneSelect(); else talkMalto(); }   // com o celular aberto, E é do celular
   if (e.code === "Space") { e.preventDefault(); if (!e.repeat) press(); }
 });
 addEventListener("keyup", e => keys[e.code] = false);
@@ -608,6 +680,7 @@ function say(m) { msg = m; msgT = 2.5; }
 
 function press() {
   if (state === "walk") {
+    closePhone();                                                       // vai lançar a vara: o celular desce
     if (Math.abs(spd) > WALK + 1) wantDraw = true;                     // correndo: freia primeiro (o arremesso começa ao frear)
     else startCast();                                                   // senão já saca a vara das costas lançando
   } else if (state === "wait") { state = "walk"; SND.retract(); say("Você recolheu a linha"); }
@@ -677,6 +750,7 @@ function movePose() {                                                           
 }
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
+  updatePhone(dt);
   maltoUpdate(dt);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
@@ -1195,9 +1269,10 @@ function draw(now) {
 
   // HUD
   text("Pontos: " + score, 10, 16);
-  const hint = { walk: "← → mover   SHIFT correr   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : ""), cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
+  const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : "← → mover   SHIFT correr   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : "") + "   F celular", cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
   text(hint, 10, H - 10, "#fff");
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
+  drawPhone();                                         // por último, antes do filtro: o celular também leva o dithering
   present();
 }
 

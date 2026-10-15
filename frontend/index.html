@@ -4,41 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pesca no Cais</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">   <!-- fonte reserva até o arquivo do Nokia estar em assets/fonts -->
-<link rel="stylesheet" href="telefish.css">
 <style>
+  @font-face{font-family:"Nokia Cellphone FC";src:url("assets/fonts/nokia-cellphone-fc.ttf") format("truetype");font-display:block}
   html,body{margin:0;height:100%;background:#14202b;display:grid;place-items:center;overflow:hidden}
   canvas{max-width:100vw;max-height:100vh;image-rendering:auto;touch-action:none;outline:none}
 </style>
 </head>
 <body>
 <canvas id="g" tabindex="0" aria-label="Jogo de pesca"></canvas>
-
-<!-- Telefish (tecla F) -->
-<div id="telefish" aria-hidden="true">
-  <img class="tf-img" src="assets/imgs/telefish.png" alt="" draggable="false">
-  <div class="tf-screen">
-    <div class="tf-glass"></div>
-    <div class="tf-ui">
-      <div class="tf-status">
-        <span class="tf-signal"><i></i><i></i><i></i><i></i></span>
-        <span class="tf-batt"><i></i><i></i><i></i></span>
-      </div>
-      <div class="tf-title">Menu</div>
-      <ul class="tf-list">
-        <li class="sel">Personalizar personagem</li>
-      </ul>
-      <div class="tf-soft">Selec.</div>
-    </div>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
 <script src="config.js"></script>
 <script src="audio.js"></script>
-<script src="telefish.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
