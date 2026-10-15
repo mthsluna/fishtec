@@ -106,10 +106,8 @@ const SND = (() => {
       let i; do { i = 1 + (Math.random() * 4 | 0); } while (i === lastStep); lastStep = i;
       play("step_wood_" + i, { vol: 0.45, jitter: 0.08 });
     },
-    cast() {
-      play("cast_whoosh", { vol: 0.6 });
-      play("bobber_splash_" + (1 + (Math.random() * 3 | 0)), { vol: 0.5, delay: 0.5 });   // a isca cai na água
-    },
+    cast() { play("cast_whoosh", { vol: 0.6, delay: 0.25 }); },          // o swish acompanha o chicote da vara
+    splash() { play("bobber_splash_" + (1 + (Math.random() * 3 | 0)), { vol: 0.5 }); },   // toca quando a isca cai na água
     retract() { play("reel_ratchet", { vol: 0.4 }); },
     bite() { play("bite_alert", { vol: 0.6 }); },
     hook() { play("hook_set", { vol: 0.6 }); play("reel_ratchet", { vol: 0.35, delay: 0.08 }); },

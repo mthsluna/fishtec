@@ -116,6 +116,7 @@ let fish = null, score = 0, msg = "", msgT = 0, bite = 0;
 const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
+let castT = 0, castRel = null; const fxs = [];            // arremesso em andamento e respingos
 let stepDist = 0, reelT = 0;                       // controle dos sons de passo e de carretilha
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
@@ -136,9 +137,11 @@ let lastNet = 0;
 function net(now) {
   if (!socket || !socket.connected || now - lastNet < 66) return;
   lastNet = now;
-  socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
+  socket.volatile.emit("move", { x: px, dir, state: state === "cast" ? "wait" : state, bx: bobber.x });   // o servidor só conhece walk/wait/bite/reel
 }
-function drawFisher(x, dir, shirt, hat, amp = 0) {
+const REST = -0.846, POSE0 = { rod: REST, arm: 0, lean: 0, flex: 0 };   // pose parada da vara
+function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
+  const P = pose || POSE0;
   const ph = x * dir / 11, sw = Math.sin(ph) * amp, bob = -Math.abs(Math.cos(ph)) * 1.4 * amp;
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
   ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 9, 2, 0, 0, 7); ctx.fill();
@@ -151,22 +154,30 @@ function drawFisher(x, dir, shirt, hat, amp = 0) {
   ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1);          // braço livre balançando
   rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
   ctx.restore();
-  ctx.translate(0, bob);                                                         // tronco sobe e desce ao andar
+  ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril                                                         // tronco sobe e desce ao andar
   rect(shirt, -6, -24, 12, 14);
   rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
   rect("#5a3b22", -6, -12, 12, 2);
-  rect(shirt, 3, -22, 8, 3.5); rect("rgba(0,0,0,.2)", 3, -19, 8, 0.8);
-  rect("#f1c27d", 10.5, -22, 3, 3.5);
+  ctx.save(); ctx.translate(3, -20.25); ctx.rotate(P.arm);                                 // antebraço gira no ombro
+  rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5);
+  ctx.restore();
+  
   rect("#e0ac69", -3, -26, 4, 2.5);
   rect("#f1c27d", -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
   rect("#2a1a10", 2.5, -30, 1.6, 1.8); rect("#c98d5a", 4, -27.5, 2, 1);
   rect(hat, -6, -35.5, 14, 3); rect(hat, -3.5, -40, 9, 5);
   rect("rgba(0,0,0,.25)", -6, -34, 14, 1.2); rect("rgba(255,255,255,.35)", -3.5, -36.5, 9, 1.2);
+  const ca = Math.cos(P.arm), sa = Math.sin(P.arm);
+  const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
+  const ra = P.rod - P.flex * 0.25, RL = 33.1;                       // a ponta da vara atrasa quando ela chicoteia
+  const tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
+  const cx = (hx + tx) / 2 + P.flex * 6.6 * Math.sin(P.rod), cy = (hy + ty) / 2 - P.flex * 6.6 * Math.cos(P.rod);
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(10, -21); ctx.lineTo(33, -45); ctx.stroke();
-  rect("#b8b8b8", 9, -23, 3, 3);
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke();
+  rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
   ctx.restore();
-  return { x: x + dir * 33, y: PIER_Y - 45 + bob };
+  const dy = ty + 11, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
+  return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - 11 + bob };
 }
 function drawLine(tx, ty, bx, now, st) {
   const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), by = BOB_Y + b;
@@ -184,6 +195,45 @@ function drawOther(p, now) {
 function drawOtherLine(p, now) {                                 // linha e nome são desenhados por cima da água
   if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state);
   text(p.name, p.x, PIER_Y - 46, "#cfe8ff", "center");
+}
+
+// ---------- Arremesso da vara: recuo -> chicote -> soltura; a boia voa em arco e cai com respingo ----------
+const lerp = (a, b, k) => a + (b - a) * k, easeOut = k => 1 - (1 - k) * (1 - k), easeIn = k => k * k;
+const CAST_RELEASE = 0.45, CAST_FLIGHT = 0.55, CAST_SWING = 0.75;     // segundos
+function castPose(c) {
+  const u = Math.min(1, c / CAST_SWING);
+  if (u < 0.42) { const k = easeOut(u / 0.42);                          // vara vai para trás, por cima do ombro
+    return { rod: lerp(REST, -2.45, k), arm: lerp(0, -1.0, k), lean: lerp(0, -0.1, k), flex: -0.3 * Math.sin(Math.PI * k) }; }
+  if (u < 0.6) { const k = (u - 0.42) / 0.18, e = easeIn(k);            // chicote para a frente (a vara envergando)
+    return { rod: lerp(-2.45, -0.15, e), arm: lerp(-1.0, 0.2, e), lean: lerp(-0.1, 0.08, e), flex: 1.1 * Math.sin(Math.PI * k) }; }
+  const k = easeOut((u - 0.6) / 0.4);                                   // acompanha o movimento e a vara balança até parar
+  return { rod: lerp(-0.15, REST, k), arm: lerp(0.2, 0, k), lean: lerp(0.08, 0, k), flex: 0.6 * (1 - k) * Math.sin(k * 14) };
+}
+function drawCast(tip) {
+  let bx, by, sag = 3;
+  if (castT < CAST_RELEASE) { bx = tip.x; by = tip.y + 13; }              // boia pendurada na linha antes de soltar
+  else {
+    if (!castRel) castRel = { x: tip.x, y: tip.y + 13 };
+    const s = Math.min(1, (castT - CAST_RELEASE) / CAST_FLIGHT);
+    bx = lerp(castRel.x, bobber.x, s);
+    by = lerp(castRel.y, BOB_Y, s) - 4 * 45 * s * (1 - s);               // arco
+    sag = 3 + 10 * s;
+  }
+  ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.quadraticCurveTo((tip.x + bx) / 2, (tip.y + by) / 2 + sag, bx, by); ctx.stroke();
+  rect("#e63946", bx - 2, by - 3.5, 4, 3.5); rect("#fff", bx - 2, by, 4, 3);
+}
+function drawFx(now) {                                                   // anéis e gotas quando a boia cai na água
+  for (let i = fxs.length - 1; i >= 0; i--) {
+    const f = fxs[i], a = (now - f.t0) / 1000;
+    if (a > 0.7) { fxs.splice(i, 1); continue; }
+    ctx.strokeStyle = `rgba(255,255,255,${0.7 * (1 - a / 0.7)})`; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.ellipse(f.x, BOB_Y + 1, 3 + a * 28, 1 + a * 5, 0, 0, 7); ctx.stroke();
+    for (let d = 0; d < 6; d++) {
+      const gx = f.x + (d - 2.5) * 9 * a, gy = BOB_Y + (-55 - (d % 2) * 15) * a + 140 * a * a;
+      if (gy < BOB_Y + 2) rect(`rgba(255,255,255,${1 - a / 0.7})`, gx - 0.8, gy - 0.8, 1.6, 1.6);
+    }
+  }
 }
 
 addEventListener("keydown", e => {
@@ -204,7 +254,7 @@ function say(m) { msg = m; msgT = 2.5; }
 
 function press() {
   if (state === "walk") {
-    state = "wait"; t = 2 + Math.random() * 3;
+    state = "cast"; castT = 0; castRel = null;
     bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
     fish = null; SND.cast();
     post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
@@ -236,6 +286,9 @@ function update(dt) {
     moving = Math.abs(px - ox) > 0.001;
     stepDist += Math.abs(px - ox);
     if (stepDist >= 22) { stepDist -= 22; SND.step(); }          // um passo a cada ~22px andados
+  } else if (state === "cast") {
+    castT += dt;
+    if (castT >= CAST_RELEASE + CAST_FLIGHT) { state = "wait"; t = 2 + Math.random() * 3; fxs.push({ x: bobber.x, t0: performance.now() }); SND.splash(); }
   } else if (state === "wait") {
     t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; SND.bite(); }
   } else if (state === "bite") {
@@ -382,7 +435,7 @@ function draw(now) {
   ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp);
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(castT) : null);
   ctx.restore();
 
   // 2) água com reflexo
@@ -403,7 +456,9 @@ function draw(now) {
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOtherLine(o, now));
   text(myName, px, PIER_Y - 46, "#ffd166", "center");
-  if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
+  drawFx(now);
+  if (state === "cast") drawCast(tip);
+  else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
   ctx.restore();
 
   // minigame estilo Stardew
@@ -423,7 +478,7 @@ function draw(now) {
 
   // HUD
   text("Pontos: " + score, 10, 16);
-  const hint = { walk: "← → mover   ESPAÇO lançar", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra" }[state];
+  const hint = { walk: "← → mover   ESPAÇO lançar", cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra" }[state];
   text(hint, 10, H - 10, "#fff");
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   present();
