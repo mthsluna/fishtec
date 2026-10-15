@@ -161,7 +161,8 @@ function net(now) {
   if (!socket || !socket.connected) return;
   if (now - lastNet < 66 && state === lastSt) return;            // 15x por segundo, ou na hora se o estado mudou
   lastNet = now; lastSt = state;
-  socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
+  const rs = state === "walk" && !wantDraw && (runK > 0.05 || brake > 0.08);   // vara guardada nas costas (correndo)
+  socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x, rs });
 }
 function softShadow(x, y, rx, ry, a, maxY) {                       // sombra macia: centro mais escuro e bordas que somem (maxY: não passa da borda do deck)
   ctx.save();
@@ -444,6 +445,10 @@ function drawOther(p, now) {
     if (p.state === "reel") p.ra = 0;
   }
   let pose = null;
+  const goal = p.state === "walk" && p.rs ? 1 : 0;                // vara dele: guarda nas costas ao correr e saca ao parar
+  p.sk = p.state === "walk" || p.sk ? (p.sk || 0) + Math.sign(goal - (p.sk || 0)) * Math.min(Math.abs(goal - (p.sk || 0)), dt / (goal ? STOW_T : DRAW_T)) : 0;
+  if (p.state !== "walk") p.sk = 0;
+  if (p.sk > 0.001) pose = { rod: REST, arm: 0, lean: 0.15 * p.sk, off: 0, flex: 0, run: 0, stow: p.sk };
   if (p.state === "cast" && p.cs) {
     p.cs.t = (now - p.c0) / 1000;
     pose = castPose(p.cs.t);

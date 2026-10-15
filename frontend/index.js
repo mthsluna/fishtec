@@ -44,7 +44,7 @@ io.on("connection", (socket) => {
       id: socket.id,
       name: String(name || "Pescador").slice(0, 14),
       color: COLORS[Object.keys(players).length % COLORS.length],
-      x: 240, dir: 1, state: "walk", bx: 270,
+      x: 240, dir: 1, state: "walk", bx: 270, rs: false,
     };
     socket.emit("players", Object.values(players));
     socket.broadcast.emit("player:join", players[socket.id]);
@@ -57,7 +57,8 @@ io.on("connection", (socket) => {
     p.dir = d.dir === -1 ? -1 : 1;
     p.state = STATES.includes(d.state) ? d.state : "walk";
     p.bx = num(d.bx, 0, 480);
-    socket.volatile.broadcast.emit("player:move", { id: p.id, x: p.x, dir: p.dir, state: p.state, bx: p.bx });
+    p.rs = d.rs === true;                                   // vara guardada nas costas (correndo)
+    socket.volatile.broadcast.emit("player:move", { id: p.id, x: p.x, dir: p.dir, state: p.state, bx: p.bx, rs: p.rs });
   });
 
   socket.on("disconnect", () => {
