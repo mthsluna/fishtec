@@ -139,8 +139,8 @@ let stepDist = 0, reelT = 0;                       // controle dos sons de passo
 const WALK = 90, RUN = 165;                       // velocidades (px/s): andar e correr (SHIFT)
 let spd = 0, runK = 0, brake = 0, dustT = 0, wasBraking = false;   // velocidade atual, quanto está correndo (0-1), quanto está freando (0-1)
 const dust = [];                                  // fumacinha da freada
-let stowK = 0, wantDraw = false;                  // vara: 0 = na mão, 1 = nas costas; wantDraw = quer lançar mas ainda está sacando a vara
-const STOW_T = 0.4, DRAW_T = 0.32;                // segundos para guardar nas costas / sacar de volta
+let stowK = 0, wantDraw = false, stowGoal = 0, runT = 0, calmT = 0, vigK = 0;   // stowGoal/runT/calmT: histerese (só guarda correndo de verdade, só saca depois de calmo); vigK: vinheta                  // vara: 0 = na mão, 1 = nas costas; wantDraw = quer lançar mas ainda está sacando a vara
+const STOW_T = 0.5, DRAW_T = 0.45;                // segundos para guardar nas costas / sacar de volta
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
 
@@ -161,7 +161,7 @@ function net(now) {
   if (!socket || !socket.connected) return;
   if (now - lastNet < 66 && state === lastSt) return;            // 15x por segundo, ou na hora se o estado mudou
   lastNet = now; lastSt = state;
-  const rs = state === "walk" && !wantDraw && (runK > 0.05 || brake > 0.08);   // vara guardada nas costas (correndo)
+  const rs = state === "walk" && stowGoal === 1;   // vara guardada nas costas (correndo)
   socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x, rs });
 }
 function softShadow(x, y, rx, ry, a, maxY) {                       // sombra macia: centro mais escuro e bordas que somem (maxY: não passa da borda do deck)
@@ -181,9 +181,29 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const s = P.stow !== undefined ? P.stow : (P.run !== undefined ? 1 : 0);          // vara: 0 na mão ... 1 nas costas
   const K1 = 0.45, RA = -2.2, RUP = -1.9;                                            // até K1: a mão leva a vara por cima do ombro; depois ela desliza para as costas
   const A0 = P.run !== undefined && !P.brake ? 1.05 + sw * 0.85 : P.arm;             // correndo: o braço da frente balança junto com o corpo
-  const A = s <= 0 ? A0 : s < K1 ? lerp(P.arm, RA, easeInOut(s / K1)) : lerp(RA, A0, easeInOut((s - K1) / (1 - K1)));
+  const A = s <= 0 ? A0 : s < K1 ? lerp(P.arm, RA, easeInOut(s / K1)) : lerp(RA, A0, easeInOut(Math.max(0, Math.min(1, ((s - K1) / (1 - K1) - 0.4) / 0.6))));   // o braço fica no alto enquanto a vara desliza e só desce no fim
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
   softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
+  if (P.cheer !== undefined) {                                                       // comemorando: de frente para o jogador, os dois braços pro alto
+    const wv = P.wv || 0;
+    ctx.translate(0, -(P.hop || 0));
+    const lg = (lx, col) => { rect(col, lx, -11, 4, 9); rect("#15110e", lx - 0.5, -2.5, 5, 2.5); };
+    lg(-4.6, "#1c2a38"); lg(0.6, "#26384a");
+    rect(shirt, -6, -24, 12, 14); rect("rgba(0,0,0,.2)", -6, -24, 2.5, 14); rect("rgba(255,255,255,.18)", 3.5, -24, 2.5, 14);
+    rect("#5a3b22", -6, -12, 12, 2); rect("#e8c34a", -1, -12, 2, 2);
+    const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
+      rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5); ctx.restore(); };
+    arm(-5.5, -Math.PI + 1.0 - wv * 0.12); arm(5.5, -1.0 + wv * 0.12);
+    rect("#e0ac69", -2, -26, 4, 2.5);
+    rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
+    rect("#2a1a10", -2.6, -30.2, 1.6, 1.8); rect("#2a1a10", 1, -30.2, 1.6, 1.8);       // olhos
+    rect("rgba(230,120,100,.45)", -3.8, -28.6, 1.4, 1.2); rect("rgba(230,120,100,.45)", 2.4, -28.6, 1.4, 1.2);
+    rect("#7a2a1a", -1.6, -27.6, 3.2, 1.5); rect("#fff", -1.2, -27.6, 2.4, 0.7);       // sorriso
+    rect(hat, -7.5, -35.5, 15, 3); rect(hat, -4.5, -40, 9, 5);
+    rect("rgba(0,0,0,.25)", -7.5, -34, 15, 1.2); rect("rgba(255,255,255,.35)", -4.5, -36.5, 9, 1.2);
+    ctx.restore();
+    return { x, y: PIER_Y - 30 };
+  }
   const leg = (a, col) => {                                                      // perna gira a partir do quadril
     ctx.save(); ctx.translate(0, -11 + bob); ctx.rotate(a);
     rect(col, -2.3, 0, 4.6, 9); rect("#15110e", -3, 8.5, 6.6, 2.5);
@@ -558,7 +578,7 @@ function finish(win) {
 }
 // ---------- Comemoração: braços pra cima e o peixe pescado aparece grande, flutuando sobre eles ----------
 let showT = 0;
-const cheerPose = now => { const s = Math.sin(now / 140); return { rod: REST, arm: -1.3 + 0.12 * s, lean: 0.04, off: Math.PI - 0.3 - 0.12 * s, flex: 0, cheer: 1 }; };
+const cheerPose = now => { const s = Math.sin(now / 140); return { rod: REST, arm: -1.3 + 0.12 * s, lean: 0.04, off: Math.PI - 0.3 - 0.12 * s, flex: 0, cheer: 1, wv: s, hop: Math.abs(s) * 1.8 }; };
 const easeOutBack = k => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
 function drawCatch(now) {
   if (state !== "show" || !fish) return;
@@ -602,11 +622,15 @@ function update(dt) {
   msgT = Math.max(0, msgT - dt);
   maltoUpdate(dt);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
-  zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);      // zoom entra e sai suavemente
+  zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
+  vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
-  if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; stowK = 0; wantDraw = false; }
+  if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; stowK = 0; wantDraw = false; stowGoal = 0; runT = 0; calmT = 0; }
   else {                                                                       // vara: guarda nas costas ao correr e saca de volta ao parar
-    const goal = !wantDraw && (runK > 0.05 || brake > 0.08) ? 1 : 0;
+    if (runK > 0.3) { runT += dt; calmT = 0; } else { runT = 0; if (runK > 0.05 || brake > 0.08) calmT = 0; else calmT += dt; }
+    if (!stowGoal && runT > 0.2) stowGoal = 1;                                  // só guarda depois de correr de verdade por um instante
+    if (stowGoal && (calmT > 0.25 || wantDraw)) stowGoal = 0;                   // só saca depois de ficar calmo (ou ao querer lançar)
+    const goal = stowGoal;
     stowK += Math.sign(goal - stowK) * Math.min(Math.abs(goal - stowK), dt / (goal ? STOW_T : DRAW_T));
     if (wantDraw && stowK <= 0.001) { wantDraw = false; stowK = 0; startCast(); return; }   // vara na mão: agora sim lança
   }
@@ -1108,6 +1132,12 @@ function draw(now) {
     // progresso
     rect("#1b1b1b", TRACK.x + 22, TRACK.y, 6, TRACK.h);
     rect(prog > 66 ? "#6bd66b" : prog > 33 ? "#ffd166" : "#e63946", TRACK.x + 23, TRACK.y + TRACK.h * (1 - prog / 100), 4, TRACK.h * prog / 100);
+  }
+
+  if (vigK > 0.004) {                                                  // vinheta escura bem fraquinha enquanto comemora
+    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.38, W / 2, H / 2, Math.hypot(W, H) * 0.55);
+    g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(8,4,20,${0.38 * vigK})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
 
   // HUD
