@@ -392,11 +392,11 @@ function buildLayers() {
   });
   const posts = layer(() => {
     ctx.translate(EXT, 0);
-    for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) { rect("#3b2314", i, PIER_Y + 8, 8, 32); rect("#5a3b22", i + 1, PIER_Y + 8, 2.5, 32); rect("rgba(255,255,255,.12)", i - 3, WATER_Y + 4, 14, 1.5); }
+    for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) { rect("#3b2314", i, PIER_Y + 8, 8, 32); rect("#5a3b22", i + 1, PIER_Y + 8, 2.5, 32); }
   });
   const water = layer(() => {
     const g = ctx.createLinearGradient(0, WATER_Y, 0, H);
-    g.addColorStop(0, "#6fa4b6"); g.addColorStop(0.15, "#4a93b4"); g.addColorStop(0.5, "#245f86"); g.addColorStop(1, "#0b2a45");
+    g.addColorStop(0, "#a8808f"); g.addColorStop(0.12, "#63869f"); g.addColorStop(0.45, "#2a6089"); g.addColorStop(1, "#0b2a45");
     ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, H - WATER_Y);
   }, W, H);
   const clouds = CLOUDS.map(c => c.cirrus ? makeCirrus(c.w, c.h, c.seed) : makeCloud(c.w, c.h, c.seed, c.tone));
@@ -413,62 +413,62 @@ function reflect() {                       // copia o que está acima da água p
   rctx.drawImage(buf, 0, (WATER_Y - RD) * S, W * S, RD * S, 0, 0, W * S, RD * S);
 }
 function drawReflection(now) {             // desenha o reflexo espelhado, em faixas que ondulam (mais forte longe da margem)
-  const rh = 2;
+  const rh = 1;
   for (let r = 0; r < RD; r += rh) {
     const k = r / RD;
-    const off = Math.sin(r / 3.2 + now / 380) * (0.5 + k * 2.4) + Math.sin(r / 1.7 - now / 260) * 0.5;
+    const off = Math.sin(r / 5 + now / 900) * (0.3 + k * 1.6) + Math.sin(r / 2.6 - now / 650) * 0.35;
     ctx.globalAlpha = 0.6 * (1 - k * 0.8);
     ctx.drawImage(refl, 0, (RD - r - rh) * S, W * S, rh * S, off - 4, WATER_Y + r, W + 8, rh);
   }
   ctx.globalAlpha = 1;
 }
 
-// ---------- Ondas: campo de altura (soma de ondas) iluminado pelo sol, calculado numa grade pequena e suavizada ----------
-const WV = { cw: 3, ch: 2, cols: 0, rows: 0, cv: null, c: null, im: null };
+// ---------- Ondas: cristas horizontais em perspectiva, iluminadas pelo sol (grade pequena, suavizada ao desenhar) ----------
+// As cristas só ondulam de lado e "respiram" no lugar: nada escorre para cima nem para baixo.
+const WV = { cw: 2, ch: 2, cols: 0, rows: 0, cv: null, c: null, im: null, q: null, m: null, dq: null };
+const WA = [1, 0.7, 0.45], WK = [40, 62, 88], WQ = [1.8, 1.4, 1.1], WKX = [0.018, 0.035, 0.06], WT = [-0.5, 0.7, -0.9], WPH = [0, 1.3, 2.1];
 function waveSetup() {
   WV.cols = Math.ceil(W / WV.cw) + 1; WV.rows = Math.ceil((H - WATER_Y) / WV.ch);
   WV.cv = document.createElement("canvas"); WV.cv.width = WV.cols; WV.cv.height = WV.rows;
   WV.c = WV.cv.getContext("2d"); WV.im = WV.c.createImageData(WV.cols, WV.rows);
+  WV.q = new Float32Array(WV.cols * 3); WV.m = new Float32Array(WV.cols * 3); WV.dq = new Float32Array(WV.cols * 3);
 }
 function drawWaves(now, ox) {
   if (WV.cols !== Math.ceil(W / WV.cw) + 1) waveSetup();
-  const t = now / 1000, sunX = ox + camX * PAR.sky + 366, d = WV.im.data, cols = WV.cols, rows = WV.rows;
+  const t = now / 1000, sunX = ox + camX * PAR.sky + 366, d = WV.im.data, cols = WV.cols, rows = WV.rows, HT = rows * WV.ch;
   const cl = (v, a, b) => v < a ? a : v > b ? b : v;
+  const bob = [0.35 * Math.sin(t * 0.8), 0.4 * Math.sin(t * 1.1), 0.5 * Math.sin(t * 1.5 + 1)];
+  for (let i = 0; i < cols; i++) {                                         // partes que dependem só da coluna (uma vez por quadro)
+    const xw = i * WV.cw - camX * 0.7;
+    for (let k = 0; k < 3; k++) {
+      const arg = WKX[k] * xw + WT[k] * t + WPH[k];
+      WV.q[i * 3 + k] = WQ[k] * Math.sin(arg); WV.dq[i * 3 + k] = WQ[k] * WKX[k] * Math.cos(arg);
+      WV.m[i * 3 + k] = WA[k] * (0.7 + 0.3 * Math.sin(xw * 0.013 + k * 2.1 + t * 0.2));
+    }
+  }
   for (let j = 0; j < rows; j++) {
-    const s = j / (rows - 1), w = 1 / (0.35 + s * 0.9);                  // w: perspectiva (ondas mais apertadas ao longe, perto do horizonte)
-    const width = 20 + 80 * s, flat = 0.45 + 0.55 * s;                  // largura da trilha do sol e achatamento das ondas distantes
+    const s = j / (rows - 1), WB = 0.6, v = Math.log((WB + s) / WB), vp = 1 / (WB + s), amp = 0.35 + 0.65 * s;   // perspectiva: cristas mais juntas ao longe
+    const width = 20 + 80 * s;                                             // a trilha do sol alarga perto de quem olha
     for (let i = 0; i < cols; i++) {
-      const xs = i * WV.cw, xw = xs - camX * 0.7;
-      const p1 = xw * 0.035 + w * 7 - t * 0.9, p2 = -xw * 0.06 + w * 11 - t * 1.3, p3 = xw * 0.11 + w * 19 + t * 1.9, p4 = xw * 0.21 - w * 27 - t * 2.6;
-      const c1 = Math.cos(p1), c2 = Math.cos(p2), c3 = Math.cos(p3), c4 = Math.cos(p4);
-      const h = Math.sin(p1) + 0.6 * Math.sin(p2) + 0.35 * Math.sin(p3) + 0.2 * Math.sin(p4);
-      const sy = (7 * c1 + 6.6 * c2 + 6.65 * c3 - 5.4 * c4) * 0.06 * flat;          // inclinação da onda (para o horizonte)
-      const sx = (0.035 * c1 - 0.036 * c2 + 0.0385 * c3 + 0.042 * c4) * 6;           // inclinação lateral
-      const shade = cl(-sy * 0.4 + h * 0.06, -0.6, 0.6);                           // faces viradas ao sol clareiam, as outras escurecem
-      const dx = (xs - sunX) / width, mask = Math.exp(-dx * dx);                    // trilha do sol
-      const g = Math.pow(cl((-sy * 0.9 + sx * 0.3 - 0.2) * 1.5, 0, 1), 1.4) * mask * (1 - 0.4 * s);   // cintilação onde a onda reflete o sol
-      const aL = Math.min(1, Math.max(shade, 0) * 0.5 + mask * 0.1 * (1 - 0.5 * s) + g);
-      const aD = Math.max(-shade, 0) * 0.8 * (1 - aL);
-      const k = g / (aL + 1e-3), a = aL + aD, o = (j * cols + i) * 4;
-      const Lr = 255, Lg = 205 + 33 * k, Lb = 150 + 40 * k;                          // luz quente -> branco-dourado nos pontos fortes
-      d[o] = a > 0 ? (Lr * aL + 6 * aD) / a : 0; d[o + 1] = a > 0 ? (Lg * aL + 24 * aD) / a : 0; d[o + 2] = a > 0 ? (Lb * aL + 44 * aD) / a : 0;
+      let h = 0, sy = 0, sx = 0;
+      for (let k = 0; k < 3; k++) {
+        const a = WV.m[i * 3 + k] * amp, p = WK[k] * v + WV.q[i * 3 + k] + bob[k] + k * 1.7, cs = Math.cos(p);
+        h += a * Math.sin(p); sy += a * cs * WK[k] * vp / HT * 2.4; sx += a * cs * WV.dq[i * 3 + k];
+      }
+      const shade = cl(-sy * 0.3 + h * 0.06, -0.5, 0.5);                    // faces viradas ao sol clareiam, as outras escurecem
+      const dx = (i * WV.cw - sunX) / width, mask = Math.exp(-dx * dx);     // trilha do sol
+      const g = Math.pow(cl((-sy + 0.25 * sx - 0.5) * 1.8, 0, 1), 1.4) * mask * (1 - 0.4 * s);   // só as ondas inclinadas para o sol cintilam
+      const aL = Math.min(1, Math.max(shade, 0) * 0.5 + mask * 0.08 * (1 - 0.5 * s) + g);
+      const aD = Math.max(-shade, 0) * 0.7 * (1 - aL);
+      const kk = g / (aL + 1e-3), a = aL + aD, o = (j * cols + i) * 4;
+      const Lg = 205 + 33 * kk, Lb = 150 + 40 * kk;                        // luz quente -> branco-dourado nos pontos fortes
+      d[o] = a > 0 ? (255 * aL + 6 * aD) / a : 0; d[o + 1] = a > 0 ? (Lg * aL + 24 * aD) / a : 0; d[o + 2] = a > 0 ? (Lb * aL + 44 * aD) / a : 0;
       d[o + 3] = a * 255;
     }
   }
   WV.c.putImageData(WV.im, 0, 0);
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(WV.cv, 0, WATER_Y, cols * WV.cw, rows * WV.ch);
-}
-function postRipples(now, wxp) {                           // ondinhas em volta de cada poste
-  for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {
-    const x = wxp + i + 4;
-    if (x < -20 || x > W + 20) continue;
-    for (let r = 0; r < 2; r++) {
-      const a = (((now / 2200 + r * 0.5 + i * 0.13) % 1) + 1) % 1;      // sempre entre 0 e 1 (i pode ser negativo)
-      ctx.strokeStyle = `rgba(215,240,250,${0.32 * (1 - a)})`; ctx.lineWidth = 0.7;
-      ctx.beginPath(); ctx.ellipse(x, WATER_Y + 5, 5 + a * 11, 1 + a * 2.2, 0, 0, 7); ctx.stroke();
-    }
-  }
 }
 
 function draw(now) {
@@ -496,7 +496,6 @@ function draw(now) {
   drawReflection(now);
   drawWaves(now, ox);                                      // ondas, sombras e o brilho do sol na água
   ctx.drawImage(layers.posts, lx(PAR.pier), 0, LW, H);
-  postRipples(now, ox + camX);
 
   // 3) linhas, boias e nomes por cima
   ctx.save(); ctx.translate(wx, 0);
