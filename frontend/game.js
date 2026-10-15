@@ -213,23 +213,61 @@ function rodPose(R, b) {                                   // soma a animação 
     flex: (b.flex || 0) + (k < 0.02 ? wig * 0.7 : 0),
     lean: (b.lean || 0) + spl(K_LEAN, k), off: (b.off || 0) + spl(K_OFF, k), sb: spl(K_BOB, k) };
 }
-// Giro de lado -> de frente com cara de 3D: o corpo de lado vai "fechando" (cos) enquanto o corpo de frente vai "abrindo" (sen),
-// com uma fusão no meio e um leve deslocamento para o lado em que ele olha, como se o corpo girasse em torno do próprio eixo.
+// ---------- Giro de lado -> de frente, parte por parte: primeiro a cabeça, depois o tronco, depois as pernas ----------
+// Cada parte é desenhada como um cilindro girando em torno do eixo vertical: x_tela = profundidade*cos(a) + lateral*sen(a)
+// (a = 0 é de lado, a = 90° é de frente). Os detalhes do rosto, do cinto e dos braços deslizam pela superfície enquanto giram.
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
-  const fk = pose && pose.front || 0;
-  if (!(fk > 0 && fk < 1)) return drawFisherBase(x, dir, shirt, hat, amp, pose);
-  const e = fk * fk * (3 - 2 * fk), th = e * Math.PI / 2;                       // 0 = de lado ... 90° = de frente
-  const cs = Math.max(0.14, Math.cos(th)), sn = Math.max(0.14, Math.sin(th));
-  const part = (p, sx, ox, a) => {
-    ctx.save(); ctx.globalAlpha *= a;
-    ctx.translate(x + dir * ox, 0); ctx.scale(sx, 1); ctx.translate(-x, 0);
-    const r = drawFisherBase(x, dir, shirt, hat, amp, p);
-    ctx.restore(); return r;
+  const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
+  if (tn && sum > 0.001 && sum < 2.999) return drawFisherTurn(x, dir, shirt, hat, tn);
+  return drawFisherBase(x, dir, shirt, hat, amp, pose);
+}
+function drawFisherTurn(x, dir, shirt, hat, tn) {
+  const ang = v => v * v * (3 - 2 * v) * Math.PI / 2, mix = (a, b, k) => a + (b - a) * k;
+  const ah = ang(tn[0]), at = ang(tn[1]), al = ang(tn[2]);
+  const ch = Math.cos(ah), sh = Math.sin(ah), ct = Math.cos(at), st = Math.sin(at), cl = Math.cos(al), sl = Math.sin(al);
+  const kt = at / (Math.PI / 2), avg = (tn[0] + tn[1] + tn[2]) / 3;
+  ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
+  softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);
+  ctx.translate(0, Math.sin(performance.now() / 600) * 0.3 * avg);                   // respira (igual ao parado de frente)
+  // vara nas costas (atrás de tudo): a ponta de baixo e a de cima giram junto com o tronco
+  ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(-9 * ct - 4 * st, mix(-5, -14, st)); ctx.lineTo(-3 * ct + 4.5 * st, mix(-43, -44, st)); ctx.stroke();
+  // pernas (a de trás escura, a da frente clara)
+  const leg = (wl, col) => {
+    const cx = wl * sl, hw = Math.hypot(2.3 * cl, 2 * sl), sx = Math.hypot(3.3 * cl, 2.5 * sl);
+    rect(col, cx - hw, -11, hw * 2, 9); rect("#15110e", cx + 0.3 * cl - sx, -2.5, sx * 2, 2.5);
   };
-  let tip = null;
-  if (e < 0.85) tip = part({ ...pose, front: 0 }, cs, 0, 1);                       // de lado (some aos poucos)
-  const fr = part({ ...pose, front: 1 }, sn, (1 - sn) * 2.5, Math.min(1, Math.max(0, (e - 0.2) / 0.45)));   // de frente (aparece por cima)
-  return e < 0.5 && tip ? tip : fr;
+  leg(-2.6, "#1c2a38"); leg(2.6, "#26384a");
+  // braço de longe (atrás do tronco; só aparece de fora quando já está bem de frente)
+  const arm = (sx, y, a, alpha) => {
+    ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(sx, y); ctx.rotate(a);
+    rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5);
+    ctx.restore();
+  };
+  const farX = 5.5 * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
+  arm(farX, farY, farA, 1);
+  // tronco
+  rect(shirt, -6, -24, 12, 14);
+  rect("rgba(0,0,0,.25)", -6, -24, mix(3.5, 2.5, kt), 14); rect("rgba(255,255,255,.18)", mix(3, 3.5, kt), -24, mix(2, 2.5, kt), 14);
+  if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, 6 * ct - 0.3, -24, 0.6, 12);        // costura da frente deslizando para o meio
+  rect("#5a3b22", -6, -12, 12, 2);
+  if (st > 0.15) rect("#e8c34a", 6 * ct - st, -12, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
+  const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
+  if (fa > 0) arm(farX, farY, farA, fa);                                                // de frente: o braço do outro lado passa a ficar por cima
+  arm(3 * ct - 5.5 * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1);                // braço de perto
+  // pescoço, cabeça e rosto (a cabeça gira antes do resto)
+  const hx = ch, nx = -ch;
+  rect("#e0ac69", nx - 2, -26, 4, 2.5);
+  rect("#f1c27d", hx - 4.5, -33, 9, 8.5); rect(`rgba(0,0,0,${mix(0.12, 0.1, sh)})`, hx - 4.5, -33, mix(3, 2, sh), 8.5);
+  for (const w of [-1.8, 1.8]) if (3.3 * sh - w * ch > 0.1) rect("#2a1a10", 3.3 * ch + w * sh - 0.8, mix(-30, -30.2, sh), 1.6, 1.8);   // olhos (o de longe só aparece quando a cabeça já virou)
+  if (ch > 0.25) rect("#c98d5a", 5 * ch - ch, -27.5, 2 * ch, 1);                       // nariz (some quando fica de frente)
+  if (sh > 0.2) { rect("#a0583a", 5.5 * ch - 1.4 * sh, -27.4, 2.8 * sh, 0.8);              // boca
+    for (const w of [-3.1, 3.1]) if (4.5 * sh - w * ch > 0.1) rect(`rgba(230,120,100,${0.45 * sh})`, 4.5 * ch + w * sh - 0.7, -28.6, 1.4, 1.2); }   // bochechas
+  const hb = Math.hypot(7 * ch, 7.5 * sh);
+  rect(hat, hx - hb, -35.5, hb * 2, 3); rect(hat, hx - 4.5, -40, 9, 5);
+  rect("rgba(0,0,0,.25)", hx - hb, -34, hb * 2, 1.2); rect("rgba(255,255,255,.35)", hx - 4.5, -36.5, 9, 1.2);
+  ctx.restore();
+  return { x, y: PIER_Y - 30 };
 }
 function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
@@ -243,7 +281,6 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const A = s <= 0 ? P.arm : s < SL0 ? spl(K_ARM, s) + P.arm * Math.max(0, 1 - s / 0.3) : s < 0.70 ? RA : lerp(RA, A0 - 2 * Math.PI, spl(K_REL, (s - 0.70) / 0.30));   // o braço cai por trás das costas (não atravessa o rosto)   // sobe, segura no alto e só então solta (com sobra)
   const fk = P.front || 0;                                                         // virando de frente: 0 = de lado ... 1 = de frente
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
-  if (fk > 0 && fk < 1) ctx.scale(Math.max(0.1, fk < 0.5 ? 1 - 2 * fk : 2 * fk - 1), 1);   // gira: encolhe de lado até sumir e abre de frente
   softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
   if (P.cheer !== undefined || fk >= 0.5) {                                          // comemorando (braços pro alto) ou parado (braços caídos): de frente para o jogador
     const wv = P.wv || 0, idle = P.cheer === undefined;
@@ -627,7 +664,9 @@ const phoneImg = Object.assign(new Image(), { src: PHONE_SRC });
 if (document.fonts) document.fonts.load(NOKIA_FONT).catch(() => {});
 const PH = { open: false, pos: 0, vel: 0, lit: 0, delay: 0, blink: 0, hold: 0 };   // hold: 0 a 1, quanto o pescador já ergueu o celular e baixou a cabeça
 let idleT = 0, frontK = 0;                                              // idleT: segundos parado; frontK: 0 = de lado ... 1 = de frente
-const IDLE_FRONT = 2, TURN_T = 0.5;                                     // parado por 2s: o pescador vira de frente (a virada leva ~0,5s)
+const IDLE_FRONT = 2;                                                    // parado por 2s: o pescador vira de frente
+const TURN_PART = 0.3, TURN_GATE = 0.4;                                  // TURN_PART: tempo que cada parte (cabeça, tronco, pernas) leva para virar; TURN_GATE: quando a próxima parte começa (0 a 1)
+let turnH = 0, turnT = 0, turnL = 0;                                     // cabeça, tronco e pernas: 0 = de lado ... 1 = de frente
 const PHONE_ARM = -0.12;                                                // ângulo do braço: mão baixa, na altura do peito
 const PHONE_LIGHT = 0.15;                                               // força da luz do celular (0 a 1)                                                // ângulo do braço segurando o celular na frente do rosto
 function openPhone() {
@@ -643,9 +682,18 @@ function phoneSelect() {                                                // E: se
 const nearOther = () => Object.values(others).some(o => Math.abs(o.x - px) < 40);
 const interacting = () => !!mTalk || mNear() || nearOther();             // conversando/perto do Malto ou de outro jogador: fica de lado
 function updateIdle(dt) {
-  const still = state === "walk" && !PH.open && !interacting() && !wantDraw && Math.abs(spd) < 1 && !(keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD);
-  idleT = still ? idleT + dt : 0;
-  frontK = state === "walk" ? clamp01(frontK + (idleT >= IDLE_FRONT ? 1 : -1) * dt / TURN_T) : 0;   // qualquer movimento/ação faz ele virar de volta
+  const quiet = state === "walk" && !PH.open && !wantDraw && Math.abs(spd) < 1 && !(keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD);
+  idleT = quiet && !interacting() ? idleT + dt : 0;
+  if (state !== "walk") { turnH = turnT = turnL = frontK = 0; return; }
+  const goal = idleT >= IDLE_FRONT ? 1 : 0, mv = (v, g, d) => v + Math.sign(g - v) * Math.min(Math.abs(g - v), d);
+  if (!goal && !quiet) { const d = dt / 0.12; turnH = mv(turnH, 0, d); turnT = mv(turnT, 0, d); turnL = mv(turnL, 0, d); }   // foi andar/agir: desvira rápido, tudo junto
+  else {                                                                  // virando de verdade: cabeça primeiro, depois o tronco, depois as pernas (e na volta, na mesma ordem)
+    const d = dt / TURN_PART;
+    turnH = mv(turnH, goal, d);
+    if (goal ? turnH > TURN_GATE : turnH < 1 - TURN_GATE) turnT = mv(turnT, goal, d);
+    if (goal ? turnT > TURN_GATE : turnT < 1 - TURN_GATE) turnL = mv(turnL, goal, d);
+  }
+  frontK = (turnH + turnT + turnL) / 3;
 }
 function updatePhone(dt) {
   if (PH.open && state !== "walk") closePhone();
@@ -678,7 +726,7 @@ function nokiaScreen(sw, sh, inv) {                                      // layo
   ctx.font = NOKIA_FONT; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
   const lx = LCD_M + LCD_DX, lw = sw - 2 * LCD_M;                        // área do conteúdo: mesma margem dos dois lados, deslocada para a esquerda
   ctx.fillStyle = LCD_INK; ctx.fillText("Menu", lx + 3, 11);
-  rect(LCD_INK, lx, 13, lw, 2);                                          // linha abaixo de "Menu": largura total e mais grossa
+  rect(LCD_INK, lx, 14, lw, 1);                                          // linha abaixo de "Menu": largura total, 1px de espessura
   if (inv) rect(LCD_INK, lx, 17, lw, 19);                                 // opção selecionada em vídeo invertido (mesma largura da linha)
   ctx.fillStyle = inv ? LCD_BG : LCD_INK;
   const fit = (str, x, y, maxW) => {                                      // se a fonte for mais larga que a tela, comprime só esse texto (nunca corta)
@@ -808,7 +856,7 @@ function movePose() {                                                           
   if (brake > 0.08) base = { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
   else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
   const b = base || { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
-  if (frontK > 0.001) b.front = frontK;
+  if (frontK > 0.001) { b.front = frontK; b.turn = [turnH, turnT, turnL]; }
   if (PH.hold > 0.001) { b.phone = PH.hold; b.lean = (b.lean || 0) + 0.05 * PH.hold; }   // celular na mão: braço erguido, cabeça baixa, tronco levemente inclinado
   return rodPose(rodL, b);   // (sempre com a animação da vara: nas costas, guardando ou sacando)
 }
