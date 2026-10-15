@@ -158,12 +158,18 @@ function net(now) {
   lastNet = now; lastSt = state;
   socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
 }
+function softShadow(x, y, rx, ry, a) {                             // sombra macia: centro mais escuro e bordas que somem
+  ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  g.addColorStop(0, `rgba(20,8,36,${a})`); g.addColorStop(0.55, `rgba(20,8,36,${a * 0.6})`); g.addColorStop(1, "rgba(20,8,36,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
+}
 const REST = -0.846, POSE0 = { rod: REST, arm: 0, lean: 0, flex: 0 };   // pose parada da vara
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
   const ph = x * dir / 11, sw = Math.sin(ph) * amp, bob = -Math.abs(Math.cos(ph)) * 1.4 * amp;
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
-  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 9, 2, 0, 0, 7); ctx.fill();
+  softShadow(-7 * dir, 1.4, 17, 2.6, 0.34); softShadow(0, 1.1, 8, 1.7, 0.5);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
   const leg = (a, col) => {                                                      // perna gira a partir do quadril
     ctx.save(); ctx.translate(0, -11 + bob); ctx.rotate(a);
     rect(col, -2.3, 0, 4.6, 9); rect("#15110e", -3, 8.5, 6.6, 2.5);
@@ -255,22 +261,31 @@ function talkMalto() {
   return true;
 }
 
-function drawCrate(x, y, w, h) {                                    // x,y = canto superior esquerdo
-  rect("#6e4620", x, y, w, h); rect("#a8743c", x + 1, y + 1, w - 2, h - 2);
-  rect("#8a5a2b", x + 1, y + Math.round(h / 2), w - 2, 1);
-  rect("rgba(255,220,170,.28)", x + 1, y + 1, w - 2, 1);
-  ctx.strokeStyle = "#6e4620"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x + 1.5, y + 1.5); ctx.lineTo(x + w - 1.5, y + h - 1.5); ctx.stroke();
-  rect("#3b2a1a", x + 2, y + 2, 1, 1); rect("#3b2a1a", x + w - 3, y + 2, 1, 1);
+const CRATE_TONES = [["#6e4620", "#a8743c"], ["#63401d", "#9b6a38"], ["#76492a", "#b07e46"]];
+function drawCrate(x, y, w, h, v = 0) {                              // x,y = canto superior esquerdo
+  const [dk, lt] = CRATE_TONES[v % 3];
+  rect(dk, x, y, w, h); rect(lt, x + 1, y + 1, w - 2, h - 2);
+  rect("#8a5a2b", x + 1, y + Math.round(h / 2), w - 2, 1);                                      // emenda da tábua
+  ctx.strokeStyle = dk; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x + 1.5, y + 1.5); ctx.lineTo(x + w - 1.5, y + h - 1.5); ctx.stroke();   // travessa em X
+  ctx.beginPath(); ctx.moveTo(x + w - 1.5, y + 1.5); ctx.lineTo(x + 1.5, y + h - 1.5); ctx.stroke();
+  rect("rgba(255,222,170,.3)", x + 1, y + 1, w - 2, 1);                                         // luz em cima
+  rect("rgba(255,200,150,.18)", x + w - 3, y + 1, 2, h - 2);                                    // luz do pôr do sol na lateral direita
+  rect("rgba(20,8,36,.2)", x + 1, y + 1, Math.round((w - 2) * 0.3), h - 2);                     // lateral esquerda na sombra
+  rect("rgba(20,8,36,.4)", x, y + h - 2, w, 2);                                                 // base escura (contato com o chão)
+  rect("#3b2a1a", x + 2, y + 2, 1, 1); rect("#3b2a1a", x + w - 3, y + 2, 1, 1);                 // pregos
 }
 function drawMalto(now) {
   const t = now / 1000, by = Math.sin(t * 1.6) * 0.3;                 // respiração leve
   // caixas ao fundo
-  ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(MX - 6, PIER_Y, 28, 2.2, 0, 0, 7); ctx.fill();
-  drawCrate(MX - 30, PIER_Y - 16, 16, 15); drawCrate(MX - 14, PIER_Y - 16, 16, 15); drawCrate(MX + 2, PIER_Y - 16, 16, 15);
-  drawCrate(MX - 22, PIER_Y - 31, 16, 15); drawCrate(MX + 4, PIER_Y - 27, 12, 11);
+  const cb = PIER_Y + 1.5;                                                       // base das caixas: apoiada na tábua do deck
+  softShadow(MX - 40, cb - 0.3, 30, 3.2, 0.42);                                  // sombra das caixas caindo no deck (sol à direita)
+  softShadow(MX - 6, cb, 26, 2, 0.5);                                            // sombra de contato embaixo delas
+  drawCrate(MX - 30, cb - 15, 16, 15, 0); drawCrate(MX - 14, cb - 15, 16, 15, 1); drawCrate(MX + 2, cb - 15, 16, 15, 2);
+  drawCrate(MX - 22, cb - 30, 16, 15, 2); drawCrate(MX + 4, cb - 26, 12, 11, 0);
+  rect("rgba(20,8,36,.22)", MX - 14, cb - 30, 2, 15);                            // sombra da caixa de cima na lateral da de baixo
 
   ctx.save(); ctx.translate(MX, PIER_Y);
-  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 10, 2.2, 0, 0, 7); ctx.fill();
+  softShadow(-7, 1.4, 17, 2.6, 0.34); softShadow(0, 1.1, 8, 1.7, 0.5);              // sombra longa para a esquerda + sombra de contato nos pés
 
   // pernas e botas
   rect("#1d2531", -4.2, -12, 3.8, 10.5); rect("#232c3a", 0.4, -12, 3.8, 10.5);
