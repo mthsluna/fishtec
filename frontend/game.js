@@ -1,5 +1,24 @@
-const cv = document.getElementById("g"), ctx = cv.getContext("2d");
+const cv = document.getElementById("g"), out = cv.getContext("2d");
 const W = 480, H = 270; cv.width = W; cv.height = H;
+const buf = document.createElement("canvas"); buf.width = W; buf.height = H;
+const ctx = buf.getContext("2d", { willReadFrequently: true });
+
+// ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
+const LEVELS = 4;                       // níveis por canal: 2 = bem radical (8 cores), 4 = equilibrado, 6 = mais suave
+const STEP = 255 / (LEVELS - 1);
+const BAYER = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
+               3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
+function dither() {
+  const im = ctx.getImageData(0, 0, W, H), d = im.data;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4, th = (BAYER[(y & 7) * 8 + (x & 7)] / 64 - 0.47) * STEP;
+    d[i] = Math.round((d[i] + th) / STEP) * STEP;
+    d[i + 1] = Math.round((d[i + 1] + th) / STEP) * STEP;
+    d[i + 2] = Math.round((d[i + 2] + th) / STEP) * STEP;
+    d[i + 3] = 255;
+  }
+  out.putImageData(im, 0, 0);
+}
 const API = window.API_URL;
 const PIER_Y = 150, WATER_Y = 168;
 
@@ -127,14 +146,24 @@ const rect = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, 
 const text = (s, x, y, c = "#fff", a = "left") => { ctx.font = "bold 10px monospace"; ctx.textAlign = a; ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(s, x, y); };
 
 function draw(now) {
-  // céu em faixas (efeito bitmap)
-  ["#f4a261", "#f6b27a", "#f8c391", "#fad4ab", "#fce0c0"].forEach((c, i) => rect(c, 0, i * 30, W, 30));
-  rect("#ffe9a8", 360, 40, 28, 28);
+  // céu em degradê
+  let g = ctx.createLinearGradient(0, 0, 0, PIER_Y + 8);
+  g.addColorStop(0, "#241a45"); g.addColorStop(0.45, "#b83f6a"); g.addColorStop(0.8, "#f4a261"); g.addColorStop(1, "#ffe0a8");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, PIER_Y + 8);
+  // sol com brilho
+  g = ctx.createRadialGradient(370, 62, 4, 370, 62, 75);
+  g.addColorStop(0, "#fffbe6"); g.addColorStop(0.22, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
+  ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
+  // sombra sob o cais
+  rect("#1a1230", 0, PIER_Y + 8, W, WATER_Y - PIER_Y - 8);
   // água
-  rect("#2a6f97", 0, WATER_Y, W, H - WATER_Y);
+  g = ctx.createLinearGradient(0, WATER_Y, 0, H);
+  g.addColorStop(0, "#4a9cc0"); g.addColorStop(1, "#0b2a45");
+  ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, H - WATER_Y);
+  for (let i = 0; i < 9; i++) rect("#ffd9a0", 366 - (28 - i * 3) / 2 + Math.sin(now / 500 + i) * 7, WATER_Y + 5 + i * 8, 28 - i * 3, 2);
   for (let i = 0; i < 40; i++) {
     const wx = (i * 37 + now / 40) % W, wy = WATER_Y + 8 + (i * 13) % 90;
-    rect("#61a5c2", wx, wy, 8, 2);
+    rect("#7fc0da", wx, wy, 8, 2);
   }
   // cais
   rect("#6b4226", 0, PIER_Y, W, 8);
@@ -179,6 +208,7 @@ function draw(now) {
   const hint = { walk: "← → mover   ESPAÇO lançar", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra" }[state];
   text(hint, 10, H - 10, "#fff");
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
+  dither();
 }
 
 let last = performance.now();
