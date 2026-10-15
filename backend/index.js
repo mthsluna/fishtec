@@ -1,8 +1,13 @@
 import express from "express";
 import cors from "cors";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
+const ORIGIN = process.env.FRONTEND_URL || "*";
 const app = express();
-app.use(cors({ origin: process.env.FRONTEND_URL || "*" }));
+const server = createServer(app);
+const io = new Server(server, { cors: { origin: ORIGIN } });
+app.use(cors({ origin: ORIGIN }));
 app.use(express.json());
 
 // difficulty: 1 (fácil) a 5 (difícil) | rarity: peso do sorteio
@@ -27,4 +32,40 @@ app.post("/api/catch", (req, res) => {
   res.json({ ok: true, points: fish.points }); // aqui entra o Supabase depois
 });
 
-app.listen(process.env.PORT || 3000, () => console.log("Servidor rodando"));
+// ---------- Multiplayer ----------
+const COLORS = ["#c0392b", "#2980b9", "#8e44ad", "#16a085", "#d35400", "#7f8c8d"];
+const players = {};
+const STATES = ["walk", "wait", "bite", "reel"];
+const num = (v, min, max) => Math.max(min, Math.min(max, Number(v) || 0));
+
+io.on("connection", (socket) => {
+  socket.on("join", ({ name } = {}) => {
+    players[socket.id] = {
+      id: socket.id,
+      name: String(name || "Pescador").slice(0, 14),
+      color: COLORS[Object.keys(players).length % COLORS.length],
+      x: 240, dir: 1, state: "walk", bx: 270,
+    };
+    socket.emit("players", Object.values(players));
+    socket.broadcast.emit("player:join", players[socket.id]);
+  });
+
+  socket.on("move", (d = {}) => {
+    const p = players[socket.id];
+    if (!p) return;
+    p.x = num(d.x, 0, 480);
+    p.dir = d.dir === -1 ? -1 : 1;
+    p.state = STATES.includes(d.state) ? d.state : "walk";
+    p.bx = num(d.bx, 0, 480);
+    socket.volatile.broadcast.emit("player:move", { id: p.id, x: p.x, dir: p.dir, state: p.state, bx: p.bx });
+  });
+
+  socket.on("disconnect", () => {
+    if (players[socket.id]) {
+      delete players[socket.id];
+      io.emit("player:leave", socket.id);
+    }
+  });
+});
+
+server.listen(process.env.PORT || 3000, () => console.log("Servidor rodando"));
