@@ -35,7 +35,7 @@ app.post("/api/catch", (req, res) => {
 // ---------- Multiplayer ----------
 const COLORS = ["#c0392b", "#2980b9", "#8e44ad", "#16a085", "#d35400", "#7f8c8d"];
 const players = {};
-const STATES = ["walk", "wait", "bite", "reel"];
+const STATES = ["walk", "cast", "wait", "bite", "reel"];
 const num = (v, min, max) => Math.max(min, Math.min(max, Number(v) || 0));
 
 io.on("connection", (socket) => {

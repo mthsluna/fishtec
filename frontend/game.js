@@ -116,7 +116,7 @@ let fish = null, score = 0, msg = "", msgT = 0, bite = 0;
 const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
-let castT = 0, castRel = null, castHang = null; const fxs = [];            // arremesso em andamento e respingos
+let cs = { t: 0, rel: null, hang: null }; const fxs = [];            // arremesso em andamento e respingos
 let stepDist = 0, reelT = 0;                       // controle dos sons de passo e de carretilha
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
@@ -133,11 +133,12 @@ if (socket) {
   socket.on("player:move", ({ x, ...rest }) => { const o = others[rest.id]; if (o) { Object.assign(o, rest); o.tx = x; } });
   socket.on("player:leave", id => delete others[id]);
 }
-let lastNet = 0;
+let lastNet = 0, lastSt = "";
 function net(now) {
-  if (!socket || !socket.connected || now - lastNet < 66) return;
-  lastNet = now;
-  socket.volatile.emit("move", { x: px, dir, state: state === "cast" ? "wait" : state, bx: bobber.x });   // o servidor só conhece walk/wait/bite/reel
+  if (!socket || !socket.connected) return;
+  if (now - lastNet < 66 && state === lastSt) return;            // 15x por segundo, ou na hora se o estado mudou
+  lastNet = now; lastSt = state;
+  socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
 }
 const REST = -0.846, POSE0 = { rod: REST, arm: 0, lean: 0, flex: 0 };   // pose parada da vara
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
@@ -206,11 +207,10 @@ function zoomView(z, fx, fy, side = 0.5) {                       // side: onde o
 }
 // ---------- Puxando o peixe: inclina para trás, vara envergada pela força do peixe e manivela girando ----------
 let reelAng = 0, zk = 0;                                           // ângulo da manivela e quanto o zoom já "abriu" (0 a 1)
-function reelPose(now) {
-  const inside = fish && fp.y > bar.y && fp.y < bar.y + bar.h;     // peixe dentro da barra = vara mais folgada; fora = peixe puxando forte
+function reelPose(now, ang = reelAng, inside = fish && fp.y > bar.y && fp.y < bar.y + bar.h) {   // peixe dentro da barra = vara mais folgada; fora = peixe puxando forte
   const pull = (inside ? 0.55 : 0.95) + 0.2 * Math.sin(now / 95);
   const tipA = -1.0 + 0.2 * (pull - 0.5) + 0.03 * Math.sin(now / 130);   // ângulo da ponta: abaixa quando o peixe puxa forte
-  return { rod: tipA + pull * 0.25, arm: -0.25, lean: -0.13 - 0.03 * Math.sin(now / 110), off: 0, flex: pull, crank: reelAng };
+  return { rod: tipA + pull * 0.25, arm: -0.25, lean: -0.13 - 0.03 * Math.sin(now / 110), off: 0, flex: pull, crank: ang };
 }
 function drawLine(tx, ty, bx, now, st) {
   const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), by = BOB_Y + b;
@@ -223,10 +223,27 @@ function drawLine(tx, ty, bx, now, st) {
 function drawOther(p, now) {
   const dx = p.tx - p.x; p.x += dx * 0.25;
   p.amp = (p.amp || 0) + ((Math.abs(dx) > 0.4 && p.state === "walk" ? 1 : 0) - (p.amp || 0)) * 0.25;
-  p.tip = drawFisher(p.x, p.dir, p.color, "#2d6a4f", p.amp);   // o pescador entra no reflexo
+  const dt = Math.min(0.1, (now - (p.lt || now)) / 1000); p.lt = now;
+  if (p.pst !== p.state) {                                       // mudou de estado: começa a animação certa
+    p.pst = p.state;
+    if (p.state === "cast") { p.cs = { t: 0, rel: null, hang: null }; p.c0 = now; p.landed = false; }
+    if (p.state === "reel") p.ra = 0;
+  }
+  let pose = null;
+  if (p.state === "cast" && p.cs) {
+    p.cs.t = (now - p.c0) / 1000;
+    pose = castPose(p.cs.t);
+    if (!p.landed && p.cs.t >= CAST_RELEASE + CAST_FLIGHT) { p.landed = true; fxs.push({ x: p.bx, t0: now }); }   // respingo quando a boia dele cai
+  } else if (p.state === "reel") {
+    const inside = Math.sin(now / 900 + p.x) > -0.2;             // o servidor não manda a barra do minigame: simula o vai-e-vem
+    p.ra += (inside ? 14 : -3) * dt;
+    pose = reelPose(now, p.ra, inside);
+  }
+  p.tip = drawFisher(p.x, p.dir, p.color, "#2d6a4f", p.amp, pose);   // o pescador entra no reflexo
 }
 function drawOtherLine(p, now) {                                 // linha e nome são desenhados por cima da água
-  if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state);
+  if (p.state === "cast" && p.cs && p.tip) drawCast(p.tip, p.cs, p.bx);
+  else if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state);
   text(p.name, p.x, PIER_Y - 46, "#cfe8ff", "center");
 }
 
@@ -243,17 +260,17 @@ function castPose(c) {
   const k = easeOut((u - 0.6) / 0.4);                                   // follow-through: a vara baixa um pouco, volta e balança até parar
   return { rod: lerp(-0.3, REST, k) + 0.3 * Math.sin(Math.PI * Math.min(1, k * 1.6)) * (1 - k), arm: lerp(0.3, 0, k), lean: lerp(0.18, 0, k), off: lerp(0.7, 0, k), flex: 0.6 * (1 - k) * Math.sin(k * 14) };
 }
-function drawCast(tip) {
+function drawCast(tip, st, tx) {                                         // st = { t, rel, hang }; tx = x onde a boia vai cair
   let bx, by, sag = 3;
-  if (castT < CAST_RELEASE) {                                              // boia pendurada na linha antes de soltar, balançando atrás da ponta
-    if (!castHang) castHang = { x: tip.x, y: tip.y + 13 };
-    castHang.x += (tip.x - castHang.x) * 0.18; castHang.y += (tip.y + 13 - castHang.y) * 0.18;
-    bx = castHang.x; by = castHang.y; sag = 3 + Math.abs(tip.x - bx) * 0.6;
+  if (st.t < CAST_RELEASE) {                                              // boia pendurada na linha antes de soltar, balançando atrás da ponta
+    if (!st.hang) st.hang = { x: tip.x, y: tip.y + 13 };
+    st.hang.x += (tip.x - st.hang.x) * 0.18; st.hang.y += (tip.y + 13 - st.hang.y) * 0.18;
+    bx = st.hang.x; by = st.hang.y; sag = 3 + Math.abs(tip.x - bx) * 0.6;
   } else {
-    if (!castRel) castRel = castHang ? { x: castHang.x, y: castHang.y } : { x: tip.x, y: tip.y + 13 };
-    const s = Math.min(1, (castT - CAST_RELEASE) / CAST_FLIGHT);
-    bx = lerp(castRel.x, bobber.x, s);
-    by = lerp(castRel.y, BOB_Y, s) - 4 * 45 * s * (1 - s);               // arco
+    if (!st.rel) st.rel = st.hang ? { x: st.hang.x, y: st.hang.y } : { x: tip.x, y: tip.y + 13 };
+    const s = Math.min(1, (st.t - CAST_RELEASE) / CAST_FLIGHT);
+    bx = lerp(st.rel.x, tx, s);
+    by = lerp(st.rel.y, BOB_Y, s) - 4 * 45 * s * (1 - s);               // arco
     sag = 3 + 10 * s;
   }
   ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 0.7;
@@ -291,7 +308,7 @@ function say(m) { msg = m; msgT = 2.5; }
 
 function press() {
   if (state === "walk") {
-    state = "cast"; castT = 0; castRel = null; castHang = null;
+    state = "cast"; cs = { t: 0, rel: null, hang: null };
     bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
     fish = null; SND.cast();
     post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
@@ -325,8 +342,8 @@ function update(dt) {
     stepDist += Math.abs(px - ox);
     if (stepDist >= 22) { stepDist -= 22; SND.step(); }          // um passo a cada ~22px andados
   } else if (state === "cast") {
-    castT += dt;
-    if (castT >= CAST_RELEASE + CAST_FLIGHT) { state = "wait"; t = 2 + Math.random() * 3; fxs.push({ x: bobber.x, t0: performance.now() }); SND.splash(); }
+    cs.t += dt;
+    if (cs.t >= CAST_RELEASE + CAST_FLIGHT) { state = "wait"; t = 2 + Math.random() * 3; fxs.push({ x: bobber.x, t0: performance.now() }); SND.splash(); }
   } else if (state === "wait") {
     t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; SND.bite(); }
   } else if (state === "bite") {
@@ -358,13 +375,11 @@ function layer(fn, w = LW, h = H) {        // desenha uma vez num canvas separad
   const prev = ctx; ctx = x; fn(); ctx = prev; return c;
 }
 // ---------- Nuvens realistas: volumes com sombra, corpo e luz do sol (vinda da direita/cima) ----------
-const CLOUDS = [
-  { cirrus: 1, w: 260, h: 24, y: 8,  x: 100, v: 1.2, seed: 3 },
-  { cirrus: 1, w: 220, h: 20, y: 44, x: 330, v: 1.6, seed: 11 },
-  { w: 130, h: 46, y: 20, x: 200, v: 3.6, tone: 0, seed: 19 },
-  { w: 200, h: 72, y: 52, x: 30,  v: 2.4, tone: 1, seed: 7 },
-  { w: 160, h: 56, y: 76, x: 330, v: 2.0, tone: 1, seed: 33 },
-  { w: 110, h: 40, y: 42, x: 440, v: 3.0, tone: 0, seed: 41 },
+const CLOUDS = [                          // m = segundos que a nuvem leva para se transformar numa nova forma (bem lento)
+  { w: 130, h: 46, y: 20, x: 200, v: 3.6, tone: 0, seed: 19, m: 75 },
+  { w: 200, h: 72, y: 52, x: 30,  v: 2.4, tone: 1, seed: 7,  m: 60 },
+  { w: 160, h: 56, y: 76, x: 330, v: 2.0, tone: 1, seed: 33, m: 90 },
+  { w: 110, h: 40, y: 42, x: 440, v: 3.0, tone: 0, seed: 41, m: 68 },
 ];
 function makeCloud(w, h, seed, tone) {
   let r = seed; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
@@ -389,18 +404,84 @@ function makeCloud(w, h, seed, tone) {
     ctx.globalCompositeOperation = "source-over";
   }, w, h);
 }
-function makeCirrus(w, h, seed) {          // nuvens finas e esticadas no alto
+// ---------- Montanhas: cristas fractais, lado do sol iluminado, neve rosada, névoa na base e pinheiros ----------
+function ridgePts(seed, base, amp, rough, pow = 1.25, n = 128) {
   let r = seed; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
-  return layer(() => {
-    for (let i = 0; i < 7; i++) {
-      const cx = w * (0.2 + 0.6 * rnd()), cy = h * (0.3 + 0.4 * rnd()), rw = w * (0.2 + 0.25 * rnd());
-      ctx.save(); ctx.translate(cx, cy); ctx.scale(1, 0.12);
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rw); g.addColorStop(0, "rgba(255,215,200,.4)"); g.addColorStop(1, "rgba(255,215,200,0)");
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rw, 0, 7); ctx.fill(); ctx.restore();
-    }
-  }, w, h);
+  const h = new Array(n + 1); h[0] = rnd(); h[n] = rnd();
+  let d = 1;
+  for (let s = n; s > 1; s >>= 1) {                                   // deslocamento do ponto médio
+    d *= rough;
+    for (let i = s >> 1; i < n; i += s) h[i] = (h[i - (s >> 1)] + h[i + (s >> 1)]) / 2 + (rnd() - 0.5) * d;
+  }
+  const mn = Math.min(...h), mx = Math.max(...h);
+  return h.map((v, i) => [-EXT + i * LW / n, base - Math.pow((v - mn) / (mx - mn), pow) * amp]);
 }
-function buildLayers() {
+function mountains(o) {
+  return layer(() => {
+    ctx.translate(EXT, 0);
+    const BASE = 160, P = ridgePts(o.seed, o.base, o.amp, o.rough, o.pow), n = P.length - 1;
+    const top = Math.min(...P.map(p => p[1]));
+    let rs = o.seed * 7 + 1; const rnd = () => (rs = rs * 16807 % 2147483647) / 2147483647;
+    const body = () => { ctx.beginPath(); ctx.moveTo(P[0][0], BASE); P.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(P[n][0], BASE); ctx.closePath(); };
+    let g = ctx.createLinearGradient(0, top, 0, BASE); g.addColorStop(0, o.top); g.addColorStop(1, o.bot);
+    ctx.fillStyle = g; body(); ctx.fill();
+    const peaks = [];
+    for (let i = 1; i < n; i++) if (P[i][1] < P[i - 1][1] && P[i][1] <= P[i + 1][1]) peaks.push(i);
+    // faces voltadas para o sol (direita): cunha clara que desce do pico e some na névoa
+    ctx.save(); body(); ctx.clip();
+    const litC = o.lit.replace(/,[\d.]+\)$/, ",");
+    peaks.forEach(p => {
+      let v = p; while (v < n && P[v + 1][1] >= P[v][1]) v++;
+      if (P[v][1] - P[p][1] < 6) return;
+      const xp = P[p][0], yp = P[p][1], xv = P[v][0], lean = 0.65 * (BASE - yp);
+      const lg = ctx.createLinearGradient(0, yp, 0, BASE); lg.addColorStop(0, o.lit); lg.addColorStop(1, litC + "0)");
+      ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(xp, yp);
+      for (let k = p + 1; k <= v; k++) ctx.lineTo(P[k][0], P[k][1]);
+      ctx.lineTo(xv, BASE); ctx.lineTo(xp - lean, BASE);
+      ctx.lineTo(xp - lean * 0.5 + (rnd() - 0.5) * 6, yp + (BASE - yp) * 0.5); ctx.closePath(); ctx.fill();
+    });
+    ctx.restore();
+    // neve nos picos mais altos (lado do sol em rosa-claro, lado da sombra em lilás)
+    if (o.snow) peaks.forEach(p => {
+      const yp = P[p][1]; if (yp > top + o.snow) return;
+      const cap = 8 + (BASE - yp) * 0.06;
+      let l = p, r = p; while (l > 0 && P[l - 1][1] <= yp + cap) l--; while (r < n && P[r + 1][1] <= yp + cap) r++;
+      const bot = k => Math.max(P[k][1], yp + cap * (0.55 + 0.45 * ((k * 7) % 5) / 4));
+      const poly = (a, b, col) => {
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(P[a][0], P[a][1]);
+        for (let k = a + 1; k <= b; k++) ctx.lineTo(P[k][0], P[k][1]);
+        for (let k = b; k >= a; k--) ctx.lineTo(P[k][0], bot(k));
+        ctx.closePath(); ctx.fill();
+      };
+      poly(l, r, o.snowSh); poly(p, r, o.snowLit);
+    });
+    // névoa quente na base (mistura a montanha com o horizonte)
+    ctx.globalCompositeOperation = "source-atop";
+    g = ctx.createLinearGradient(0, BASE - o.mistH, 0, BASE);
+    g.addColorStop(0, "rgba(255,196,150,0)"); g.addColorStop(1, `rgba(255,196,150,${o.mist})`);
+    ctx.fillStyle = g; ctx.fillRect(-EXT, 0, LW, BASE);
+    ctx.globalCompositeOperation = "source-over";
+  });
+}
+function pineHills(seed) {                  // colinas da frente, cobertas de pinheiros
+  return layer(() => {
+    ctx.translate(EXT, 0);
+    const BASE = 160, P = ridgePts(seed, 151, 13, 0.5, 1, 64), n = P.length - 1, step = LW / n;
+    let rs = seed * 13 + 5; const rnd = () => (rs = rs * 16807 % 2147483647) / 2147483647;
+    ctx.fillStyle = "#2a1a42"; ctx.beginPath(); ctx.moveTo(P[0][0], BASE);
+    P.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(P[n][0], BASE); ctx.closePath(); ctx.fill();
+    const yAt = x => { const f = (x + EXT) / step, i = Math.max(0, Math.min(n - 1, Math.floor(f))); return lerp(P[i][1], P[i + 1][1], f - i); };
+    for (let x = -EXT + 3; x < WORLD + EXT; x += 3.5 + rnd() * 4.5) {
+      const y = yAt(x) + 1, h = 6 + rnd() * 9, w = h * 0.3;
+      for (let t = 0; t < 3; t++) {
+        const ty = y - h + t * h * 0.28, hw = w * (0.55 + 0.22 * t), by = ty + h * 0.46;
+        ctx.fillStyle = "#1c1230"; ctx.beginPath(); ctx.moveTo(x, ty); ctx.lineTo(x - hw, by); ctx.lineTo(x + hw, by); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "rgba(170,92,128,.5)"; ctx.beginPath(); ctx.moveTo(x, ty); ctx.lineTo(x + hw, by); ctx.lineTo(x, by); ctx.closePath(); ctx.fill();   // lado do sol
+      }
+    }
+  });
+}
+function buildLayers(now) {
   // todas as camadas usam coordenadas do mundo (0..480) e têm EXT px de sobra de cada lado
   const sky = layer(() => {
     ctx.translate(EXT, 0);
@@ -411,14 +492,13 @@ function buildLayers() {
     g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
     ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
   });
-  const range = (color, pts) => layer(() => {
-    ctx.translate(EXT, 0);
-    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(-EXT, 160);
-    ctx.lineTo(-EXT, pts[0][1]); pts.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(WORLD + EXT, pts[pts.length - 1][1]);
-    ctx.lineTo(WORLD + EXT, 160); ctx.fill();
-  });
-  const far = range("#6b3f6f", [[-120,112],[-60,126],[0,128],[60,108],[110,128],[170,100],[230,130],[300,112],[360,134],[420,106],[480,126],[540,104],[600,124]]);
-  const near = range("#4a2f63", [[-120,130],[-40,144],[0,142],[80,126],[150,142],[250,122],[340,144],[410,130],[480,142],[560,124],[620,140]]);
+  const far = mountains({ seed: 5, base: 136, amp: 78, rough: 0.6, pow: 1.1, top: "#8a3f86", bot: "#c4607e",
+    lit: "rgba(255,190,150,.55)", snow: 16, snowSh: "#d7a0c8", snowLit: "#ffe6c8", mist: 0.32, mistH: 50 });
+  const mid = mountains({ seed: 23, base: 142, amp: 56, rough: 0.58, pow: 1.1, top: "#5e3069", bot: "#a24d7c",
+    lit: "rgba(238,134,130,.5)", snow: 6, snowSh: "#b88cc0", snowLit: "#f8c9b8", mist: 0.24, mistH: 42 });
+  const near = mountains({ seed: 71, base: 147, amp: 38, rough: 0.55, pow: 1.0, top: "#3a2054", bot: "#6c3a74",
+    lit: "rgba(196,100,128,.5)", snow: 0, mist: 0.12, mistH: 30 });
+  const hills = pineHills(9);
   const deck = layer(() => {
     ctx.translate(EXT, 0);
     rect("#1a1230", -EXT, PIER_Y + 8, LW, WATER_Y - PIER_Y - 8);
@@ -434,12 +514,16 @@ function buildLayers() {
     g.addColorStop(0, "#a8808f"); g.addColorStop(0.12, "#63869f"); g.addColorStop(0.45, "#2a6089"); g.addColorStop(1, "#0b2a45");
     ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, H - WATER_Y);
   }, W, H);
-  const clouds = CLOUDS.map(c => c.cirrus ? makeCirrus(c.w, c.h, c.seed) : makeCloud(c.w, c.h, c.seed, c.tone));
-  layers = { sky, far, near, deck, posts, water, clouds };
+  // cada nuvem guarda a forma atual (a) e a próxima (b); o desenho faz a transição entre as duas bem devagar
+  const clouds = CLOUDS.map(c => {
+    const n = Math.floor((now / 1000 + c.seed * 3.7) / c.m);
+    return { n, a: makeCloud(c.w, c.h, c.seed + n * 101, c.tone), b: makeCloud(c.w, c.h, c.seed + (n + 1) * 101, c.tone) };
+  });
+  layers = { sky, far, mid, near, hills, deck, posts, water, clouds };
 }
 
 // ---------- Parallax: cada camada acompanha a câmera numa fração diferente (0 = parada no fundo, 1 = mesma do cais) ----------
-const PAR = { sky: 0.04, cloud: 0.12, far: 0.25, near: 0.5, pier: 1 };
+const PAR = { sky: 0.04, cloud: 0.12, far: 0.25, mid: 0.37, near: 0.5, hills: 0.75, pier: 1 };
 const rctx = refl.getContext("2d");
 
 function reflect() {                       // copia o que está acima da água para o canvas do reflexo
@@ -525,22 +609,31 @@ function postWaves(now, wxp) {
 }
 
 function draw(now) {
-  if (!layers) buildLayers();
+  if (!layers) buildLayers(now);
   const ox = (W - WORLD) / 2, wx = ox + camX;              // wx = deslocamento do mundo na tela
   const lx = f => ox + camX * f - EXT;                     // posição de uma camada com fator de parallax f
 
   // 1) acima da água: céu, nuvens, montanhas, cais e pescadores
   ctx.drawImage(layers.sky, lx(PAR.sky), 0, LW, H);
   CLOUDS.forEach((c, i) => {
-    const x = (c.x + now / 1000 * c.v) % (LW + c.w) - c.w;
-    ctx.drawImage(layers.clouds[i], x + lx(PAR.cloud), c.y, c.w, c.h);
+    const cl = layers.clouds[i], u = (now / 1000 + c.seed * 3.7) / c.m, n = Math.floor(u), f = u - n;
+    if (n !== cl.n) {                                                       // chegou a hora: a "próxima forma" vira a atual e sorteia outra
+      cl.a = n === cl.n + 1 ? cl.b : makeCloud(c.w, c.h, c.seed + n * 101, c.tone);
+      cl.b = makeCloud(c.w, c.h, c.seed + (n + 1) * 101, c.tone); cl.n = n;
+    }
+    const e = f * f * (3 - 2 * f), x = (c.x + now / 1000 * c.v) % (LW + c.w) - c.w + lx(PAR.cloud);
+    ctx.globalAlpha = 1 - e; ctx.drawImage(cl.a, x, c.y, c.w, c.h);          // uma forma some devagar...
+    ctx.globalAlpha = e;     ctx.drawImage(cl.b, x, c.y, c.w, c.h);          // ...enquanto a outra aparece
+    ctx.globalAlpha = 1;
   });
   ctx.drawImage(layers.far, lx(PAR.far), 0, LW, H);
+  ctx.drawImage(layers.mid, lx(PAR.mid), 0, LW, H);
   ctx.drawImage(layers.near, lx(PAR.near), 0, LW, H);
+  ctx.drawImage(layers.hills, lx(PAR.hills), 0, LW, H);
   ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(castT) : state === "reel" ? reelPose(now) : null);
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(cs.t) : state === "reel" ? reelPose(now) : null);
   ctx.restore();
 
   // 2) água com reflexo
@@ -556,7 +649,7 @@ function draw(now) {
   Object.values(others).forEach(o => drawOtherLine(o, now));
   text(myName, px, PIER_Y - 46, "#ffd166", "center");
   drawFx(now);
-  if (state === "cast") drawCast(tip);
+  if (state === "cast") drawCast(tip, cs, bobber.x);
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
   ctx.restore();
 
