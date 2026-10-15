@@ -80,6 +80,13 @@ function present() {
 }
 const API = window.API_URL;
 const PIER_Y = 150, WATER_Y = 168;
+const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
+// afasta a boia dos postes de madeira (um poste a cada 48px)
+const clearOfPosts = x => {
+  x = Math.max(16, Math.min(W - 16, x));
+  const m = ((x - 6) % 48 + 48) % 48;
+  return m < 14 ? x + 14 - m : m > 42 ? x + 48 - m + 14 : x;
+};
 
 // Peixes (se o servidor estiver fora, usa a lista local)
 let fishList = [
@@ -152,10 +159,10 @@ function drawFisher(x, dir, shirt, hat, amp = 0) {
   return { x: x + dir * 33, y: PIER_Y - 45 + bob };
 }
 function drawLine(tx, ty, bx, now, st) {
-  const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), by = WATER_Y + 6 + b;
+  const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), by = BOB_Y + b;
   ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 0.7;
   ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + bx) / 2, (ty + by) / 2 + 12, bx, by); ctx.stroke();
-  ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.beginPath(); ctx.ellipse(bx, WATER_Y + 7, 6 + Math.sin(now / 250), 1.6, 0, 0, 7); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.beginPath(); ctx.ellipse(bx, BOB_Y + 1, 6 + Math.sin(now / 250), 1.6, 0, 0, 7); ctx.stroke();
   rect("#e63946", bx - 2, by - 3.5, 4, 3.5); rect("#fff", bx - 2, by, 4, 3);
   if (st === "bite") text("!", bx, by - 22, "#ffd166", "center");
 }
@@ -183,7 +190,7 @@ function say(m) { msg = m; msgT = 2.5; }
 function press() {
   if (state === "walk") {
     state = "wait"; t = 2 + Math.random() * 3;
-    bobber = { x: px + dir * 34, y: WATER_Y + 6 };
+    bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
     fish = null;
     post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
   } else if (state === "wait") { state = "walk"; say("Você recolheu a linha"); }
