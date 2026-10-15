@@ -197,7 +197,7 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const dy = ty + 11, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
   return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - 11 + bob };
 }
-// ---------- Malto: marinheiro andarilho sentado de pernas cruzadas na frente das caixas (NPC só do seu navegador) ----------
+// ---------- Malto: marinheiro andarilho de pé na frente das caixas (NPC só do seu navegador) ----------
 // Chegue perto e aperte E (ou toque nele) para conversar. Para mexer nas falas, edite MALTO_LINES.
 const MALTO_LINES = [
   "Ei, pescador. Senta aí... ah, não tem banco. Fica em pé mesmo.",
@@ -252,47 +252,50 @@ function drawMalto(now) {
   drawCrate(MX - 22, PIER_Y - 31, 16, 15); drawCrate(MX + 4, PIER_Y - 27, 12, 11);
 
   ctx.save(); ctx.translate(MX, PIER_Y);
-  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 12, 2.2, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 10, 2.2, 0, 0, 7); ctx.fill();
 
-  // pá encostada ao lado
-  ctx.save(); ctx.translate(17, 0); ctx.rotate(0.12);
-  rect("#8a5a2b", -0.6, -34, 1.2, 29); rect("#5b3a1c", -2.4, -35, 4.8, 1.4);
-  ctx.beginPath(); ctx.moveTo(-2.7, -6); ctx.lineTo(2.7, -6); ctx.lineTo(2.3, -1.5); ctx.lineTo(0, 1.3); ctx.lineTo(-2.3, -1.5); ctx.closePath();
+  // pá plantada no chão, ao lado dele
+  ctx.save(); ctx.translate(12, 0); ctx.rotate(0.05);
+  rect("#8a5a2b", -0.6, -37, 1.2, 31); rect("#5b3a1c", -2.4, -38, 4.8, 1.4);
+  ctx.beginPath(); ctx.moveTo(-2.7, -7); ctx.lineTo(2.7, -7); ctx.lineTo(2.3, -2); ctx.lineTo(0, 1.3); ctx.lineTo(-2.3, -2); ctx.closePath();
   ctx.fillStyle = "#b7c0cb"; ctx.fill(); ctx.strokeStyle = "#2b2f36"; ctx.lineWidth = 0.6; ctx.stroke();
-  rect("rgba(255,255,255,.35)", -1.6, -5.4, 0.8, 3); rect("#5b3a1c", -1.2, -7, 2.4, 1.6);
+  rect("rgba(255,255,255,.35)", -1.6, -6.4, 0.8, 3); rect("#5b3a1c", -1.2, -8, 2.4, 1.6);
   ctx.restore();
 
-  // pernas cruzadas (estilo "indiozinho"): joelhos abertos e botas se cruzando no meio
-  rect("#1d2531", -10, -4.5, 20, 4.5); rect("#2a3445", -11, -8, 5.5, 6); rect("#2a3445", 5.5, -8, 5.5, 6);
-  rect("#0e0e12", -1, -4.8, 7.5, 3.6); rect("#0e0e12", -6.5, -2.6, 7.5, 2.6);
-  rect("rgba(255,255,255,.12)", -5.5, -2.5, 6, 0.6);
+  // pernas e botas
+  rect("#1d2531", -4.2, -12, 3.8, 10.5); rect("#232c3a", 0.4, -12, 3.8, 10.5);
+  rect("#0e0e12", -5, -2.6, 5.4, 2.6); rect("#0e0e12", -0.4, -2.6, 5.4, 2.6);
 
-  // sobretudo (espalhado sobre as pernas)
-  const coat = () => { ctx.beginPath(); ctx.moveTo(-7, -27 + by); ctx.lineTo(7, -27 + by); ctx.lineTo(9.5, -5); ctx.lineTo(-9.5, -5); ctx.closePath(); };
+  // sobretudo: ombros estreitos, caimento reto até o joelho, barra levemente aberta
+  const S = -32 + by;
+  const coat = () => { ctx.beginPath(); ctx.moveTo(-6, S); ctx.lineTo(6, S); ctx.lineTo(6.6, -20); ctx.lineTo(8.2, -10.5); ctx.lineTo(-8.2, -10.5); ctx.lineTo(-6.6, -20); ctx.closePath(); };
   coat(); ctx.fillStyle = "#8997ab"; ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-7, -27 + by); ctx.lineTo(-2.5, -27 + by); ctx.lineTo(-3.5, -5); ctx.lineTo(-9.5, -5); ctx.closePath();
-  ctx.fillStyle = "rgba(20,28,50,.35)"; ctx.fill();                                // lado esquerdo na sombra
+  ctx.beginPath(); ctx.moveTo(-6, S); ctx.lineTo(-2.2, S); ctx.lineTo(-3, -10.5); ctx.lineTo(-8.2, -10.5); ctx.lineTo(-6.6, -20); ctx.closePath();
+  ctx.fillStyle = "rgba(20,28,50,.32)"; ctx.fill();                                // lado esquerdo na sombra
+  rect("rgba(255,255,255,.14)", 4.6, S + 3, 1.2, 18);                              // luz do lado direito
   coat(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.8; ctx.stroke();
-  rect("#0b0b10", -0.4, -22 + by, 0.8, 17);                                        // abertura da frente
-  [-14, -9].forEach(y => { rect("#d9a441", -3.3, y, 1.6, 1.6); rect("#d9a441", 1.7, y, 1.6, 1.6); });   // botões dourados (transpassado)
-  rect("#d9a441", -3.3, -19, 1.6, 1.6); rect("#d9a441", 1.7, -19, 1.6, 1.6);
+  rect("#0b0b10", -0.4, S + 8, 0.8, 21 - by);                                      // abertura da frente
+  [[-2.9, -26], [1.7, -26], [-2.9, -22.4], [1.7, -22.4], [-3.1, -15.5], [1.9, -15.5]].forEach(([x, y]) => rect("#d9a441", x, y + by, 1.3, 1.3));   // botões dourados (transpassado)
+  rect("#5a4631", -6.7, -20 + by * 0.5, 13.4, 2); rect("#d9a441", -1.1, -20.2 + by * 0.5, 2.2, 2.4); rect("#2a1d10", -0.4, -19.5 + by * 0.5, 0.8, 1);   // cinto com fivela
+  rect("#6f7d92", -6.4, S - 0.8, 3, 1.6); rect("#6f7d92", 3.4, S - 0.8, 3, 1.6);   // ombreiras
 
-  // braços apoiados nos joelhos
-  ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3.4; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(-7, -25 + by); ctx.lineTo(-9, -10); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(7, -25 + by); ctx.lineTo(9, -10); ctx.stroke();
+  // braços (finos) e mãos
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3.2;
+  ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.4, -14); ctx.stroke();           // esquerdo solto
+  ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(10, -23); ctx.stroke();              // direito segurando a pá
   ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.5;
-  ctx.beginPath(); ctx.moveTo(-5.4, -24 + by); ctx.lineTo(-7.4, -10); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(8.6, -24 + by); ctx.lineTo(10.4, -10); ctx.stroke();
-  rect("#f3c8a0", -10.6, -10, 3.2, 3.2); rect("#f3c8a0", 7.4, -10, 3.2, 3.2);
+  ctx.beginPath(); ctx.moveTo(-4.2, S + 3); ctx.lineTo(-5.8, -14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7.4, S + 3); ctx.lineTo(11.4, -23); ctx.stroke();
+  rect("#f3c8a0", -9, -14.6, 3.2, 3.4); rect("#f3c8a0", 9.6, -25, 3.2, 3.2);
 
-  // gola alta e pescoço
-  const hy = by;
-  rect("#e8b98f", -1.8, -30 + hy, 3.6, 3.2);
-  ctx.beginPath(); ctx.moveTo(-8, -28 + by); ctx.lineTo(-1, -30 + by); ctx.lineTo(0, -21 + by); ctx.lineTo(-6, -23 + by); ctx.closePath();
+  // gola alta aberta em volta do pescoço
+  const hy = by - 5;
+  rect("#e8b98f", -1.8, -30.5 + hy, 3.6, 4);
+  ctx.beginPath(); ctx.moveTo(-6.6, S + 0.5); ctx.lineTo(-1.3, S - 3); ctx.lineTo(-0.4, S + 7); ctx.lineTo(-5, S + 5); ctx.closePath();
   ctx.fillStyle = "#9aa8ba"; ctx.fill(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.6; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(8, -28 + by); ctx.lineTo(1, -30 + by); ctx.lineTo(0, -21 + by); ctx.lineTo(6, -23 + by); ctx.closePath();
-  ctx.fillStyle = "#adbacb"; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6.6, S + 0.5); ctx.lineTo(1.3, S - 3); ctx.lineTo(0.4, S + 7); ctx.lineTo(5, S + 5); ctx.closePath();
+  ctx.fillStyle = "#b3bfd0"; ctx.fill(); ctx.stroke();
 
   // cabeça de frente
   rect("#1a120c", -5.4, -38.5 + hy, 2, 9); rect("#1a120c", 3.4, -38.5 + hy, 2, 9);          // costeletas
@@ -322,7 +325,7 @@ function wrapLines(s, max) {
   if (cur) out.push(cur); return out;
 }
 function drawMaltoUI(now) {
-  const nameY = PIER_Y - 52;
+  const nameY = PIER_Y - 58;
   text("Malto", MX, nameY, "#9fd3ff", "center");
   if (mTalk) {
     const full = MALTO_LINES[mLine], shown = Math.min(full.length, Math.floor(mTalk.t * TYPE_CPS));
