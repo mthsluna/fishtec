@@ -229,14 +229,25 @@ function rodPose(R, b) {                                   // soma a animação 
 // ---------- Giro de lado -> de frente, parte por parte: primeiro a cabeça, depois o tronco, depois as pernas ----------
 // Cada parte é desenhada como um cilindro girando em torno do eixo vertical: x_tela = profundidade*cos(a) + lateral*sen(a)
 // (a = 0 é de lado, a = 90° é de frente). Os detalhes do rosto, do cinto e dos braços deslizam pela superfície enquanto giram.
+// Altura: a cabeça NÃO cresce. Só o corpo (pernas + tronco) é esticado na vertical e a cabeça sobe junto, então no máximo ele fica
+// com as proporções do Malto (cabeça pequena, corpo comprido). O corte fica logo abaixo do queixo (CUT px acima dos pés).
+const CUT = 24.5;
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
-  const hs = look && look.hs || 1, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
+  const hs = look && look.hs || 1, E = (hs - 1) * FISHER_TOP, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
   LEGS = [shade(pants, 0.75), pants];
-  if (hs !== 1) { ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(hs, hs); ctx.translate(-x, -PIER_Y); }
   const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
-  let r = tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
-  if (hs !== 1) { ctx.restore(); r = { x: x + (r.x - x) * hs, y: PIER_Y + (r.y - PIER_Y) * hs }; }   // a ponta da vara acompanha o tamanho
-  return r;
+  const one = () => tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
+  if (E < 0.01) return one();
+  const f = (CUT + E) / CUT, top = PIER_Y - CUT;
+  ctx.save();                                                                   // corpo: esticado para baixo do corte (0,5px a mais para não aparecer fresta)
+  ctx.translate(0, PIER_Y); ctx.scale(1, f); ctx.translate(0, -PIER_Y);
+  ctx.beginPath(); ctx.rect(x - 70, top - 0.5, 140, 80); ctx.clip();
+  const r = one(); ctx.restore();
+  ctx.save();                                                                   // cabeça: tamanho normal, só sobe
+  ctx.translate(0, -E); ctx.beginPath(); ctx.rect(x - 70, top - 300, 140, 300.5); ctx.clip();
+  one(); ctx.restore();
+  const ly = r.y - PIER_Y;                                                      // a ponta da vara segue a parte do corpo em que está
+  return { x: r.x, y: PIER_Y + (ly < -CUT ? ly - E : ly * f) };
 }
 function drawFisherTurn(x, dir, shirt, hat, tn) {
   const ang = v => v * v * (3 - 2 * v) * Math.PI / 2, mix = (a, b, k) => a + (b - a) * k;
