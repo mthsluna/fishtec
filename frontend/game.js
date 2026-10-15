@@ -232,15 +232,13 @@ function rodPose(R, b) {                                   // soma a animação 
 // mantêm o tamanho (só sobem). Nada é esticado: cada parte é desenhada já com o comprimento certo dentro de drawFisherBase/Turn.
 const LEG_SHARE = 0.73;                                                         // fatia do ganho de altura que vai para as pernas (o resto vai para o tronco)
 let LEGX = 0, TORSOX = 0, AL = 8;                                               // AL: comprimento do braço (cresce com a altura, junto com as pernas)
-function collarFront(col) {                                                    // gola redonda de frente: decote em "U" com a barra (ribana) em volta
-  ctx.fillStyle = "#e0ac69"; ctx.beginPath(); ctx.ellipse(0, -24.2, 2.5, 2.1, 0, 0, Math.PI); ctx.closePath(); ctx.fill();   // pescoço no decote
-  ctx.lineCap = "butt";
-  ctx.strokeStyle = shade(col, 0.78); ctx.lineWidth = 1.3; ctx.beginPath(); ctx.ellipse(0, -24.2, 3, 2.6, 0, 0, Math.PI); ctx.stroke();   // barra da gola
-  ctx.strokeStyle = "rgba(255,255,255,.28)"; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.ellipse(0, -24.2, 3.5, 3.1, 0, 0, Math.PI); ctx.stroke();   // luz na borda de fora
+function collarFront(col) {                                                    // gola redonda de frente: barra escura em "U" em volta do pescoço
+  ctx.fillStyle = shade(col, 0.76); roundPath(-3.5, -25, 7, 4.8, 2.3); ctx.fill();                 // barra (ribana)
+  ctx.fillStyle = "#e0ac69"; roundPath(-2.3, -25.2, 4.6, 3.4, 1.6); ctx.fill();                    // pescoço aparecendo no decote
+  rect("rgba(0,0,0,.12)", -2.3, -24.6, 4.6, 0.7);                                                  // sombrinha embaixo do queixo
 }
-function collarSide(col) {                                                     // gola redonda de lado: barra arredondada em volta do pescoço
-  ctx.fillStyle = shade(col, 0.78); roundPath(-3.9, -25.3, 6.8, 2.1, 1); ctx.fill();
-  rect("rgba(255,255,255,.25)", -3.2, -25.1, 5.4, 0.6);
+function collarSide(col) {                                                     // gola redonda de lado: barra fina em volta da base do pescoço
+  ctx.fillStyle = shade(col, 0.76); roundPath(-3.6, -25, 6, 2, 0.9); ctx.fill();
 }
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
   ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
@@ -538,7 +536,7 @@ function drawMalto(now) {
   ctx.fillStyle = "#a9b5c6"; ctx.fill();                                                         // aba direita (na luz)
 
   // braço esquerdo solto
-  const MAL = 13.5, MSH = 7.75, SY = S + 2.5;                                       // braços no mesmo estilo do pescador: manga, ombrinho e mão, colados no corpo
+  const MAL = 8.5, MSH = 7.75, SY = S + 2;                                       // braços no mesmo estilo do pescador: manga, ombrinho e mão, colados no corpo
   ctx.save(); ctx.translate(-MSH, SY); ctx.rotate(Math.PI / 2 + 0.03);
   rect("#6f7d92", 0, -1.75, MAL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, MAL, 0.8); rect("#f3c8a0", MAL - 0.5, -1.75, 3, 3.5);
   ctx.restore();
@@ -565,7 +563,7 @@ function drawMalto(now) {
   const k = u < 3 ? 0 : u < 3.8 ? ease((u - 3) / 0.8) : u < 5.2 ? 1 : u < 6 ? 1 - ease((u - 5.2) / 0.8) : 0;
   const drag = u >= 3.8 && u < 5.2 ? Math.min(1, (u - 3.8) / 0.3, (5.2 - u) / 0.3) : 0;           // intensidade do trago
   const L = (a, b) => a + (b - a) * k;
-  const hx = L(MSH + 0.15, 3.7), hyy = L(SY + MAL + 1, -36.4 + hy + 5), ex = L(MSH + 0.15, 9.6), ey = L(SY + 7.5, -25 + by);   // mão e cotovelo
+  const hx = L(MSH + 0.15, 3.7), hyy = L(SY + MAL + 1, -36.4 + hy + 5), ex = L(MSH + 0.15, 9.6), ey = L(SY + 5.5, -25 + by);   // mão e cotovelo
   ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3.5;
   ctx.beginPath(); ctx.moveTo(MSH, SY); ctx.lineTo(ex, ey); ctx.lineTo(hx, hyy); ctx.stroke();
   shoulder(MSH, SY, "#7b8aa0");
