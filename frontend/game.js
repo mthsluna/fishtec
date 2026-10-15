@@ -259,7 +259,7 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const ca = Math.cos(A), sa = Math.sin(A);
   const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
   const ra = P.rod - P.flex * 0.25;                                  // a ponta da vara atrasa quando ela chicoteia
-  const tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
+  let tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const kS = s < SL0 ? 0 : ease3(Math.min(1, (s - SL0) / (SL1 - SL0)));   // quanto a vara já deslizou para as costas
   rect(shirt, -6, -24, 12, 14);
   rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
@@ -298,6 +298,7 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
       qx = (bx + ex) / 2 + fl * 6.6 * dy / L; qy = (by + ey) / 2 - fl * 6.6 * dx / L;
     }
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(qx, qy, ex, ey); ctx.stroke();
+    if (s > 0) { tx = ex; ty = ey; }                                                  // ponta real da vara (para a linha e a boia)
     if (s > 0) {
       if (s < 0.74) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);                         // mão segurando a vara
       if (kS > 0.05) rect("#b8b8b8", bx + (ex - bx) * 0.32 * kS - 0.5, by + (ey - by) * 0.32 * kS, 2.4, 2.4);   // carretilha desliza pela vara
@@ -514,7 +515,7 @@ function drawOther(p, now) {
   const dt = Math.min(0.1, (now - (p.lt || now)) / 1000); p.lt = now;
   if (p.pst !== p.state) {                                       // mudou de estado: começa a animação certa
     p.pst = p.state;
-    if (p.state === "cast") { p.cs = { t: 0, rel: null, hang: null }; p.c0 = now; p.landed = false; }
+    if (p.state === "cast") { p.cs = { t: 0, rel: null, hang: null, k0: p.rd ? p.rd.k : 1 }; p.c0 = now; p.landed = false; }
     if (p.state === "reel") p.ra = 0;
   }
   let pose = null;
@@ -523,7 +524,7 @@ function drawOther(p, now) {
   if (p.state === "walk") pose = rodPose(rd, { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 });
   if (p.state === "cast" && p.cs) {
     p.cs.t = (now - p.c0) / 1000;
-    pose = castPose(p.cs.t);
+    pose = castPose(p.cs.t, p.cs.k0);
     if (!p.landed && p.cs.t >= CAST_RELEASE + CAST_FLIGHT) { p.landed = true; fxs.push({ x: p.bx, t0: now }); }   // respingo quando a boia dele cai
   } else if (p.state === "reel") {
     const inside = Math.sin(now / 900 + p.x) > -0.2;             // o servidor não manda a barra do minigame: simula o vai-e-vem
@@ -541,14 +542,18 @@ function drawOtherLine(p, now) {                                 // linha e nome
 // ---------- Arremesso da vara: recuo -> chicote -> soltura; a boia voa em arco e cai com respingo ----------
 const lerp = (a, b, k) => a + (b - a) * k, easeOut = k => 1 - (1 - k) * (1 - k), easeIn = k => k * k;
 const easeInOut = k => k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);
-const CAST_SWING = 1.0, CAST_RELEASE = CAST_SWING * 0.6, CAST_FLIGHT = 0.6;   // segundos (a soltura acontece no fim do chicote)
-function castPose(c) {
-  const u = Math.min(1, c / CAST_SWING);
-  if (u < 0.45) { const k = easeInOut(u / 0.45);                        // recuo: vara vai para trás, corpo inclina e o braço livre abre
-    return { rod: lerp(REST, -2.5, k), arm: lerp(0, -1.15, k), lean: lerp(0, -0.2, k), off: lerp(0, -0.5, k), flex: -0.35 * Math.sin(Math.PI * k) }; }
-  if (u < 0.6) { const k = (u - 0.45) / 0.15, e = easeIn(k);            // chicote rápido para a frente (a vara envergando)
-    return { rod: lerp(-2.5, -0.3, e), arm: lerp(-1.15, 0.3, e), lean: lerp(-0.2, 0.18, e), off: lerp(-0.5, 0.7, e), flex: 1.2 * Math.sin(Math.PI * k) }; }
-  const k = easeOut((u - 0.6) / 0.4);                                   // follow-through: a vara baixa um pouco, volta e balança até parar
+const CAST_DRAW = 0.42, CAST_WHIP = 0.17, CAST_SWING = 1.0, CAST_RELEASE = CAST_DRAW + CAST_WHIP, CAST_FLIGHT = 0.6;   // segundos: tira a vara das costas -> chicote -> (a soltura acontece no fim do chicote)
+// O arremesso começa com a vara nas costas: a mão vai atrás, puxa a vara por cima do ombro (é o "recuo" do lançamento),
+// segura um instante no alto e chicoteia para a frente sem parar. k0 = onde a vara estava (1 = nas costas).
+function castPose(c, k0 = 1) {
+  if (c < CAST_DRAW) {
+    const u = c / CAST_DRAW, e = easeInOut(u), sv = (SL0 - k0) * (u < 0.5 ? 4 * u : 4 * (1 - u)) / CAST_DRAW;   // sv: velocidade (a vara envergando)
+    return rodPose({ k: lerp(k0, SL0, e), v: sv, st: 9 }, { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 });
+  }
+  const w = c - CAST_DRAW;
+  if (w < CAST_WHIP) { const k = w / CAST_WHIP, e = easeIn(k);              // chicote rápido para a frente (a vara envergando)
+    return { rod: lerp(-2.0, -0.3, e), arm: lerp(RA, 0.3, e), lean: lerp(spl(K_LEAN, SL0), 0.18, e), off: lerp(spl(K_OFF, SL0), 0.7, e), sb: lerp(spl(K_BOB, SL0), 0, e), flex: 1.2 * Math.sin(Math.PI * k) }; }
+  const k = easeOut(Math.min(1, (w - CAST_WHIP) / (CAST_SWING - CAST_DRAW - CAST_WHIP)));   // follow-through: a vara baixa um pouco, volta e balança até parar
   return { rod: lerp(-0.3, REST, k) + 0.3 * Math.sin(Math.PI * Math.min(1, k * 1.6)) * (1 - k), arm: lerp(0.3, 0, k), lean: lerp(0.18, 0, k), off: lerp(0.7, 0, k), flex: 0.6 * (1 - k) * Math.sin(k * 14) };
 }
 function drawCast(tip, st, tx) {                                         // st = { t, rel, hang }; tx = x onde a boia vai cair
@@ -603,15 +608,15 @@ function say(m) { msg = m; msgT = 2.5; }
 
 function press() {
   if (state === "walk") {
-    if (rodL.k > 0.001) wantDraw = true;                                // vara nas costas: saca primeiro, o arremesso começa quando ela estiver na mão
-    else startCast();
+    if (Math.abs(spd) > WALK + 1) wantDraw = true;                     // correndo: freia primeiro (o arremesso começa ao frear)
+    else startCast();                                                   // senão já saca a vara das costas lançando
   } else if (state === "wait") { state = "walk"; SND.retract(); say("Você recolheu a linha"); }
   else if (state === "bite") startReel();
   else if (state === "show" && showT > 0.8) state = "walk";          // pode pular a comemoração
 }
 
 function startCast() {
-  state = "cast"; cs = { t: 0, rel: null, hang: null };
+  state = "cast"; cs = { t: 0, rel: null, hang: null, k0: rodL.k };
   bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
   fish = null; SND.cast();
   post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
@@ -679,8 +684,8 @@ function update(dt) {
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
   if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; rodL.k = state === "show" ? 1 : 0; rodL.v = 0; rodL.st = 9; wantDraw = false; }   // pescando: vara na mão; comemorando: já guardada
   else {                                                                       // andando: a vara fica nas costas; ao fim da pescaria ela é guardada de novo
-    stepRod(rodL, wantDraw ? 0 : 1, dt * (wantDraw ? 1.5 : 1));                 // andando/correndo: vara nas costas; quer lançar: saca (mais depressa)
-    if (wantDraw && rodL.k <= 0.001) { wantDraw = false; rodL.k = 0; startCast(); return; }   // vara na mão: agora sim lança
+    stepRod(rodL, 1, dt);                                                       // andando/correndo: a vara fica nas costas
+    if (wantDraw && Math.abs(spd) <= WALK + 1) { wantDraw = false; startCast(); return; }   // terminou de frear: lança
   }
   for (let i = dust.length - 1; i >= 0; i--) {                                  // fumacinha da freada sobe e some
     const d = dust[i]; d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy *= 0.95; d.vx *= 0.97;
@@ -1145,7 +1150,7 @@ function draw(now) {
   ctx.save(); ctx.translate(wx, 0);
   drawMalto(now);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp * (1 + 0.45 * runK), state === "cast" ? castPose(cs.t) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose());
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp * (1 + 0.45 * runK), state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose());
   ctx.restore();
 
   // 2) água com reflexo
