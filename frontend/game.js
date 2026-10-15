@@ -276,7 +276,7 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   ctx.save(); if (hold) { ctx.translate(0, -25); ctx.rotate(0.22 * hold); ctx.translate(0, 25); }     // cabeça baixa olhando o celular
   rect("#f1c27d", -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
   rect("#2a1a10", 2.5, -30, 1.6, 1.8); rect("#c98d5a", 4, -27.5, 2, 1);
-  if (hold > 0.3) rect(`rgba(205,245,160,${0.3 * clamp01((hold - 0.3) / 0.5)})`, -0.5, -33, 6, 8.5);   // luz da tela iluminando o rosto
+  if (hold > 0.3) rect(`rgba(205,245,160,${PHONE_LIGHT * 0.5 * clamp01((hold - 0.3) / 0.5)})`, -0.5, -33, 6, 8.5);   // luz da tela iluminando o rosto
   rect(hat, -6, -35.5, 14, 3); rect(hat, -3.5, -40, 9, 5);
   rect("rgba(0,0,0,.25)", -6, -34, 14, 1.2); rect("rgba(255,255,255,.35)", -3.5, -36.5, 9, 1.2);
   ctx.restore();
@@ -601,7 +601,8 @@ const LCD_INK = "#1b2619", LCD_BG = "#97a888";                           // "pix
 const phoneImg = Object.assign(new Image(), { src: PHONE_SRC });
 if (document.fonts) document.fonts.load(NOKIA_FONT).catch(() => {});
 const PH = { open: false, pos: 0, vel: 0, lit: 0, delay: 0, blink: 0, hold: 0 };   // hold: 0 a 1, quanto o pescador já ergueu o celular e baixou a cabeça
-const PHONE_ARM = -0.75;                                                // ângulo do braço segurando o celular na frente do rosto
+const PHONE_ARM = -0.12;                                                // ângulo do braço: mão baixa, na altura do peito
+const PHONE_LIGHT = 0.15;                                               // força da luz do celular (0 a 1)                                                // ângulo do braço segurando o celular na frente do rosto
 function openPhone() {
   if (PH.open || state !== "walk") return;
   PH.open = true; PH.delay = 0.45; mTalk = null;                         // sobe; a tela acende depois que ele chega
@@ -622,22 +623,15 @@ function updatePhone(dt) {
   PH.blink = Math.max(0, PH.blink - dt);
   PH.hold += ((PH.open ? 1 : 0) - PH.hold) * Math.min(1, dt * 7);
 }
-function drawHeldPhone(x, y, k) {                                                  // celular 2D na mão (x,y = ponta da mão, em coordenadas do corpo)
+function drawHeldPhone(x, y, k) {                                                  // celular visto de lado: só um retângulo cinza (x,y = ponta da mão)
   const a = clamp01((k - 0.3) / 0.5); if (a <= 0) return;
-  const fl = 0.9 + 0.1 * Math.sin(performance.now() / 90);
-  const x0 = Math.round(x) - 2, y0 = Math.round(y) - 8;                            // canto do celular (reto, sem rotação, como o resto do personagem)
-  const sx = x0 + 3.5, sy = y0 + 2.5;                                              // centro da tela
+  const fl = 0.9 + 0.1 * Math.sin(performance.now() / 90), x0 = Math.round(x) - 1, y0 = Math.round(y) - 7;
   ctx.save(); ctx.globalAlpha = a;
-  let g = ctx.createLinearGradient(x0 + 1, 0, 3, 0);                               // feixe de luz da tela até o rosto
-  g.addColorStop(0, `rgba(205,245,160,${0.7 * fl})`); g.addColorStop(1, "rgba(205,245,160,.12)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0 + 1, sy - 1.6); ctx.lineTo(4.6, -34); ctx.lineTo(5.6, -24.5); ctx.lineTo(x0 + 1, sy + 1.6); ctx.closePath(); ctx.fill();
-  g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 8);                              // brilho em volta da tela
-  g.addColorStop(0, `rgba(205,245,160,${0.5 * fl})`); g.addColorStop(1, "rgba(205,245,160,0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7); ctx.fill();
-  rect("#161b27", x0, y0, 7, 10); rect("#2a3345", x0 + 0.5, y0 + 0.5, 6, 9);        // corpo
-  rect("#cfe9a6", x0 + 1, y0 + 1, 5, 3); rect("#7f9a6c", x0 + 1, y0 + 4, 5, 0.5);    // tela acesa
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) rect("#8d97a8", x0 + 1 + c * 2, y0 + 5.5 + r * 1.4, 1, 0.8);   // teclinhas
-  rect("#f1c27d", x0 - 1, y0 + 6, 3, 3.5);                                         // dedos segurando por baixo
+  const g = ctx.createLinearGradient(x0, 0, 5.6, 0);                               // luz fraquinha saindo da frente do celular até o rosto
+  g.addColorStop(0, `rgba(205,245,160,${PHONE_LIGHT * fl})`); g.addColorStop(1, `rgba(205,245,160,${PHONE_LIGHT * 0.3})`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(5.6, -33); ctx.lineTo(5.6, -24.5); ctx.lineTo(x0, y0 + 8); ctx.closePath(); ctx.fill();
+  rect("#9a9ea6", x0, y0, 2, 9);                                                   // o celular
+  rect("#f1c27d", x0 - 1, y0 + 5, 3.5, 3.5);                                       // mão segurando
   ctx.restore();
 }
 function roundPath(x, y, w, h, r) {
