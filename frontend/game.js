@@ -241,10 +241,53 @@ function update(dt) {
 const rect = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
 const text = (s, x, y, c = "#fff", a = "left") => { ctx.font = "bold 10px monospace"; ctx.textAlign = a; ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(s, x, y); };
 
-function layer(fn) {                      // desenha uma vez num canvas separado (cache)
-  const c = document.createElement("canvas"); c.width = W * S; c.height = H * S;
+function layer(fn, w = W, h = H) {        // desenha uma vez num canvas separado (cache)
+  const c = document.createElement("canvas"); c.width = w * S; c.height = h * S;
   const x = c.getContext("2d"); x.scale(S, S);
   const prev = ctx; ctx = x; fn(); ctx = prev; return c;
+}
+// ---------- Nuvens realistas: volumes com sombra, corpo e luz do sol (vinda da direita/cima) ----------
+const CLOUDS = [
+  { cirrus: 1, w: 260, h: 24, y: 8,  x: 100, v: 1.2, seed: 3 },
+  { cirrus: 1, w: 220, h: 20, y: 44, x: 330, v: 1.6, seed: 11 },
+  { w: 130, h: 46, y: 20, x: 200, v: 3.6, tone: 0, seed: 19 },
+  { w: 200, h: 72, y: 52, x: 30,  v: 2.4, tone: 1, seed: 7 },
+  { w: 160, h: 56, y: 76, x: 330, v: 2.0, tone: 1, seed: 33 },
+  { w: 110, h: 40, y: 42, x: 440, v: 3.0, tone: 0, seed: 41 },
+];
+function makeCloud(w, h, seed, tone) {
+  let r = seed; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
+  const T = [{ hi: "255,236,200", mid: "244,150,140", sh: "100,52,112" }, { hi: "255,214,190", mid: "220,112,150", sh: "74,40,104" }][tone];
+  return layer(() => {
+    const puffs = [], n = 14 + (rnd() * 6 | 0), yb = h * 0.78;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1), bump = Math.sin(Math.PI * t), rad = h * (0.1 + 0.18 * bump) * (0.75 + rnd() * 0.5);
+      puffs.push({ x: w * (0.16 + 0.68 * t) + (rnd() - 0.5) * 6, y: yb - rad * (0.55 + rnd() * 0.4) - bump * h * 0.08, r: rad });
+      if (rnd() < 0.6) puffs.push({ x: w * (0.16 + 0.68 * t) + (rnd() - 0.5) * 14, y: yb - rad * 1.25 - bump * h * 0.08, r: rad * 0.55 });
+    }
+    const blob = (x, y, rad, stops) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad); stops.forEach(([o, c]) => g.addColorStop(o, c));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+    };
+    puffs.forEach(p => blob(p.x - p.r * 0.1, p.y + p.r * 0.25, p.r * 1.2, [[0, `rgba(${T.sh},.75)`], [0.6, `rgba(${T.sh},.45)`], [1, `rgba(${T.sh},0)`]]));   // sombra
+    puffs.forEach(p => blob(p.x + p.r * 0.2, p.y - p.r * 0.2, p.r * 0.95, [[0, `rgba(${T.mid},.95)`], [0.65, `rgba(${T.mid},.6)`], [1, `rgba(${T.mid},0)`]])); // corpo
+    puffs.forEach(p => blob(p.x + p.r * 0.38, p.y - p.r * 0.42, p.r * 0.6, [[0, `rgba(${T.hi},.95)`], [1, `rgba(${T.hi},0)`]]));                         // luz
+    ctx.globalCompositeOperation = "destination-out";                                                                                                       // base achatada e suave
+    const g = ctx.createLinearGradient(0, yb - h * 0.05, 0, h); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,1)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+  }, w, h);
+}
+function makeCirrus(w, h, seed) {          // nuvens finas e esticadas no alto
+  let r = seed; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
+  return layer(() => {
+    for (let i = 0; i < 7; i++) {
+      const cx = w * (0.2 + 0.6 * rnd()), cy = h * (0.3 + 0.4 * rnd()), rw = w * (0.2 + 0.25 * rnd());
+      ctx.save(); ctx.translate(cx, cy); ctx.scale(1, 0.12);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rw); g.addColorStop(0, "rgba(255,215,200,.4)"); g.addColorStop(1, "rgba(255,215,200,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rw, 0, 7); ctx.fill(); ctx.restore();
+    }
+  }, w, h);
 }
 function buildLayers() {
   const sky = layer(() => {
@@ -268,15 +311,15 @@ function buildLayers() {
     rect("#6b4226", 0, PIER_Y, W, 8); rect("#a06f42", 0, PIER_Y, W, 3); rect("#4a2d19", 0, PIER_Y + 6, W, 2);
     for (let i = 0; i < W; i += 24) rect("rgba(0,0,0,.35)", i, PIER_Y, 0.8, 6);
   });
-  layers = { sky, back, pier };
+  const clouds = CLOUDS.map(c => c.cirrus ? makeCirrus(c.w, c.h, c.seed) : makeCloud(c.w, c.h, c.seed, c.tone));
+  layers = { sky, back, pier, clouds };
 }
 function scene(now) {
   if (!layers) buildLayers();
   ctx.drawImage(layers.sky, 0, 0, W, H);
-  [[60, 38, 60, 7], [200, 68, 80, 9], [310, 26, 52, 6], [420, 92, 64, 7], [130, 100, 70, 6]].forEach(([cx, cy, rw, rh], i) => {
-    const x = (cx + now / 1000 * (2 + i)) % (W + 160) - 80;
-    ctx.fillStyle = "rgba(255,205,185,.32)";
-    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(x + k * rw * 0.45, cy - k % 2 * 3, rw * (1 - k * 0.2), rh, 0, 0, 7); ctx.fill(); }
+  CLOUDS.forEach((c, i) => {
+    const x = (c.x + now / 1000 * c.v) % (W + c.w) - c.w;
+    ctx.drawImage(layers.clouds[i], x, c.y, c.w, c.h);
   });
   ctx.drawImage(layers.back, 0, 0, W, H);
   for (let i = 0; i < 9; i++) rect("rgba(255,217,160,.9)", 366 - (28 - i * 3) / 2 + Math.sin(now / 500 + i) * 7, WATER_Y + 5 + i * 8, 28 - i * 3, 1.6);
