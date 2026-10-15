@@ -108,6 +108,23 @@ fetch(API + "/api/fish").then(r => r.json()).then(d => fishList = d).catch(() =>
 const imgs = {};
 const img = f => imgs[f] || (imgs[f] = Object.assign(new Image(), { src: "assets/fishs/" + f }));
 fishList.forEach(f => img(f.file));
+// ---------- Peixe misterioso: aparece no minigame no lugar do peixe de verdade (a revelação vem só depois de pescar) ----------
+const MYST_SRC = ["assets/fishs/misterioso.png", "assets/misterioso.png"];   // ajuste aqui se o arquivo estiver em outro lugar/nome
+const mystery = new Image(); let mystI = 0;
+mystery.onerror = () => { if (++mystI < MYST_SRC.length) mystery.src = MYST_SRC[mystI]; };
+mystery.src = MYST_SRC[0];
+function drawMystery(cx, cy, mw, mh) {
+  if (mystery.complete && mystery.naturalWidth) {
+    const r = Math.min(mw / mystery.naturalWidth, mh / mystery.naturalHeight), w = mystery.naturalWidth * r, h = mystery.naturalHeight * r;
+    ctx.drawImage(mystery, cx - w / 2, cy - h / 2, w, h);
+  } else {                                                                      // se a imagem não carregar: peixinho azul com "?"
+    ctx.fillStyle = "#f4f4f4"; ctx.strokeStyle = "#1f78c8"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.ellipse(cx - mw * 0.06, cy, mw * 0.33, mh * 0.34, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + mw * 0.22, cy); ctx.lineTo(cx + mw * 0.46, cy - mh * 0.3); ctx.lineTo(cx + mw * 0.46, cy + mh * 0.3); ctx.closePath(); ctx.fill(); ctx.stroke();
+    text("?", cx - mw * 0.06, cy + 4, "#1f4f8f", "center");
+  }
+}
+
 const post = (p, b) => fetch(API + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b || {}) }).then(r => r.json());
 
 // Estado
@@ -177,8 +194,9 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const cx = (hx + tx) / 2 + P.flex * 6.6 * Math.sin(P.rod), cy = (hy + ty) / 2 - P.flex * 6.6 * Math.cos(P.rod);
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke();
-  if (P.crank === undefined) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
+  if (P.cheer === undefined) { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke(); }   // (comemorando: sem vara)
+  if (P.cheer !== undefined) { /* braços pro alto, mãos vazias */ }
+  else if (P.crank === undefined) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
   else {                                                                              // carretilha de verdade: corpo, manivela girando e a mão da frente puxando
     const rdx = Math.cos(ra), rdy = Math.sin(ra);
     const rcx = hx + rdx * 3 - rdy * 3, rcy = hy + rdy * 3 + rdx * 3;                  // carretilha pendurada embaixo da vara, logo à frente da mão
@@ -206,7 +224,7 @@ const MALTO_LINES = [
   "Nasci em lugar nenhum. É o único endereço que nunca me cobrou aluguel.",
   "Cada um tem a sua linha da sorte. A minha eu mesmo cravei na mão.",
   "Herói? Não, amigo. Só um sujeito que nunca aprendeu a ficar parado.",
-  "A pá? Cavo o que o mar deixa enterrado. Às vezes é só uma ideia.",
+  "O mar devolve tudo, cedo ou tarde. Às vezes é um peixe, às vezes é uma ideia.",
   "Cigarro apagado é só papel. Fumaça é conversa com o vento.",
   "Pesque devagar. O mar não tem pressa e ninguém ganha dele.",
   "Já dei a volta ao mundo e ainda me perco neste cais. Bonito, não?",
@@ -254,14 +272,6 @@ function drawMalto(now) {
   ctx.save(); ctx.translate(MX, PIER_Y);
   ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 10, 2.2, 0, 0, 7); ctx.fill();
 
-  // pá plantada no chão, ao lado dele
-  ctx.save(); ctx.translate(12, 0); ctx.rotate(0.05);
-  rect("#8a5a2b", -0.6, -37, 1.2, 31); rect("#5b3a1c", -2.4, -38, 4.8, 1.4);
-  ctx.beginPath(); ctx.moveTo(-2.7, -7); ctx.lineTo(2.7, -7); ctx.lineTo(2.3, -2); ctx.lineTo(0, 1.3); ctx.lineTo(-2.3, -2); ctx.closePath();
-  ctx.fillStyle = "#b7c0cb"; ctx.fill(); ctx.strokeStyle = "#2b2f36"; ctx.lineWidth = 0.6; ctx.stroke();
-  rect("rgba(255,255,255,.35)", -1.6, -6.4, 0.8, 3); rect("#5b3a1c", -1.2, -8, 2.4, 1.6);
-  ctx.restore();
-
   // pernas e botas
   rect("#1d2531", -4.2, -12, 3.8, 10.5); rect("#232c3a", 0.4, -12, 3.8, 10.5);
   rect("#0e0e12", -5, -2.6, 5.4, 2.6); rect("#0e0e12", -0.4, -2.6, 5.4, 2.6);
@@ -272,30 +282,31 @@ function drawMalto(now) {
   coat(); ctx.fillStyle = "#8997ab"; ctx.fill();
   ctx.beginPath(); ctx.moveTo(-6, S); ctx.lineTo(-2.2, S); ctx.lineTo(-3, -10.5); ctx.lineTo(-8.2, -10.5); ctx.lineTo(-6.6, -20); ctx.closePath();
   ctx.fillStyle = "rgba(20,28,50,.32)"; ctx.fill();                                // lado esquerdo na sombra
-  rect("rgba(255,255,255,.14)", 4.6, S + 3, 1.2, 18);                              // luz do lado direito
+  rect("rgba(255,255,255,.14)", 4.6, S + 6, 1.2, 15);                              // luz do lado direito
   coat(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.8; ctx.stroke();
   rect("#0b0b10", -0.4, S + 8, 0.8, 21 - by);                                      // abertura da frente
-  [[-2.9, -26], [1.7, -26], [-2.9, -22.4], [1.7, -22.4], [-3.1, -15.5], [1.9, -15.5]].forEach(([x, y]) => rect("#d9a441", x, y + by, 1.3, 1.3));   // botões dourados (transpassado)
+  [[-2.9, -22.4], [1.7, -22.4], [-3.1, -15.5], [1.9, -15.5]].forEach(([x, y]) => rect("#d9a441", x, y + by, 1.3, 1.3));   // botões dourados
   rect("#5a4631", -6.7, -20 + by * 0.5, 13.4, 2); rect("#d9a441", -1.1, -20.2 + by * 0.5, 2.2, 2.4); rect("#2a1d10", -0.4, -19.5 + by * 0.5, 0.8, 1);   // cinto com fivela
-  rect("#6f7d92", -6.4, S - 0.8, 3, 1.6); rect("#6f7d92", 3.4, S - 0.8, 3, 1.6);   // ombreiras
 
-  // braços (finos) e mãos
-  ctx.lineCap = "round";
-  ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3.2;
-  ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.4, -14); ctx.stroke();           // esquerdo solto
-  ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(10, -23); ctx.stroke();              // direito segurando a pá
-  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.5;
-  ctx.beginPath(); ctx.moveTo(-4.2, S + 3); ctx.lineTo(-5.8, -14); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(7.4, S + 3); ctx.lineTo(11.4, -23); ctx.stroke();
-  rect("#f3c8a0", -9, -14.6, 3.2, 3.4); rect("#f3c8a0", 9.6, -25, 3.2, 3.2);
-
-  // gola alta aberta em volta do pescoço
+  // gola: peitilho escuro em V, gola em pé atrás do pescoço e duas lapelas simples
   const hy = by - 5;
-  rect("#e8b98f", -1.8, -30.5 + hy, 3.6, 4);
-  ctx.beginPath(); ctx.moveTo(-6.6, S + 0.5); ctx.lineTo(-1.3, S - 3); ctx.lineTo(-0.4, S + 7); ctx.lineTo(-5, S + 5); ctx.closePath();
-  ctx.fillStyle = "#9aa8ba"; ctx.fill(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.6; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(6.6, S + 0.5); ctx.lineTo(1.3, S - 3); ctx.lineTo(0.4, S + 7); ctx.lineTo(5, S + 5); ctx.closePath();
-  ctx.fillStyle = "#b3bfd0"; ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-5.6, S + 0.6); ctx.lineTo(5.6, S + 0.6); ctx.lineTo(4.6, S - 3.4); ctx.lineTo(-4.6, S - 3.4); ctx.closePath();
+  ctx.fillStyle = "#66748a"; ctx.fill(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.6; ctx.stroke();   // gola em pé
+  ctx.beginPath(); ctx.moveTo(-2, S - 3); ctx.lineTo(2, S - 3); ctx.lineTo(0, S + 8.5); ctx.closePath(); ctx.fillStyle = "#1f2733"; ctx.fill();   // camisa escura
+  rect("#e8b98f", -1.8, -30.5 + hy, 3.6, 4); rect("#e8b98f", -1.6, S - 3.4, 3.2, 3.6);                       // pescoço
+  ctx.beginPath(); ctx.moveTo(-5.4, S - 2.2); ctx.lineTo(-1.9, S - 3); ctx.lineTo(-0.3, S + 8.5); ctx.lineTo(-3.6, S + 5.4); ctx.closePath();
+  ctx.fillStyle = "#9aa8ba"; ctx.fill(); ctx.stroke();                                                         // lapela esquerda
+  ctx.beginPath(); ctx.moveTo(5.4, S - 2.2); ctx.lineTo(1.9, S - 3); ctx.lineTo(0.3, S + 8.5); ctx.lineTo(3.6, S + 5.4); ctx.closePath();
+  ctx.fillStyle = "#b3bfd0"; ctx.fill(); ctx.stroke();                                                         // lapela direita
+
+  // braços soltos ao lado do corpo
+  ctx.lineCap = "round"; ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3.2;
+  ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.6, -14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(7.6, -14); ctx.stroke();
+  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(-4.2, S + 3); ctx.lineTo(-6, -14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4.2, S + 3); ctx.lineTo(6, -14); ctx.stroke();
+  rect("#f3c8a0", -9.2, -14.6, 3.2, 3.4); rect("#f3c8a0", 6, -14.6, 3.2, 3.4);
 
   // cabeça de frente
   rect("#1a120c", -5.4, -38.5 + hy, 2, 9); rect("#1a120c", 3.4, -38.5 + hy, 2, 9);          // costeletas
@@ -460,6 +471,7 @@ function press() {
     post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
   } else if (state === "wait") { state = "walk"; SND.retract(); say("Você recolheu a linha"); }
   else if (state === "bite") startReel();
+  else if (state === "show" && showT > 0.8) state = "walk";          // pode pular a comemoração
 }
 
 function startReel() {
@@ -470,10 +482,37 @@ function startReel() {
 }
 
 function finish(win) {
-  state = "walk";
-  if (win) { score += fish.points; SND.win(); say(`Pegou: ${fish.name}! +${fish.points}`); post("/api/catch", { id: fish.id }).catch(() => {}); }
-  else { SND.lose(); say("O peixe escapou..."); }
+  if (win) { state = "show"; showT = 0; score += fish.points; SND.win(); post("/api/catch", { id: fish.id }).catch(() => {}); }
+  else { state = "walk"; SND.lose(); say("O peixe escapou..."); }
 }
+// ---------- Comemoração: braços pra cima e o peixe pescado aparece grande, flutuando sobre eles ----------
+let showT = 0;
+const cheerPose = now => { const s = Math.sin(now / 140); return { rod: REST, arm: -1.3 + 0.12 * s, lean: 0.04, off: Math.PI - 0.3 - 0.12 * s, flex: 0, cheer: 1 }; };
+const easeOutBack = k => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
+function drawCatch(now) {
+  if (state !== "show" || !fish) return;
+  const fi = img(fish.file), ok = fi.complete && fi.naturalWidth;
+  const iw = ok ? fi.naturalWidth : 4, ih = ok ? fi.naturalHeight : 3;
+  const r = Math.min(100 / iw, 72 / ih), w = iw * r, h = ih * r;                       // peixe grande: até 100x72 px do jogo
+  const sc = easeOutBack(Math.min(1, showT / 0.45)), fade = Math.min(1, (3.2 - showT) / 0.4);
+  const cx = px, cy = PIER_Y - 40 - h / 2 + Math.sin(now / 260) * 3;
+  ctx.globalAlpha = Math.max(0, fade);
+  const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, Math.max(w, h) * 0.85);       // brilho dourado atrás do peixe
+  g.addColorStop(0, "rgba(255,232,150,.55)"); g.addColorStop(1, "rgba(255,232,150,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, Math.max(w, h) * 0.85 * sc, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.sin(now / 340) * 0.06); ctx.scale(sc, sc);
+  if (ok) ctx.drawImage(fi, -w / 2, -h / 2, w, h); else rect("#ffd166", -w / 2, -h / 2, w, h);
+  ctx.restore();
+  for (let i = 0; i < 6; i++) {                                                       // brilhinhos girando em volta
+    const a = now / 700 + i * 1.047, s = 1 + (Math.sin(now / 120 + i * 2) > 0.3 ? 1 : 0);
+    rect("#fff6c2", cx + Math.cos(a) * (w * 0.62) * sc - s / 2, cy + Math.sin(a) * (h * 0.62) * sc - s / 2, s + 1, s + 1);
+  }
+  const top = cy - h / 2 * sc;
+  text(fish.name, cx, Math.max(14, top - 14), "#ffd166", "center");
+  text("+" + fish.points + " pontos", cx, Math.max(25, top - 3), "#fff", "center");
+  ctx.globalAlpha = 1;
+}
+
 
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
@@ -488,6 +527,8 @@ function update(dt) {
     moving = Math.abs(px - ox) > 0.001;
     stepDist += Math.abs(px - ox);
     if (stepDist >= 22) { stepDist -= 22; SND.step(); }          // um passo a cada ~22px andados
+  } else if (state === "show") {
+    showT += dt; if (showT > 3.2) state = "walk";
   } else if (state === "cast") {
     cs.t += dt;
     if (cs.t >= CAST_RELEASE + CAST_FLIGHT) { state = "wait"; t = 2 + Math.random() * 3; fxs.push({ x: bobber.x, t0: performance.now() }); SND.splash(); }
@@ -926,7 +967,7 @@ function draw(now) {
   ctx.save(); ctx.translate(wx, 0);
   drawMalto(now);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(cs.t) : state === "reel" ? reelPose(now) : null);
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(cs.t) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : null);
   ctx.restore();
 
   // 2) água com reflexo
@@ -941,9 +982,10 @@ function draw(now) {
   // 3) linhas, boias e nomes por cima
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOtherLine(o, now));
-  text(myName, px, PIER_Y - 46, "#ffd166", "center");
+  if (state !== "show") text(myName, px, PIER_Y - 46, "#ffd166", "center");
   drawMaltoUI(now);
   drawFx(now);
+  drawCatch(now);
   if (state === "cast") drawCast(tip, cs, bobber.x);
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
   ctx.restore();
@@ -955,11 +997,7 @@ function draw(now) {
     rect("#3b2a1a", TRACK.x - 14, TRACK.y - 8, 44, TRACK.h + 16);
     rect("#1b3a4b", TRACK.x, TRACK.y, 16, TRACK.h);
     rect("#6bd66b", TRACK.x + 1, TRACK.y + bar.y, 14, bar.h);
-    const fi = img(fish.file), cy = TRACK.y + fp.y;
-    if (fi.complete && fi.naturalWidth) {
-      const r = Math.min(40 / fi.naturalWidth, 30 / fi.naturalHeight), w = fi.naturalWidth * r, h = fi.naturalHeight * r;
-      ctx.drawImage(fi, TRACK.x + 8 - w / 2, cy - h / 2, w, h);
-    } else rect("#ffd166", TRACK.x + 3, cy - 4, 10, 8);
+    drawMystery(TRACK.x + 8, TRACK.y + fp.y, 46, 34);                 // sempre o peixe misterioso; o de verdade só aparece depois de pescar
     // progresso
     rect("#1b1b1b", TRACK.x + 22, TRACK.y, 6, TRACK.h);
     rect(prog > 66 ? "#6bd66b" : prog > 33 ? "#ffd166" : "#e63946", TRACK.x + 23, TRACK.y + TRACK.h * (1 - prog / 100), 4, TRACK.h * prog / 100);
@@ -967,7 +1005,7 @@ function draw(now) {
 
   // HUD
   text("Pontos: " + score, 10, 16);
-  const hint = { walk: "← → mover   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : ""), cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra" }[state];
+  const hint = { walk: "← → mover   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : ""), cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
   text(hint, 10, H - 10, "#fff");
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   present();
