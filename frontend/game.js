@@ -396,7 +396,7 @@ function buildLayers() {
   });
   const water = layer(() => {
     const g = ctx.createLinearGradient(0, WATER_Y, 0, H);
-    g.addColorStop(0, "#4a9cc0"); g.addColorStop(1, "#0b2a45");
+    g.addColorStop(0, "#6fa4b6"); g.addColorStop(0.15, "#4a93b4"); g.addColorStop(0.5, "#245f86"); g.addColorStop(1, "#0b2a45");
     ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, H - WATER_Y);
   }, W, H);
   const clouds = CLOUDS.map(c => c.cirrus ? makeCirrus(c.w, c.h, c.seed) : makeCloud(c.w, c.h, c.seed, c.tone));
@@ -423,6 +423,54 @@ function drawReflection(now) {             // desenha o reflexo espelhado, em fa
   ctx.globalAlpha = 1;
 }
 
+// ---------- Ondas: campo de altura (soma de ondas) iluminado pelo sol, calculado numa grade pequena e suavizada ----------
+const WV = { cw: 3, ch: 2, cols: 0, rows: 0, cv: null, c: null, im: null };
+function waveSetup() {
+  WV.cols = Math.ceil(W / WV.cw) + 1; WV.rows = Math.ceil((H - WATER_Y) / WV.ch);
+  WV.cv = document.createElement("canvas"); WV.cv.width = WV.cols; WV.cv.height = WV.rows;
+  WV.c = WV.cv.getContext("2d"); WV.im = WV.c.createImageData(WV.cols, WV.rows);
+}
+function drawWaves(now, ox) {
+  if (WV.cols !== Math.ceil(W / WV.cw) + 1) waveSetup();
+  const t = now / 1000, sunX = ox + camX * PAR.sky + 366, d = WV.im.data, cols = WV.cols, rows = WV.rows;
+  const cl = (v, a, b) => v < a ? a : v > b ? b : v;
+  for (let j = 0; j < rows; j++) {
+    const s = j / (rows - 1), w = 1 / (0.35 + s * 0.9);                  // w: perspectiva (ondas mais apertadas ao longe, perto do horizonte)
+    const width = 20 + 80 * s, flat = 0.45 + 0.55 * s;                  // largura da trilha do sol e achatamento das ondas distantes
+    for (let i = 0; i < cols; i++) {
+      const xs = i * WV.cw, xw = xs - camX * 0.7;
+      const p1 = xw * 0.035 + w * 7 - t * 0.9, p2 = -xw * 0.06 + w * 11 - t * 1.3, p3 = xw * 0.11 + w * 19 + t * 1.9, p4 = xw * 0.21 - w * 27 - t * 2.6;
+      const c1 = Math.cos(p1), c2 = Math.cos(p2), c3 = Math.cos(p3), c4 = Math.cos(p4);
+      const h = Math.sin(p1) + 0.6 * Math.sin(p2) + 0.35 * Math.sin(p3) + 0.2 * Math.sin(p4);
+      const sy = (7 * c1 + 6.6 * c2 + 6.65 * c3 - 5.4 * c4) * 0.06 * flat;          // inclinação da onda (para o horizonte)
+      const sx = (0.035 * c1 - 0.036 * c2 + 0.0385 * c3 + 0.042 * c4) * 6;           // inclinação lateral
+      const shade = cl(-sy * 0.4 + h * 0.06, -0.6, 0.6);                           // faces viradas ao sol clareiam, as outras escurecem
+      const dx = (xs - sunX) / width, mask = Math.exp(-dx * dx);                    // trilha do sol
+      const g = Math.pow(cl((-sy * 0.9 + sx * 0.3 - 0.2) * 1.5, 0, 1), 1.4) * mask * (1 - 0.4 * s);   // cintilação onde a onda reflete o sol
+      const aL = Math.min(1, Math.max(shade, 0) * 0.5 + mask * 0.1 * (1 - 0.5 * s) + g);
+      const aD = Math.max(-shade, 0) * 0.8 * (1 - aL);
+      const k = g / (aL + 1e-3), a = aL + aD, o = (j * cols + i) * 4;
+      const Lr = 255, Lg = 205 + 33 * k, Lb = 150 + 40 * k;                          // luz quente -> branco-dourado nos pontos fortes
+      d[o] = a > 0 ? (Lr * aL + 6 * aD) / a : 0; d[o + 1] = a > 0 ? (Lg * aL + 24 * aD) / a : 0; d[o + 2] = a > 0 ? (Lb * aL + 44 * aD) / a : 0;
+      d[o + 3] = a * 255;
+    }
+  }
+  WV.c.putImageData(WV.im, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(WV.cv, 0, WATER_Y, cols * WV.cw, rows * WV.ch);
+}
+function postRipples(now, wxp) {                           // ondinhas em volta de cada poste
+  for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {
+    const x = wxp + i + 4;
+    if (x < -20 || x > W + 20) continue;
+    for (let r = 0; r < 2; r++) {
+      const a = ((now / 2200 + r * 0.5 + i * 0.13) % 1);
+      ctx.strokeStyle = `rgba(215,240,250,${0.32 * (1 - a)})`; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.ellipse(x, WATER_Y + 5, 5 + a * 11, 1 + a * 2.2, 0, 0, 7); ctx.stroke();
+    }
+  }
+}
+
 function draw(now) {
   if (!layers) buildLayers();
   const ox = (W - WORLD) / 2, wx = ox + camX;              // wx = deslocamento do mundo na tela
@@ -446,15 +494,9 @@ function draw(now) {
   reflect();
   ctx.drawImage(layers.water, 0, 0, W, H);
   drawReflection(now);
-  const sx = ox + camX * PAR.sky + 366;
-  for (let i = 0; i < 9; i++) rect("rgba(255,217,160,.9)", sx - (28 - i * 3) / 2 + Math.sin(now / 500 + i) * 7, WATER_Y + 5 + i * 8, 28 - i * 3, 1.6);
-  ctx.lineWidth = 0.8;
-  for (let j = 0; j < 14; j++) {
-    ctx.strokeStyle = `rgba(190,230,245,${0.28 - j * 0.015})`; ctx.beginPath();
-    for (let x = 0; x <= W; x += 8) { const y = WATER_Y + 5 + j * 7 + Math.sin((x + now / (28 + j * 5)) / (9 + j)) * 1.6; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-    ctx.stroke();
-  }
+  drawWaves(now, ox);                                      // ondas, sombras e o brilho do sol na água
   ctx.drawImage(layers.posts, lx(PAR.pier), 0, LW, H);
+  postRipples(now, ox + camX);
 
   // 3) linhas, boias e nomes por cima
   ctx.save(); ctx.translate(wx, 0);
