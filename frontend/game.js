@@ -1,21 +1,26 @@
 const cv = document.getElementById("g"), out = cv.getContext("2d");
-const W = 480, H = 270; cv.width = W; cv.height = H;
-const buf = document.createElement("canvas"); buf.width = W; buf.height = H;
+const W = 480, H = 270, S = 2;           // S = resolução interna (2 = metade dos pixels visíveis; 3 = ainda mais fino)
+cv.width = W * S; cv.height = H * S;
+const buf = document.createElement("canvas"); buf.width = W * S; buf.height = H * S;
 const ctx = buf.getContext("2d", { willReadFrequently: true });
+ctx.scale(S, S);
 
 // ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
 const LEVELS = 4;                       // níveis por canal: 2 = bem radical (8 cores), 4 = equilibrado, 6 = mais suave
 const STEP = 255 / (LEVELS - 1);
 const BAYER = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
                3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
+const TH = BAYER.map(v => (v / 64 - 0.47) * STEP);
 function dither() {
-  const im = ctx.getImageData(0, 0, W, H), d = im.data;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = (y * W + x) * 4, th = (BAYER[(y & 7) * 8 + (x & 7)] / 64 - 0.47) * STEP;
-    d[i] = Math.round((d[i] + th) / STEP) * STEP;
-    d[i + 1] = Math.round((d[i + 1] + th) / STEP) * STEP;
-    d[i + 2] = Math.round((d[i + 2] + th) / STEP) * STEP;
-    d[i + 3] = 255;
+  const w = W * S, h = H * S, im = ctx.getImageData(0, 0, w, h), d = im.data;
+  for (let y = 0; y < h; y++) {
+    const row = (y & 7) << 3;
+    for (let x = 0, i = y * w * 4; x < w; x++, i += 4) {
+      const th = TH[row | (x & 7)];
+      d[i] = Math.round((d[i] + th) / STEP) * STEP;
+      d[i + 1] = Math.round((d[i + 1] + th) / STEP) * STEP;
+      d[i + 2] = Math.round((d[i + 2] + th) / STEP) * STEP;
+    }
   }
   out.putImageData(im, 0, 0);
 }
@@ -61,24 +66,41 @@ function net(now) {
   lastNet = now;
   socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
 }
+function drawFisher(x, dir, shirt, hat) {
+  ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
+  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 9, 2, 0, 0, 7); ctx.fill();
+  rect("#26384a", -5, -11, 4.5, 10); rect("#26384a", 0.5, -11, 4.5, 10);       // pernas
+  rect("#15110e", -6, -2.5, 5.5, 2.5); rect("#15110e", 0.5, -2.5, 6.5, 2.5);   // botas
+  rect(shirt, -6, -24, 12, 14);                                                  // camisa
+  rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
+  rect("#5a3b22", -6, -12, 12, 2);                                               // cinto
+  rect(shirt, 3, -22, 8, 3.5); rect("rgba(0,0,0,.2)", 3, -19, 8, 0.8);           // braço
+  rect("#f1c27d", 10.5, -22, 3, 3.5);                                            // mão
+  rect("#e0ac69", -3, -26, 4, 2.5);                                              // pescoço
+  rect("#f1c27d", -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);// rosto
+  rect("#2a1a10", 2.5, -30, 1.6, 1.8);                                           // olho
+  rect("#c98d5a", 4, -27.5, 2, 1);                                               // boca
+  rect(hat, -6, -35.5, 14, 3); rect(hat, -3.5, -40, 9, 5);                       // chapéu
+  rect("rgba(0,0,0,.25)", -6, -34, 14, 1.2); rect("rgba(255,255,255,.35)", -3.5, -36.5, 9, 1.2);
+  ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(10, -21); ctx.lineTo(33, -45); ctx.stroke();      // vara
+  rect("#b8b8b8", 9, -23, 3, 3);                                                 // molinete
+  ctx.restore();
+  return { x: x + dir * 33, y: PIER_Y - 45 };
+}
+function drawLine(tx, ty, bx, now, st) {
+  const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), by = WATER_Y + 6 + b;
+  ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + bx) / 2, (ty + by) / 2 + 12, bx, by); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.beginPath(); ctx.ellipse(bx, WATER_Y + 7, 6 + Math.sin(now / 250), 1.6, 0, 0, 7); ctx.stroke();
+  rect("#e63946", bx - 2, by - 3.5, 4, 3.5); rect("#fff", bx - 2, by, 4, 3);
+  if (st === "bite") text("!", bx, by - 22, "#ffd166", "center");
+}
 function drawOther(p, now) {
   p.x += (p.tx - p.x) * 0.25;
-  const bx = p.x - 6, by = PIER_Y - 30;
-  rect("#2d6a4f", bx - 1, by - 4, 14, 4);
-  rect("#f1c27d", bx + 2, by, 8, 8);
-  rect(p.color, bx, by + 8, 12, 12);
-  rect("#2c3e50", bx + 1, by + 20, 4, 10); rect("#2c3e50", bx + 7, by + 20, 4, 10);
-  const tipX = p.x + p.dir * 30, tipY = PIER_Y - 46;
-  ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(p.x + p.dir * 4, by + 12); ctx.lineTo(tipX, tipY); ctx.stroke();
-  if (p.state !== "walk") {
-    const b = Math.sin(now / 200) * (p.state === "bite" ? 3 : 1), yy = WATER_Y + 6 + b;
-    ctx.strokeStyle = "#eee"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(p.bx, yy); ctx.stroke();
-    rect("#e63946", p.bx - 2, yy - 3, 5, 3); rect("#fff", p.bx - 2, yy, 5, 3);
-    if (p.state === "bite" || p.state === "reel") text("!", p.bx, yy - 22, "#ffd166", "center");
-  }
-  text(p.name, p.x, by - 10, "#cfe8ff", "center");
+  const tip = drawFisher(p.x, p.dir, p.color, "#2d6a4f");
+  if (p.state !== "walk") drawLine(tip.x, tip.y, p.bx, now, p.state);
+  text(p.name, p.x, PIER_Y - 46, "#cfe8ff", "center");
 }
 
 addEventListener("keydown", e => {
@@ -142,62 +164,60 @@ function update(dt) {
   }
 }
 
-const rect = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w, h); };
+const rect = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
 const text = (s, x, y, c = "#fff", a = "left") => { ctx.font = "bold 10px monospace"; ctx.textAlign = a; ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(s, x, y); };
 
-function draw(now) {
-  // céu em degradê
+function scene(now) {
   let g = ctx.createLinearGradient(0, 0, 0, PIER_Y + 8);
   g.addColorStop(0, "#241a45"); g.addColorStop(0.45, "#b83f6a"); g.addColorStop(0.8, "#f4a261"); g.addColorStop(1, "#ffe0a8");
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, PIER_Y + 8);
-  // sol com brilho
-  g = ctx.createRadialGradient(370, 62, 4, 370, 62, 75);
-  g.addColorStop(0, "#fffbe6"); g.addColorStop(0.22, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
+  g = ctx.createRadialGradient(370, 62, 4, 370, 62, 80);
+  g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
   ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
-  // sombra sob o cais
+  // nuvens suaves em movimento
+  [[60, 38, 60, 7], [200, 68, 80, 9], [310, 26, 52, 6], [420, 92, 64, 7], [130, 100, 70, 6]].forEach(([cx, cy, rw, rh], i) => {
+    const x = (cx + now / 1000 * (2 + i)) % (W + 160) - 80;
+    ctx.fillStyle = "rgba(255,205,185,.32)";
+    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(x + k * rw * 0.45, cy - k % 2 * 3, rw * (1 - k * 0.2), rh, 0, 0, 7); ctx.fill(); }
+  });
+  // montanhas distantes
+  ctx.fillStyle = "#6b3f6f"; ctx.beginPath(); ctx.moveTo(0, 160); [[0,128],[60,108],[110,128],[170,100],[230,130],[300,112],[360,134],[420,106],[480,126]].forEach(([x,y]) => ctx.lineTo(x, y)); ctx.lineTo(480, 160); ctx.fill();
+  ctx.fillStyle = "#4a2f63"; ctx.beginPath(); ctx.moveTo(0, 160); [[0,142],[80,126],[150,142],[250,122],[340,144],[410,130],[480,142]].forEach(([x,y]) => ctx.lineTo(x, y)); ctx.lineTo(480, 160); ctx.fill();
   rect("#1a1230", 0, PIER_Y + 8, W, WATER_Y - PIER_Y - 8);
   // água
   g = ctx.createLinearGradient(0, WATER_Y, 0, H);
   g.addColorStop(0, "#4a9cc0"); g.addColorStop(1, "#0b2a45");
   ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, H - WATER_Y);
-  for (let i = 0; i < 9; i++) rect("#ffd9a0", 366 - (28 - i * 3) / 2 + Math.sin(now / 500 + i) * 7, WATER_Y + 5 + i * 8, 28 - i * 3, 2);
-  for (let i = 0; i < 40; i++) {
-    const wx = (i * 37 + now / 40) % W, wy = WATER_Y + 8 + (i * 13) % 90;
-    rect("#7fc0da", wx, wy, 8, 2);
+  for (let i = 0; i < 9; i++) rect("rgba(255,217,160,.9)", 366 - (28 - i * 3) / 2 + Math.sin(now / 500 + i) * 7, WATER_Y + 5 + i * 8, 28 - i * 3, 1.6);
+  ctx.lineWidth = 0.8;
+  for (let j = 0; j < 14; j++) {
+    ctx.strokeStyle = `rgba(190,230,245,${0.28 - j * 0.015})`; ctx.beginPath();
+    for (let x = 0; x <= W; x += 6) { const y = WATER_Y + 5 + j * 7 + Math.sin((x + now / (28 + j * 5)) / (9 + j)) * 1.6; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.stroke();
   }
-  // cais
-  rect("#6b4226", 0, PIER_Y, W, 8);
-  rect("#8a5a35", 0, PIER_Y, W, 3);
-  for (let i = 0; i < W; i += 48) rect("#4a2d19", i, PIER_Y + 8, 6, 20);
+  // cais com tábuas e postes
+  for (let i = 6; i < W; i += 48) { rect("#3b2314", i, PIER_Y + 8, 8, 32); rect("#5a3b22", i + 1, PIER_Y + 8, 2.5, 32); rect("rgba(255,255,255,.12)", i - 3, WATER_Y + 4, 14, 1.5); }
+  rect("#6b4226", 0, PIER_Y, W, 8); rect("#a06f42", 0, PIER_Y, W, 3); rect("#4a2d19", 0, PIER_Y + 6, W, 2);
+  for (let i = 0; i < W; i += 24) rect("rgba(0,0,0,.35)", i, PIER_Y, 0.8, 6);
+}
 
+function draw(now) {
+  scene(now);
   Object.values(others).forEach(o => drawOther(o, now));
-  text(myName, px, PIER_Y - 40, "#ffd166", "center");
-  // jogador
-  const bx = px - 6, by = PIER_Y - 30;
-  rect("#d98e04", bx - 1, by - 4, 14, 4);       // chapéu
-  rect("#f1c27d", bx + 2, by, 8, 8);            // rosto
-  rect("#c0392b", bx, by + 8, 12, 12);          // camisa
-  rect("#2c3e50", bx + 1, by + 20, 4, 10); rect("#2c3e50", bx + 7, by + 20, 4, 10);
-  const tipX = px + dir * 30, tipY = PIER_Y - 46;
-  ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(px + dir * 4, by + 12); ctx.lineTo(tipX, tipY); ctx.stroke();
-
-  if (state === "wait" || state === "bite" || state === "reel") {
-    const bob = Math.sin(now / 200) * (state === "bite" ? 3 : 1);
-    ctx.strokeStyle = "#eee"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(bobber.x, bobber.y + bob); ctx.stroke();
-    rect("#e63946", bobber.x - 2, bobber.y - 3 + bob, 5, 3); rect("#fff", bobber.x - 2, bobber.y + bob, 5, 3);
-  }
-  if (state === "bite") text("!", bobber.x, bobber.y - 22, "#ffd166", "center");
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04");
+  text(myName, px, PIER_Y - 46, "#ffd166", "center");
+  if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
 
   // minigame estilo Stardew
   if (state === "reel") {
     rect("#3b2a1a", TRACK.x - 14, TRACK.y - 8, 44, TRACK.h + 16);
     rect("#1b3a4b", TRACK.x, TRACK.y, 16, TRACK.h);
     rect("#6bd66b", TRACK.x + 1, TRACK.y + bar.y, 14, bar.h);
-    const fi = img(fish.file), fyy = TRACK.y + fp.y - 8;
-    if (fi.complete && fi.naturalWidth) ctx.drawImage(fi, TRACK.x - 2, fyy, 20, 16 * fi.naturalHeight / fi.naturalWidth * 1.25 | 0 || 16);
-    else rect("#ffd166", TRACK.x + 3, fyy + 4, 10, 8);
+    const fi = img(fish.file), cy = TRACK.y + fp.y;
+    if (fi.complete && fi.naturalWidth) {
+      const r = Math.min(40 / fi.naturalWidth, 30 / fi.naturalHeight), w = fi.naturalWidth * r, h = fi.naturalHeight * r;
+      ctx.drawImage(fi, TRACK.x + 8 - w / 2, cy - h / 2, w, h);
+    } else rect("#ffd166", TRACK.x + 3, cy - 4, 10, 8);
     // progresso
     rect("#1b1b1b", TRACK.x + 22, TRACK.y, 6, TRACK.h);
     rect(prog > 66 ? "#6bd66b" : prog > 33 ? "#ffd166" : "#e63946", TRACK.x + 23, TRACK.y + TRACK.h * (1 - prog / 100), 4, TRACK.h * prog / 100);
