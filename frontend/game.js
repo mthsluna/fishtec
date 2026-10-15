@@ -213,7 +213,25 @@ function rodPose(R, b) {                                   // soma a animação 
     flex: (b.flex || 0) + (k < 0.02 ? wig * 0.7 : 0),
     lean: (b.lean || 0) + spl(K_LEAN, k), off: (b.off || 0) + spl(K_OFF, k), sb: spl(K_BOB, k) };
 }
+// Giro de lado -> de frente com cara de 3D: o corpo de lado vai "fechando" (cos) enquanto o corpo de frente vai "abrindo" (sen),
+// com uma fusão no meio e um leve deslocamento para o lado em que ele olha, como se o corpo girasse em torno do próprio eixo.
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
+  const fk = pose && pose.front || 0;
+  if (!(fk > 0 && fk < 1)) return drawFisherBase(x, dir, shirt, hat, amp, pose);
+  const e = fk * fk * (3 - 2 * fk), th = e * Math.PI / 2;                       // 0 = de lado ... 90° = de frente
+  const cs = Math.max(0.14, Math.cos(th)), sn = Math.max(0.14, Math.sin(th));
+  const part = (p, sx, ox, a) => {
+    ctx.save(); ctx.globalAlpha *= a;
+    ctx.translate(x + dir * ox, 0); ctx.scale(sx, 1); ctx.translate(-x, 0);
+    const r = drawFisherBase(x, dir, shirt, hat, amp, p);
+    ctx.restore(); return r;
+  };
+  let tip = null;
+  if (e < 0.85) tip = part({ ...pose, front: 0 }, cs, 0, 1);                       // de lado (some aos poucos)
+  const fr = part({ ...pose, front: 1 }, sn, (1 - sn) * 2.5, Math.min(1, Math.max(0, (e - 0.2) / 0.45)));   // de frente (aparece por cima)
+  return e < 0.5 && tip ? tip : fr;
+}
+function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
   const ph = x * dir / (11 + 3 * (P.run || 0));
   const sw = P.brake ? 0.85 * P.brake : Math.sin(ph) * amp;                          // freando: pernas abertas e firmes
@@ -366,6 +384,7 @@ function maltoUpdate(dt) {
 }
 function talkMalto() {
   if (!mNear()) return false;
+  if (px !== MX) dir = MX < px ? -1 : 1;                                                         // vira de lado para o Malto
   if (mTalk && mTalk.t * TYPE_CPS < MALTO_LINES[mLine].length) { mTalk.t = 99; return true; }   // 1º toque: termina de digitar
   let n;
   if (mLine < 0) n = 0;                                                                         // primeira fala é a saudação
@@ -602,12 +621,13 @@ const PHONE_SRC = "assets/imgs/telefish.png";
 const NOKIA_FONT = '8px "Nokia Cellphone FC", monospace';              // a fonte vem de assets/fonts (ver @font-face no index.html)
 const PH_REF = 336, PH_H = 252, PH_VIS = 0.64, PH_MARGIN = 6, PH_SHIFT = 0.10;                          // altura do celular (px lógicos), quanto dele aparece e distância da borda direita
 const PH_SCR = { x: 0.2845, y: 0.2436, w: 0.4237, h: 0.1763, r: 0.0228 };   // posição do vidro da tela dentro do PNG (medida na imagem)
+const LCD_DX = -3, LCD_M = 4;                                           // LCD_DX: empurra o menu para a esquerda (mais negativo = mais à esquerda); LCD_M: margem de cada lado
 const LCD_INK = "#1b2619", LCD_BG = "#97a888";                           // "pixel" escuro e fundo da tela acesa
 const phoneImg = Object.assign(new Image(), { src: PHONE_SRC });
 if (document.fonts) document.fonts.load(NOKIA_FONT).catch(() => {});
 const PH = { open: false, pos: 0, vel: 0, lit: 0, delay: 0, blink: 0, hold: 0 };   // hold: 0 a 1, quanto o pescador já ergueu o celular e baixou a cabeça
 let idleT = 0, frontK = 0;                                              // idleT: segundos parado; frontK: 0 = de lado ... 1 = de frente
-const IDLE_FRONT = 2, TURN_T = 0.28;                                     // parado por 2s: o pescador vira de frente (a virada leva ~0,28s)
+const IDLE_FRONT = 2, TURN_T = 0.5;                                     // parado por 2s: o pescador vira de frente (a virada leva ~0,5s)
 const PHONE_ARM = -0.12;                                                // ângulo do braço: mão baixa, na altura do peito
 const PHONE_LIGHT = 0.15;                                               // força da luz do celular (0 a 1)                                                // ângulo do braço segurando o celular na frente do rosto
 function openPhone() {
@@ -620,8 +640,10 @@ function phoneSelect() {                                                // E: se
   if (!PH.open || PH.lit < 0.9) return;
   PH.blink = 0.22; SND.play("step_wood_1", { vol: 0.12, rate: 2.2, jitter: 0.1 });
 }
+const nearOther = () => Object.values(others).some(o => Math.abs(o.x - px) < 40);
+const interacting = () => !!mTalk || mNear() || nearOther();             // conversando/perto do Malto ou de outro jogador: fica de lado
 function updateIdle(dt) {
-  const still = state === "walk" && !PH.open && !wantDraw && Math.abs(spd) < 1 && !(keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD);
+  const still = state === "walk" && !PH.open && !interacting() && !wantDraw && Math.abs(spd) < 1 && !(keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD);
   idleT = still ? idleT + dt : 0;
   frontK = state === "walk" ? clamp01(frontK + (idleT >= IDLE_FRONT ? 1 : -1) * dt / TURN_T) : 0;   // qualquer movimento/ação faz ele virar de volta
 }
@@ -654,17 +676,17 @@ function nokiaScreen(sw, sh, inv) {                                      // layo
   sh = Math.round(sh);
   sw = Math.round(sw);                                                   // largura inteira: tudo alinhado em pixels
   ctx.font = NOKIA_FONT; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
-  ctx.fillStyle = LCD_INK; ctx.fillText("Menu", 11, 11);
-  const lx = 11, lw = sw - 22;
-  rect(LCD_INK, lx, 14, lw, 1);                                          // linha abaixo de "Menu"
-  if (inv) rect(LCD_INK, 2, 17, sw - 4, 19);                              // opção selecionada em vídeo invertido (largura total, abaixo dos ícones)
+  const lx = LCD_M + LCD_DX, lw = sw - 2 * LCD_M;                        // área do conteúdo: mesma margem dos dois lados, deslocada para a esquerda
+  ctx.fillStyle = LCD_INK; ctx.fillText("Menu", lx + 3, 11);
+  rect(LCD_INK, lx, 13, lw, 2);                                          // linha abaixo de "Menu": largura total e mais grossa
+  if (inv) rect(LCD_INK, lx, 17, lw, 19);                                 // opção selecionada em vídeo invertido (mesma largura da linha)
   ctx.fillStyle = inv ? LCD_BG : LCD_INK;
   const fit = (str, x, y, maxW) => {                                      // se a fonte for mais larga que a tela, comprime só esse texto (nunca corta)
     const w = ctx.measureText(str).width;
     if (w <= maxW) return ctx.fillText(str, x, y);
     ctx.save(); ctx.translate(x, y); ctx.scale(maxW / w, 1); ctx.fillText(str, 0, 0); ctx.restore();
   };
-  fit("Personalizar", 5, 26, sw - 10); fit("personagem", 5, 34, sw - 10);
+  fit("Personalizar", lx + 3, 26, lw - 6); fit("personagem", lx + 3, 34, lw - 6);
   const m = ctx.measureText("Selec."), tw = Math.round(m.width), asc = Math.ceil(m.actualBoundingBoxAscent || 6);   // botão de baixo: caixa se ajusta ao texto
   let bw = tw + 8; if ((bw - lw) % 2) bw++;                                                                        // mesma paridade da linha: os centros coincidem
   const bh = asc + 6, bx = lx + (lw - bw) / 2, by = sh - bh - 2;                                                  // botão centralizado com a linha de baixo do "Menu"
