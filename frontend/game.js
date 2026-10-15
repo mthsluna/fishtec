@@ -1,7 +1,12 @@
 const cv = document.getElementById("g");
-const W = 480, H = 270;
+const WORLD = 480, H = 270;              // WORLD = área jogável (igual ao servidor); a tela pode ser mais larga
+const EXT = 160, LW = WORLD + EXT * 2;   // margem extra das camadas de fundo (para o parallax e telas largas)
+const RD = 90;                           // altura (px lógicos) do reflexo na água
+let W = WORLD;                           // largura visível (ajusta sozinha ao formato da janela)
 let S = 2;                               // resolução interna (baixa sozinha se o jogo ficar pesado)
 let ctx, layers = null;
+const refl = document.createElement("canvas");
+const viewW = () => Math.max(WORLD, Math.min(WORLD + 240, Math.round(H * innerWidth / innerHeight)));
 
 // ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
 const LEVELS = 4;                        // níveis por canal: 2 = bem radical (8 cores), 4 = equilibrado, 6 = mais suave
@@ -50,12 +55,15 @@ void main(){
 }
 
 function setScale(s) {
-  S = s; layers = null;
+  S = s; layers = null; W = viewW();
   cv.width = buf.width = W * S; cv.height = buf.height = H * S;
+  refl.width = W * S; refl.height = RD * S;
+  cv.style.width = Math.min(innerWidth, innerHeight * W / H) + "px";   // preenche a tela, sem barras laterais
   ctx = buf.getContext("2d", gl ? {} : { willReadFrequently: true });
   ctx.scale(S, S);
 }
 setScale(2);
+addEventListener("resize", () => setScale(S));
 
 // Fallback (CPU): tabela pronta, sem contas por pixel
 const LUT = new Uint8Array(64 * 256);
@@ -83,7 +91,7 @@ const PIER_Y = 150, WATER_Y = 168;
 const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
-  x = Math.max(16, Math.min(W - 16, x));
+  x = Math.max(16, Math.min(WORLD - 16, x));
   const m = ((x - 6) % 48 + 48) % 48;
   return m < 14 ? x + 14 - m : m > 42 ? x + 48 - m + 14 : x;
 };
@@ -107,7 +115,8 @@ let moving = false, walkAmp = 0;
 let fish = null, score = 0, msg = "", msgT = 0, bite = 0;
 const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
-const TRACK = { x: 420, y: 50, h: 170 };
+const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
+let camX = 0;                                      // câmera: acompanha o pescador (base do parallax)
 const keys = {};
 
 // ---------- Multiplayer ----------
@@ -169,8 +178,10 @@ function drawLine(tx, ty, bx, now, st) {
 function drawOther(p, now) {
   const dx = p.tx - p.x; p.x += dx * 0.25;
   p.amp = (p.amp || 0) + ((Math.abs(dx) > 0.4 && p.state === "walk" ? 1 : 0) - (p.amp || 0)) * 0.25;
-  const tip = drawFisher(p.x, p.dir, p.color, "#2d6a4f", p.amp);
-  if (p.state !== "walk") drawLine(tip.x, tip.y, p.bx, now, p.state);
+  p.tip = drawFisher(p.x, p.dir, p.color, "#2d6a4f", p.amp);   // o pescador entra no reflexo
+}
+function drawOtherLine(p, now) {                                 // linha e nome são desenhados por cima da água
+  if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state);
   text(p.name, p.x, PIER_Y - 46, "#cfe8ff", "center");
 }
 
@@ -212,11 +223,12 @@ function finish(win) {
 
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
+  camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
   if (state === "walk") {
     const m = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
     const ox = px;
-    if (m) { dir = m; px = Math.max(16, Math.min(W - 16, px + m * 90 * dt)); }
+    if (m) { dir = m; px = Math.max(16, Math.min(WORLD - 16, px + m * 90 * dt)); }
     moving = Math.abs(px - ox) > 0.001;
   } else if (state === "wait") {
     t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; }
@@ -241,7 +253,7 @@ function update(dt) {
 const rect = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
 const text = (s, x, y, c = "#fff", a = "left") => { ctx.font = "bold 10px monospace"; ctx.textAlign = a; ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(s, x, y); };
 
-function layer(fn, w = W, h = H) {        // desenha uma vez num canvas separado (cache)
+function layer(fn, w = LW, h = H) {        // desenha uma vez num canvas separado (cache)
   const c = document.createElement("canvas"); c.width = w * S; c.height = h * S;
   const x = c.getContext("2d"); x.scale(S, S);
   const prev = ctx; ctx = x; fn(); ctx = prev; return c;
@@ -290,54 +302,102 @@ function makeCirrus(w, h, seed) {          // nuvens finas e esticadas no alto
   }, w, h);
 }
 function buildLayers() {
+  // todas as camadas usam coordenadas do mundo (0..480) e têm EXT px de sobra de cada lado
   const sky = layer(() => {
+    ctx.translate(EXT, 0);
     let g = ctx.createLinearGradient(0, 0, 0, PIER_Y + 8);
     g.addColorStop(0, "#241a45"); g.addColorStop(0.45, "#b83f6a"); g.addColorStop(0.8, "#f4a261"); g.addColorStop(1, "#ffe0a8");
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, PIER_Y + 8);
+    ctx.fillStyle = g; ctx.fillRect(-EXT, 0, LW, PIER_Y + 8);
     g = ctx.createRadialGradient(370, 62, 4, 370, 62, 80);
     g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
     ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
   });
-  const back = layer(() => {
-    ctx.fillStyle = "#6b3f6f"; ctx.beginPath(); ctx.moveTo(0, 160); [[0,128],[60,108],[110,128],[170,100],[230,130],[300,112],[360,134],[420,106],[480,126]].forEach(([x,y]) => ctx.lineTo(x, y)); ctx.lineTo(480, 160); ctx.fill();
-    ctx.fillStyle = "#4a2f63"; ctx.beginPath(); ctx.moveTo(0, 160); [[0,142],[80,126],[150,142],[250,122],[340,144],[410,130],[480,142]].forEach(([x,y]) => ctx.lineTo(x, y)); ctx.lineTo(480, 160); ctx.fill();
-    rect("#1a1230", 0, PIER_Y + 8, W, WATER_Y - PIER_Y - 8);
+  const range = (color, pts) => layer(() => {
+    ctx.translate(EXT, 0);
+    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(-EXT, 160);
+    ctx.lineTo(-EXT, pts[0][1]); pts.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(WORLD + EXT, pts[pts.length - 1][1]);
+    ctx.lineTo(WORLD + EXT, 160); ctx.fill();
+  });
+  const far = range("#6b3f6f", [[-120,112],[-60,126],[0,128],[60,108],[110,128],[170,100],[230,130],[300,112],[360,134],[420,106],[480,126],[540,104],[600,124]]);
+  const near = range("#4a2f63", [[-120,130],[-40,144],[0,142],[80,126],[150,142],[250,122],[340,144],[410,130],[480,142],[560,124],[620,140]]);
+  const deck = layer(() => {
+    ctx.translate(EXT, 0);
+    rect("#1a1230", -EXT, PIER_Y + 8, LW, WATER_Y - PIER_Y - 8);
+    rect("#6b4226", -EXT, PIER_Y, LW, 8); rect("#a06f42", -EXT, PIER_Y, LW, 3); rect("#4a2d19", -EXT, PIER_Y + 6, LW, 2);
+    for (let i = -EXT; i < WORLD + EXT; i += 24) rect("rgba(0,0,0,.35)", i, PIER_Y, 0.8, 6);
+  });
+  const posts = layer(() => {
+    ctx.translate(EXT, 0);
+    for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) { rect("#3b2314", i, PIER_Y + 8, 8, 32); rect("#5a3b22", i + 1, PIER_Y + 8, 2.5, 32); rect("rgba(255,255,255,.12)", i - 3, WATER_Y + 4, 14, 1.5); }
+  });
+  const water = layer(() => {
     const g = ctx.createLinearGradient(0, WATER_Y, 0, H);
     g.addColorStop(0, "#4a9cc0"); g.addColorStop(1, "#0b2a45");
     ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, H - WATER_Y);
-  });
-  const pier = layer(() => {
-    for (let i = 6; i < W; i += 48) { rect("#3b2314", i, PIER_Y + 8, 8, 32); rect("#5a3b22", i + 1, PIER_Y + 8, 2.5, 32); rect("rgba(255,255,255,.12)", i - 3, WATER_Y + 4, 14, 1.5); }
-    rect("#6b4226", 0, PIER_Y, W, 8); rect("#a06f42", 0, PIER_Y, W, 3); rect("#4a2d19", 0, PIER_Y + 6, W, 2);
-    for (let i = 0; i < W; i += 24) rect("rgba(0,0,0,.35)", i, PIER_Y, 0.8, 6);
-  });
+  }, W, H);
   const clouds = CLOUDS.map(c => c.cirrus ? makeCirrus(c.w, c.h, c.seed) : makeCloud(c.w, c.h, c.seed, c.tone));
-  layers = { sky, back, pier, clouds };
+  layers = { sky, far, near, deck, posts, water, clouds };
 }
-function scene(now) {
+
+// ---------- Parallax: cada camada acompanha a câmera numa fração diferente (0 = parada no fundo, 1 = mesma do cais) ----------
+const PAR = { sky: 0.04, cloud: 0.12, far: 0.25, near: 0.5, pier: 1 };
+const rctx = refl.getContext("2d");
+
+function reflect() {                       // copia o que está acima da água para o canvas do reflexo
+  rctx.setTransform(1, 0, 0, 1, 0, 0);
+  rctx.clearRect(0, 0, refl.width, refl.height);
+  rctx.drawImage(buf, 0, (WATER_Y - RD) * S, W * S, RD * S, 0, 0, W * S, RD * S);
+}
+function drawReflection(now) {             // desenha o reflexo espelhado, em faixas que ondulam (mais forte longe da margem)
+  const rh = 2;
+  for (let r = 0; r < RD; r += rh) {
+    const k = r / RD;
+    const off = Math.sin(r / 3.2 + now / 380) * (0.5 + k * 2.4) + Math.sin(r / 1.7 - now / 260) * 0.5;
+    ctx.globalAlpha = 0.6 * (1 - k * 0.8);
+    ctx.drawImage(refl, 0, (RD - r - rh) * S, W * S, rh * S, off - 4, WATER_Y + r, W + 8, rh);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function draw(now) {
   if (!layers) buildLayers();
-  ctx.drawImage(layers.sky, 0, 0, W, H);
+  const ox = (W - WORLD) / 2, wx = ox + camX;              // wx = deslocamento do mundo na tela
+  const lx = f => ox + camX * f - EXT;                     // posição de uma camada com fator de parallax f
+
+  // 1) acima da água: céu, nuvens, montanhas, cais e pescadores
+  ctx.drawImage(layers.sky, lx(PAR.sky), 0, LW, H);
   CLOUDS.forEach((c, i) => {
-    const x = (c.x + now / 1000 * c.v) % (W + c.w) - c.w;
-    ctx.drawImage(layers.clouds[i], x, c.y, c.w, c.h);
+    const x = (c.x + now / 1000 * c.v) % (LW + c.w) - c.w;
+    ctx.drawImage(layers.clouds[i], x + lx(PAR.cloud), c.y, c.w, c.h);
   });
-  ctx.drawImage(layers.back, 0, 0, W, H);
-  for (let i = 0; i < 9; i++) rect("rgba(255,217,160,.9)", 366 - (28 - i * 3) / 2 + Math.sin(now / 500 + i) * 7, WATER_Y + 5 + i * 8, 28 - i * 3, 1.6);
+  ctx.drawImage(layers.far, lx(PAR.far), 0, LW, H);
+  ctx.drawImage(layers.near, lx(PAR.near), 0, LW, H);
+  ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
+  ctx.save(); ctx.translate(wx, 0);
+  Object.values(others).forEach(o => drawOther(o, now));
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp);
+  ctx.restore();
+
+  // 2) água com reflexo
+  reflect();
+  ctx.drawImage(layers.water, 0, 0, W, H);
+  drawReflection(now);
+  const sx = ox + camX * PAR.sky + 366;
+  for (let i = 0; i < 9; i++) rect("rgba(255,217,160,.9)", sx - (28 - i * 3) / 2 + Math.sin(now / 500 + i) * 7, WATER_Y + 5 + i * 8, 28 - i * 3, 1.6);
   ctx.lineWidth = 0.8;
   for (let j = 0; j < 14; j++) {
     ctx.strokeStyle = `rgba(190,230,245,${0.28 - j * 0.015})`; ctx.beginPath();
     for (let x = 0; x <= W; x += 8) { const y = WATER_Y + 5 + j * 7 + Math.sin((x + now / (28 + j * 5)) / (9 + j)) * 1.6; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
     ctx.stroke();
   }
-  ctx.drawImage(layers.pier, 0, 0, W, H);
-}
+  ctx.drawImage(layers.posts, lx(PAR.pier), 0, LW, H);
 
-function draw(now) {
-  scene(now);
-  Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp);
+  // 3) linhas, boias e nomes por cima
+  ctx.save(); ctx.translate(wx, 0);
+  Object.values(others).forEach(o => drawOtherLine(o, now));
   text(myName, px, PIER_Y - 46, "#ffd166", "center");
   if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
+  ctx.restore();
 
   // minigame estilo Stardew
   if (state === "reel") {
