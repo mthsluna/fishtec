@@ -197,12 +197,12 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const dy = ty + 11, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
   return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - 11 + bob };
 }
-// ---------- Malto: marinheiro andarilho que fica farmando aura na frente das caixas (NPC só do seu navegador) ----------
+// ---------- Malto: marinheiro andarilho sentado de pernas cruzadas na frente das caixas (NPC só do seu navegador) ----------
 // Chegue perto e aperte E (ou toque nele) para conversar. Para mexer nas falas, edite MALTO_LINES.
 const MALTO_LINES = [
   "Ei, pescador. Senta aí... ah, não tem banco. Fica em pé mesmo.",
   "Fronteira é uma linha que alguém riscou na água. A maré nunca leu.",
-  "Estou farmando aura. Coisa de marinheiro velho, você não entenderia.",
+  "Sento aqui e deixo o mundo passar. Sai mais barato do que correr atrás dele.",
   "Nasci em lugar nenhum. É o único endereço que nunca me cobrou aluguel.",
   "Cada um tem a sua linha da sorte. A minha eu mesmo cravei na mão.",
   "Herói? Não, amigo. Só um sujeito que nunca aprendeu a ficar parado.",
@@ -211,19 +211,14 @@ const MALTO_LINES = [
   "Pesque devagar. O mar não tem pressa e ninguém ganha dele.",
   "Já dei a volta ao mundo e ainda me perco neste cais. Bonito, não?",
   "Bandeira, hino, passaporte... o peixe não pergunta nada disso.",
-  "Estas caixas? Nunca abri. Mistério também rende aura.",
+  "Estas caixas? Nunca abri. Mistério também é carga.",
 ];
-const MX = 110, MCYCLE = 3.6, TYPE_CPS = 38;
-let mt = 0, mdir = 1, mTalk = null, mLine = -1, mSlam = -9, mAuraN = 0;
+const MX = 110, TYPE_CPS = 38;
+let mt = 0, mTalk = null, mLine = -1;
 const mNear = () => state === "walk" && Math.abs(px - MX) < 40;
 
 function maltoUpdate(dt) {
-  const pu = mt % MCYCLE; mt += dt; const nu = mt % MCYCLE;
-  if (pu < 1 && nu >= 1) {                                          // a pá bateu no chão
-    mSlam = mt; mAuraN += 100;
-    SND.play("step_wood_3", { vol: 0.35 * Math.max(0.15, 1 - Math.abs(px - MX) / 400), rate: 0.7, jitter: 0.1 });
-  }
-  if (Math.abs(px - MX) < 90 && Math.abs(px - MX) > 6) mdir = px > MX ? 1 : -1;   // olha para quem chega perto
+  mt += dt;
   if (mTalk) {
     const len = MALTO_LINES[mLine].length, a = Math.floor(mTalk.t * TYPE_CPS / 3);
     mTalk.t += dt;
@@ -250,66 +245,75 @@ function drawCrate(x, y, w, h) {                                    // x,y = can
   rect("#3b2a1a", x + 2, y + 2, 1, 1); rect("#3b2a1a", x + w - 3, y + 2, 1, 1);
 }
 function drawMalto(now) {
-  const t = now / 1000, u = mt % MCYCLE;
-  let lift = 0;                                                     // ciclo: sobe a pá devagar, bate no chão, descansa
-  if (u < 0.8) lift = Math.sin(u / 0.8 * Math.PI / 2); else if (u < 1) lift = 1 - (u - 0.8) / 0.2;
-  const by = Math.sin(t * 1.8) * 0.35;                              // respiração
-  // caixas
+  const t = now / 1000, by = Math.sin(t * 1.6) * 0.3;                 // respiração leve
+  // caixas ao fundo
   ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(MX - 6, PIER_Y, 28, 2.2, 0, 0, 7); ctx.fill();
   drawCrate(MX - 30, PIER_Y - 16, 16, 15); drawCrate(MX - 14, PIER_Y - 16, 16, 15); drawCrate(MX + 2, PIER_Y - 16, 16, 15);
   drawCrate(MX - 22, PIER_Y - 31, 16, 15); drawCrate(MX + 4, PIER_Y - 27, 12, 11);
 
-  ctx.save(); ctx.translate(MX, PIER_Y); ctx.scale(mdir, 1);
-  const ap = 0.5 + 0.5 * Math.sin(t * 2.2);                         // aura pulsando atrás dele
-  const g = ctx.createRadialGradient(0, -26, 2, 0, -26, 27);
-  g.addColorStop(0, `rgba(140,210,255,${0.34 + 0.16 * ap})`); g.addColorStop(1, "rgba(140,210,255,0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -26, 27, 0, 7); ctx.fill();
-  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 9, 2, 0, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(MX, PIER_Y);
+  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 12, 2.2, 0, 0, 7); ctx.fill();
 
-  rect("#1d2531", -4.2, -13, 3.6, 12); rect("#232c3a", 0.6, -13, 3.6, 12);       // pernas
-  rect("#0e0e12", -4.6, -2, 5.6, 2); rect("#0e0e12", 0.2, -2, 6, 2);              // botas
-
-  const coat = () => { ctx.beginPath(); ctx.moveTo(-5.5, -33 + by); ctx.lineTo(5.5, -33 + by); ctx.lineTo(7.2, -10); ctx.lineTo(-7.2, -10); ctx.closePath(); };
-  coat(); ctx.fillStyle = "#8997ab"; ctx.fill();                                   // sobretudo cinza-azulado
-  ctx.beginPath(); ctx.moveTo(-5.5, -33 + by); ctx.lineTo(-1, -33 + by); ctx.lineTo(-1.5, -10); ctx.lineTo(-7.2, -10); ctx.closePath();
-  ctx.fillStyle = "rgba(20,28,50,.38)"; ctx.fill();                                // lado na sombra
-  coat(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.8; ctx.stroke();
-  rect("#0b0b10", 1.4, -29 + by, 0.8, 19);                                         // abertura da frente
-  rect("#d9a441", 2.8, -26 + by, 1.6, 1.6); rect("#d9a441", 2.8, -20, 1.6, 1.6); rect("#d9a441", 2.8, -14, 1.6, 1.6);   // botões dourados
-  rect("#6f7d92", -6.8, -36 + by, 4, 6); rect("#9aa8ba", -2.5, -34.5 + by, 8, 4); rect("#0b0b10", -2.5, -30.6 + by, 8, 0.7);   // gola alta
-
-  const hy = by;                                                                    // cabeça acompanha a respiração
-  rect("#e8b98f", -2, -35 + hy, 5, 3);                                              // pescoço
-  rect("#1a120c", -4.8, -42 + hy, 3.6, 9); rect("#1a120c", -6, -38 + hy, 2.2, 4);   // cabelo escuro e cacheado atrás
-  rect("#f3c8a0", -3.5, -42 + hy, 8, 8.6); rect("rgba(0,0,0,.12)", -3.5, -37 + hy, 8, 3.6);
-  rect("#e0a67a", 4.5, -38.4 + hy, 1.7, 2.3);                                       // nariz
-  rect("rgba(0,0,0,.4)", -3.5, -41.6 + hy, 8, 1.8); rect("#16110d", 1.6, -39.4 + hy, 2.8, 1.1);   // olhar sombreado pela aba
-  rect("#a86a4a", 2.2, -35.4 + hy, 2.4, 0.7);                                       // boca
-  rect("#e0a63a", -4.2, -34.2 + hy, 1.2, 1.8);                                      // brinco
-  rect("#f4f4f6", 4, -35.2 + hy, 5, 1);                                             // cigarro
-  rect(`rgba(255,${120 + 60 * ap | 0},60,1)`, 8.8, -35.2 + hy, 1.1, 1);              // brasa
-  for (let k = 0; k < 3; k++) {                                                     // fumaça subindo
-    const p = (t * 0.45 + k / 3) % 1;
-    ctx.fillStyle = `rgba(210,215,225,${0.38 * (1 - p)})`; ctx.beginPath();
-    ctx.arc(9.8 + Math.sin(p * 6 + k * 2) * 2 + p * 3, -36 + hy - p * 15, 0.9 + p * 1.7, 0, 7); ctx.fill();
-  }
-  rect("#f2f2f4", -4.8, -48.2 + hy, 9.6, 3.2); rect("rgba(0,0,0,.14)", -4.8, -46 + hy, 9.6, 0.8);   // quepe: copa branca
-  rect("#101015", -5.2, -45.2 + hy, 10.4, 2.6);                                     // faixa preta
-  rect("#6f7a89", -1.5, -43 + hy, 8.5, 1.5); rect("#3b4350", -1.5, -41.7 + hy, 8.5, 0.5);   // aba
-  rect("#d9a441", 0.3, -47 + hy, 2.8, 2.4);                                         // emblema dourado
-
-  const gx = 12, h = lift * 7, a = 0.1 - lift * 0.3;                                // pá: cabo de madeira, empunhadura em T e lâmina
-  ctx.save(); ctx.translate(gx, -h); ctx.rotate(a);
-  rect("#8a5a2b", -0.6, -36, 1.2, 31); rect("#5b3a1c", -2.4, -37, 4.8, 1.4);
+  // pá encostada ao lado
+  ctx.save(); ctx.translate(17, 0); ctx.rotate(0.12);
+  rect("#8a5a2b", -0.6, -34, 1.2, 29); rect("#5b3a1c", -2.4, -35, 4.8, 1.4);
   ctx.beginPath(); ctx.moveTo(-2.7, -6); ctx.lineTo(2.7, -6); ctx.lineTo(2.3, -1.5); ctx.lineTo(0, 1.3); ctx.lineTo(-2.3, -1.5); ctx.closePath();
   ctx.fillStyle = "#b7c0cb"; ctx.fill(); ctx.strokeStyle = "#2b2f36"; ctx.lineWidth = 0.6; ctx.stroke();
   rect("rgba(255,255,255,.35)", -1.6, -5.4, 0.8, 3); rect("#5b3a1c", -1.2, -7, 2.4, 1.6);
   ctx.restore();
-  const hx = gx + 26 * Math.sin(a), hh = -h - 26 * Math.cos(a);                     // braço: do ombro até a mão no cabo
+
+  // pernas cruzadas (estilo "indiozinho"): joelhos abertos e botas se cruzando no meio
+  rect("#1d2531", -10, -4.5, 20, 4.5); rect("#2a3445", -11, -8, 5.5, 6); rect("#2a3445", 5.5, -8, 5.5, 6);
+  rect("#0e0e12", -1, -4.8, 7.5, 3.6); rect("#0e0e12", -6.5, -2.6, 7.5, 2.6);
+  rect("rgba(255,255,255,.12)", -5.5, -2.5, 6, 0.6);
+
+  // sobretudo (espalhado sobre as pernas)
+  const coat = () => { ctx.beginPath(); ctx.moveTo(-7, -27 + by); ctx.lineTo(7, -27 + by); ctx.lineTo(9.5, -5); ctx.lineTo(-9.5, -5); ctx.closePath(); };
+  coat(); ctx.fillStyle = "#8997ab"; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-7, -27 + by); ctx.lineTo(-2.5, -27 + by); ctx.lineTo(-3.5, -5); ctx.lineTo(-9.5, -5); ctx.closePath();
+  ctx.fillStyle = "rgba(20,28,50,.35)"; ctx.fill();                                // lado esquerdo na sombra
+  coat(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.8; ctx.stroke();
+  rect("#0b0b10", -0.4, -22 + by, 0.8, 17);                                        // abertura da frente
+  [-14, -9].forEach(y => { rect("#d9a441", -3.3, y, 1.6, 1.6); rect("#d9a441", 1.7, y, 1.6, 1.6); });   // botões dourados (transpassado)
+  rect("#d9a441", -3.3, -19, 1.6, 1.6); rect("#d9a441", 1.7, -19, 1.6, 1.6);
+
+  // braços apoiados nos joelhos
   ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3.4; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(1, -29.5 + by); ctx.lineTo(hx - 0.5, hh); ctx.stroke();
-  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(1, -28 + by); ctx.lineTo(hx - 0.5, hh + 1.5); ctx.stroke();
-  rect("#f3c8a0", hx - 1.6, hh - 1.6, 3.2, 3.2);
+  ctx.beginPath(); ctx.moveTo(-7, -25 + by); ctx.lineTo(-9, -10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7, -25 + by); ctx.lineTo(9, -10); ctx.stroke();
+  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(-5.4, -24 + by); ctx.lineTo(-7.4, -10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8.6, -24 + by); ctx.lineTo(10.4, -10); ctx.stroke();
+  rect("#f3c8a0", -10.6, -10, 3.2, 3.2); rect("#f3c8a0", 7.4, -10, 3.2, 3.2);
+
+  // gola alta e pescoço
+  const hy = by;
+  rect("#e8b98f", -1.8, -30 + hy, 3.6, 3.2);
+  ctx.beginPath(); ctx.moveTo(-8, -28 + by); ctx.lineTo(-1, -30 + by); ctx.lineTo(0, -21 + by); ctx.lineTo(-6, -23 + by); ctx.closePath();
+  ctx.fillStyle = "#9aa8ba"; ctx.fill(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8, -28 + by); ctx.lineTo(1, -30 + by); ctx.lineTo(0, -21 + by); ctx.lineTo(6, -23 + by); ctx.closePath();
+  ctx.fillStyle = "#adbacb"; ctx.fill(); ctx.stroke();
+
+  // cabeça de frente
+  rect("#1a120c", -5.4, -38.5 + hy, 2, 9); rect("#1a120c", 3.4, -38.5 + hy, 2, 9);          // costeletas
+  rect("#1a120c", -6.6, -35 + hy, 1.8, 4); rect("#1a120c", 4.8, -35 + hy, 1.8, 4);          // cachos
+  rect("#f3c8a0", -4.2, -38.5 + hy, 8.4, 9); rect("rgba(0,0,0,.1)", -4.2, -33 + hy, 8.4, 3.5);
+  rect("rgba(0,0,0,.45)", -4.2, -38.2 + hy, 8.4, 2);                                        // sombra da aba nos olhos
+  rect("#16110d", -3, -36 + hy, 2.2, 1); rect("#16110d", 0.8, -36 + hy, 2.2, 1);            // olhos
+  rect("#e0a67a", -0.6, -35 + hy, 1.4, 2.8);                                                // nariz
+  rect("#a86a4a", -1.6, -31.8 + hy, 2.6, 0.7);                                              // boca
+  rect("#e0a63a", -6.2, -31.5 + hy, 1.2, 1.8);                                              // brinco
+  rect("#f4f4f6", 0.8, -32 + hy, 5.5, 1); rect(`rgba(255,${150 + 50 * Math.sin(t * 3) | 0},60,1)`, 6.1, -32 + hy, 1.1, 1);   // cigarro e brasa
+  for (let k = 0; k < 3; k++) {                                                             // fumaça subindo
+    const p = (t * 0.45 + k / 3) % 1;
+    ctx.fillStyle = `rgba(210,215,225,${0.38 * (1 - p)})`; ctx.beginPath();
+    ctx.arc(7.4 + Math.sin(p * 6 + k * 2) * 2 + p * 3, -33 + hy - p * 15, 0.9 + p * 1.7, 0, 7); ctx.fill();
+  }
+  // quepe
+  rect("#f2f2f4", -5, -46 + hy, 10, 3.4); rect("rgba(0,0,0,.14)", -5, -43.6 + hy, 10, 0.8);
+  rect("#101015", -5.4, -42.8 + hy, 10.8, 2.8);
+  rect("#6f7a89", -4.4, -40.2 + hy, 8.8, 1.6); rect("#3b4350", -4.4, -39 + hy, 8.8, 0.5);
+  rect("#d9a441", -1.5, -42.5 + hy, 3, 2.2);
   ctx.restore();
 }
 function wrapLines(s, max) {
@@ -318,17 +322,12 @@ function wrapLines(s, max) {
   if (cur) out.push(cur); return out;
 }
 function drawMaltoUI(now) {
-  const nameY = PIER_Y - 56;
+  const nameY = PIER_Y - 52;
   text("Malto", MX, nameY, "#9fd3ff", "center");
-  const ts = mt - mSlam;
-  if (ts < 1.8) {                                                                   // "+100 aura" sobe a cada pazada
-    const k = ts / 1.8; ctx.globalAlpha = 1 - k;
-    text("+100 aura", MX, nameY - 6 - k * 14, "#9fe0ff", "center"); ctx.globalAlpha = 1;
-  }
   if (mTalk) {
     const full = MALTO_LINES[mLine], shown = Math.min(full.length, Math.floor(mTalk.t * TYPE_CPS));
     const lines = wrapLines(full, 24), lh = 11, w = 24 * 6 + 14, hgt = lines.length * lh + 9;
-    const bx = Math.round(MX - w / 2), byy = Math.round(nameY - 22 - hgt);
+    const bx = Math.round(MX - w / 2), byy = Math.round(nameY - 14 - hgt);
     rect("#9fd3ff", bx - 1, byy - 1, w + 2, hgt + 2); rect("#0f1624", bx, byy, w, hgt);
     ctx.fillStyle = "#9fd3ff"; ctx.beginPath(); ctx.moveTo(MX - 5, byy + hgt + 1); ctx.lineTo(MX + 5, byy + hgt + 1); ctx.lineTo(MX, byy + hgt + 7); ctx.fill();
     ctx.fillStyle = "#0f1624"; ctx.beginPath(); ctx.moveTo(MX - 4, byy + hgt); ctx.lineTo(MX + 4, byy + hgt); ctx.lineTo(MX, byy + hgt + 5); ctx.fill();
