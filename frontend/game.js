@@ -106,10 +106,10 @@ let fishList = [
 ];
 fetch(API + "/api/fish").then(r => r.json()).then(d => fishList = d).catch(() => {});
 const imgs = {};
-const img = f => imgs[f] || (imgs[f] = Object.assign(new Image(), { src: "assets/fishs/" + f }));
+const img = f => imgs[f] || (imgs[f] = Object.assign(new Image(), { src: "assets/fishes/" + f }));
 fishList.forEach(f => img(f.file));
 // ---------- Peixe misterioso: aparece no minigame no lugar do peixe de verdade (a revelação vem só depois de pescar) ----------
-const MYST_SRC = ["assets/fishs/misterioso.png", "assets/misterioso.png"];   // ajuste aqui se o arquivo estiver em outro lugar/nome
+const MYST_SRC = ["assets/fishes/misterioso.png", "assets/misterioso.png"];   // ajuste aqui se o arquivo estiver em outro lugar/nome
 const mystery = new Image(); let mystI = 0;
 mystery.onerror = () => { if (++mystI < MYST_SRC.length) mystery.src = MYST_SRC[mystI]; };
 mystery.src = MYST_SRC[0];
@@ -288,25 +288,21 @@ function drawMalto(now) {
   [[-2.9, -22.4], [1.7, -22.4], [-3.1, -15.5], [1.9, -15.5]].forEach(([x, y]) => rect("#d9a441", x, y + by, 1.3, 1.3));   // botões dourados
   rect("#5a4631", -6.7, -20 + by * 0.5, 13.4, 2); rect("#d9a441", -1.1, -20.2 + by * 0.5, 2.2, 2.4); rect("#2a1d10", -0.4, -19.5 + by * 0.5, 0.8, 1);   // cinto com fivela
 
-  // gola: peitilho escuro em V, gola em pé atrás do pescoço e duas lapelas simples
+  // gola: camisa escura em V, pescoço e duas abas de gola levantadas (pontas sobem ao lado do pescoço)
   const hy = by - 5;
-  ctx.beginPath(); ctx.moveTo(-5.6, S + 0.6); ctx.lineTo(5.6, S + 0.6); ctx.lineTo(4.6, S - 3.4); ctx.lineTo(-4.6, S - 3.4); ctx.closePath();
-  ctx.fillStyle = "#66748a"; ctx.fill(); ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.6; ctx.stroke();   // gola em pé
-  ctx.beginPath(); ctx.moveTo(-2, S - 3); ctx.lineTo(2, S - 3); ctx.lineTo(0, S + 8.5); ctx.closePath(); ctx.fillStyle = "#1f2733"; ctx.fill();   // camisa escura
-  rect("#e8b98f", -1.8, -30.5 + hy, 3.6, 4); rect("#e8b98f", -1.6, S - 3.4, 3.2, 3.6);                       // pescoço
-  ctx.beginPath(); ctx.moveTo(-5.4, S - 2.2); ctx.lineTo(-1.9, S - 3); ctx.lineTo(-0.3, S + 8.5); ctx.lineTo(-3.6, S + 5.4); ctx.closePath();
-  ctx.fillStyle = "#9aa8ba"; ctx.fill(); ctx.stroke();                                                         // lapela esquerda
-  ctx.beginPath(); ctx.moveTo(5.4, S - 2.2); ctx.lineTo(1.9, S - 3); ctx.lineTo(0.3, S + 8.5); ctx.lineTo(3.6, S + 5.4); ctx.closePath();
-  ctx.fillStyle = "#b3bfd0"; ctx.fill(); ctx.stroke();                                                         // lapela direita
+  ctx.beginPath(); ctx.moveTo(-2.4, S - 3); ctx.lineTo(2.4, S - 3); ctx.lineTo(0, S + 9); ctx.closePath(); ctx.fillStyle = "#1f2733"; ctx.fill();
+  rect("#e8b98f", -1.8, S - 4, 3.6, 4.2);                                                                       // pescoço
+  ctx.lineWidth = 0.7; ctx.strokeStyle = "#0b0b10";
+  ctx.beginPath(); ctx.moveTo(-1.8, S - 4); ctx.lineTo(-6.4, S - 3.4); ctx.lineTo(-6.8, S + 1); ctx.lineTo(-3.8, S + 5); ctx.lineTo(-0.5, S + 9); ctx.lineTo(-2, S + 1); ctx.closePath();
+  ctx.fillStyle = "#6f7d92"; ctx.fill(); ctx.stroke();                                                         // aba esquerda (na sombra)
+  ctx.beginPath(); ctx.moveTo(1.8, S - 4); ctx.lineTo(6.4, S - 3.4); ctx.lineTo(6.8, S + 1); ctx.lineTo(3.8, S + 5); ctx.lineTo(0.5, S + 9); ctx.lineTo(2, S + 1); ctx.closePath();
+  ctx.fillStyle = "#a9b5c6"; ctx.fill(); ctx.stroke();                                                         // aba direita (na luz)
 
-  // braços soltos ao lado do corpo
-  ctx.lineCap = "round"; ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3.2;
-  ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.6, -14); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(7.6, -14); ctx.stroke();
-  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 0.5;
-  ctx.beginPath(); ctx.moveTo(-4.2, S + 3); ctx.lineTo(-6, -14); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(4.2, S + 3); ctx.lineTo(6, -14); ctx.stroke();
-  rect("#f3c8a0", -9.2, -14.6, 3.2, 3.4); rect("#f3c8a0", 6, -14.6, 3.2, 3.4);
+  // braço esquerdo solto
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.6, -14); ctx.stroke();
+  ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-5.8, S + 2); ctx.lineTo(-7.6, -14); ctx.stroke();
+  rect("#f3c8a0", -9.2, -14.6, 3.2, 3.4);
 
   // cabeça de frente
   rect("#1a120c", -5.4, -38.5 + hy, 2, 9); rect("#1a120c", 3.4, -38.5 + hy, 2, 9);          // costeletas
@@ -317,17 +313,43 @@ function drawMalto(now) {
   rect("#e0a67a", -0.6, -35 + hy, 1.4, 2.8);                                                // nariz
   rect("#a86a4a", -1.6, -31.8 + hy, 2.6, 0.7);                                              // boca
   rect("#e0a63a", -6.2, -31.5 + hy, 1.2, 1.8);                                              // brinco
-  rect("#f4f4f6", 0.8, -32 + hy, 5.5, 1); rect(`rgba(255,${150 + 50 * Math.sin(t * 3) | 0},60,1)`, 6.1, -32 + hy, 1.1, 1);   // cigarro e brasa
-  for (let k = 0; k < 3; k++) {                                                             // fumaça subindo
-    const p = (t * 0.45 + k / 3) % 1;
-    ctx.fillStyle = `rgba(210,215,225,${0.38 * (1 - p)})`; ctx.beginPath();
-    ctx.arc(7.4 + Math.sin(p * 6 + k * 2) * 2 + p * 3, -33 + hy - p * 15, 0.9 + p * 1.7, 0, 7); ctx.fill();
-  }
   // quepe
   rect("#f2f2f4", -5, -46 + hy, 10, 3.4); rect("rgba(0,0,0,.14)", -5, -43.6 + hy, 10, 0.8);
   rect("#101015", -5.4, -42.8 + hy, 10.8, 2.8);
   rect("#6f7a89", -4.4, -40.2 + hy, 8.8, 1.6); rect("#3b4350", -4.4, -39 + hy, 8.8, 0.5);
   rect("#d9a441", -1.5, -42.5 + hy, 3, 2.2);
+
+  // braço direito com o cigarro na mão: ciclo de 8s = descansa -> leva à boca -> traga -> abaixa -> solta a fumaça
+  const u = t % 8, ease = k => k * k * (3 - 2 * k);
+  const k = u < 3 ? 0 : u < 3.8 ? ease((u - 3) / 0.8) : u < 5.2 ? 1 : u < 6 ? 1 - ease((u - 5.2) / 0.8) : 0;
+  const drag = u >= 3.8 && u < 5.2 ? Math.min(1, (u - 3.8) / 0.3, (5.2 - u) / 0.3) : 0;           // intensidade do trago
+  const L = (a, b) => a + (b - a) * k;
+  const hx = L(7.6, 3.7), hyy = L(-14.6, -36.4 + hy + 5), ex = L(6.7, 9.6), ey = L(-22, -25 + by);   // mão e cotovelo
+  ctx.strokeStyle = "#0b0b10"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(ex, ey); ctx.lineTo(hx, hyy); ctx.stroke();
+  ctx.strokeStyle = "#7b8aa0"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(5.8, S + 2); ctx.lineTo(ex, ey); ctx.lineTo(hx, hyy); ctx.stroke();
+  const th = -Math.PI / 2 * (1 - k), ox = L(-0.5, -3.9), CL = 5.6, cc = Math.cos(th), ss = Math.sin(th);   // cigarro gira de "pra cima" até "pra boca"
+  ctx.save(); ctx.translate(hx, hyy); ctx.rotate(th);
+  rect("#f4f4f6", ox, -0.5, CL, 1); rect("#d9a441", ox, -0.5, 1.2, 1);                    // cigarro com filtro
+  rect(`rgb(255,${110 + 90 * (1 - drag) | 0},${40 + 20 * (1 - drag) | 0})`, ox + CL - 1, -0.5, 1.1, 1);   // brasa (mais viva no trago)
+  ctx.restore();
+  rect("#f3c8a0", hx - 1.5, hyy - 1.5, 3, 3); rect("rgba(0,0,0,.18)", hx - 1.5, hyy + 0.6, 3, 0.9);   // mão por cima do cigarro
+  const tipX = hx + cc * (ox + CL + 0.2), tipY = hyy + ss * (ox + CL + 0.2);              // ponta acesa no mundo local
+  if (drag > 0) { ctx.fillStyle = `rgba(255,140,60,${0.35 * drag})`; ctx.beginPath(); ctx.arc(tipX, tipY, 2.6, 0, 7); ctx.fill(); }
+  for (let j = 0; j < 2; j++) {                                                            // fiozinho de fumaça saindo da brasa
+    const p = (t * 0.5 + j / 2) % 1;
+    ctx.fillStyle = `rgba(210,215,225,${0.32 * (1 - p)})`; ctx.beginPath();
+    ctx.arc(tipX + Math.sin(p * 7 + j * 3) * 1.6, tipY - 1 - p * 13, 0.7 + p * 1.5, 0, 7); ctx.fill();
+  }
+  if (u >= 6 && u < 7.8) {                                                                 // baforada saindo da boca depois do trago
+    const q = (u - 6) / 1.8;
+    for (let j = 0; j < 4; j++) {
+      const p = Math.max(0, Math.min(1, q - j * 0.1));
+      ctx.fillStyle = `rgba(225,228,236,${0.5 * (1 - p)})`; ctx.beginPath();
+      ctx.arc(1 + p * 9 + j * 0.8, -36.6 + hy + 5 - p * 9 + Math.sin(p * 5 + j) * 1.2, 1.2 + p * 3.2, 0, 7); ctx.fill();
+    }
+  }
   ctx.restore();
 }
 function wrapLines(s, max) {
@@ -997,7 +1019,7 @@ function draw(now) {
     rect("#3b2a1a", TRACK.x - 14, TRACK.y - 8, 44, TRACK.h + 16);
     rect("#1b3a4b", TRACK.x, TRACK.y, 16, TRACK.h);
     rect("#6bd66b", TRACK.x + 1, TRACK.y + bar.y, 14, bar.h);
-    drawMystery(TRACK.x + 8, TRACK.y + fp.y, 46, 34);                 // sempre o peixe misterioso; o de verdade só aparece depois de pescar
+    drawMystery(TRACK.x + 8, TRACK.y + fp.y, 30, 22);                 // sempre o peixe misterioso; o de verdade só aparece depois de pescar
     // progresso
     rect("#1b1b1b", TRACK.x + 22, TRACK.y, 6, TRACK.h);
     rect(prog > 66 ? "#6bd66b" : prog > 33 ? "#ffd166" : "#e63946", TRACK.x + 23, TRACK.y + TRACK.h * (1 - prog / 100), 4, TRACK.h * prog / 100);
