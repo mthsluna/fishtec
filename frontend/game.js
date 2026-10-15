@@ -88,6 +88,7 @@ function present() {
 }
 const API = window.API_URL;
 const PIER_Y = 150, WATER_Y = 168;
+const HZ = 132;                                  // linha do horizonte: montanhas e mata acabam aqui; daqui até o cais é o lago distante
 const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
@@ -433,7 +434,7 @@ function valueNoise(seed) {
 // e tudo some na névoa quente perto da base, igual ao resto do cenário.
 function mountains(o) {
   return layer(() => {
-    const BASE = 160, X0 = -EXT - 80, RES = 4, nz = valueNoise(o.seed);
+    const BASE = HZ, X0 = -EXT - 80, RES = 4, nz = valueNoise(o.seed);
     const N = Math.ceil((LW + 160) * RES), tab = new Float32Array(N + 2);
     for (let i = 0; i < tab.length; i++) {                               // tabela da forma (0..1), 4 oitavas, as 2 primeiras "em pico"
       const x = X0 + i / RES; let v = 0, a = 0.55, f = o.f, sum = 0;
@@ -467,7 +468,7 @@ function mountains(o) {
 function pineHills(seed) {                  // mata da frente: copas arredondadas (2 fileiras), com luz do sol na borda e pouquíssimos pinheiros
   return layer(() => {
     ctx.translate(EXT, 0);
-    const BASE = 160, nz = valueNoise(seed + 3);
+    const BASE = HZ + 1, nz = valueNoise(seed + 3);
     let rs = seed * 13 + 5; const rnd = () => (rs = rs * 16807 % 2147483647) / 2147483647;
     const hill = (sd, base, amp, col0, col1) => {
       const P = ridgePts(sd, base, amp, 0.5, 1, 64), n = P.length - 1, step = LW / n;
@@ -505,14 +506,22 @@ function pineHills(seed) {                  // mata da frente: copas arredondada
         ctx.fillStyle = litCol; ctx.beginPath(); ctx.moveTo(x, ty); ctx.quadraticCurveTo(x + hw * 0.5, by - (by - ty) * 0.35, x + hw, by); ctx.lineTo(x + hw * 0.25, by); ctx.closePath(); ctx.fill();
       }
     };
-    const back = hill(seed, 144, 6, "#3b2362", "#3b2362");
-    canopy(back, "#3b2362", "rgba(40,22,70,.5)", "rgba(222,128,150,.55)", 5, 9, 7, 0);
-    for (let x = -EXT + 10; x < WORLD + EXT; x += 38 + rnd() * 50) pine(x, back(x) + 1, 16 + rnd() * 8, "#33205a", "rgba(214,120,146,.4)");
-    const front = hill(seed + 5, 150, 5, "#21123a", "#1a1230");
-    canopy(front, "#21123a", "rgba(14,6,28,.6)", "rgba(190,100,135,.5)", 6, 11, 5, 40);
+    const back = hill(seed, 126, 4, "#6a3d7a", "#6a3d7a");
+    canopy(back, "#6a3d7a", "rgba(70,38,100,.35)", "rgba(240,150,155,.55)", 3, 5, 3, 0);
+    for (let x = -EXT + 10; x < WORLD + EXT; x += 45 + rnd() * 60) pine(x, back(x) + 1, 8 + rnd() * 4, "#5e3672", "rgba(232,142,156,.4)");
+    const front = hill(seed + 5, 130, 3, "#4d2c6c", "#4d2c6c");
+    canopy(front, "#4d2c6c", "rgba(32,16,56,.45)", "rgba(214,120,148,.5)", 3.5, 6, 2, 40);
   });
 }
 // ---------- Gaivotas ao longe: só de vez em quando passa um bando pequeno (1 a 3), pequenas, de asas quase retas ----------
+function drawLakeGlints(now, sx) {          // brilho do sol cintilando no lago distante (some e volta devagar)
+  const t = now / 1000;
+  for (let i = 0; i < 14; i++) {
+    const y = HZ + 1 + i * 1.6, w = 5 + i * 3.2, a = Math.max(0, (0.45 + 0.3 * Math.sin(t * 1.3 + i * 1.7)) * (1 - i * 0.04)), j = Math.sin(t * 0.7 + i) * 2;
+    rect(`rgba(255,232,178,${a})`, sx - w / 2 + j, y, w * 0.42, 0.9);
+    rect(`rgba(255,232,178,${a})`, sx + w * 0.08 + j, y, w * 0.42, 0.9);
+  }
+}
 function drawGulls(now) {
   const t = now / 1000, P = 70, CROSS = 30, k = Math.floor(t / P), u0 = (t - k * P) / CROSS;   // a cada 70s sorteia se passa um bando; atravessa a tela em ~30s
   if (u0 > 1.2) return;
@@ -542,13 +551,31 @@ function buildLayers(now) {
     g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
     ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
   });
-  const far = mountains({ seed: 5, base: 140, amp: 62, f: 0.011, sharp: 1.0, skew: 0.55, k: 0.16, fd: 55, shA: 0.75, ltA: 0.55,
+  const far = mountains({ seed: 5, base: 120, amp: 64, f: 0.011, sharp: 1.0, skew: 0.55, k: 0.16, fd: 55, shA: 0.75, ltA: 0.55,
     top: "#8a4684", bot: "#d27088", shadow: "#5e3274", lit: "#ffb88a", mist: 0.35, mistH: 55 });
-  const mid = mountains({ seed: 23, base: 146, amp: 46, f: 0.017, sharp: 1.0, skew: 0.5, k: 0.18, fd: 45, shA: 0.8, ltA: 0.55,
+  const mid = mountains({ seed: 23, base: 125, amp: 46, f: 0.017, sharp: 1.0, skew: 0.5, k: 0.18, fd: 45, shA: 0.8, ltA: 0.55,
     top: "#6a3a78", bot: "#b4587f", shadow: "#46285f", lit: "#f0907f", mist: 0.25, mistH: 45 });
-  const near = mountains({ seed: 71, base: 150, amp: 32, f: 0.026, sharp: 1.0, skew: 0.45, k: 0.2, fd: 36, shA: 0.85, ltA: 0.5,
+  const near = mountains({ seed: 71, base: 129, amp: 32, f: 0.026, sharp: 1.0, skew: 0.45, k: 0.2, fd: 36, shA: 0.85, ltA: 0.5,
     top: "#46285f", bot: "#7c4079", shadow: "#2c1a48", lit: "#c8658a", mist: 0.12, mistH: 30 });
   const hills = pineHills(9);
+  const lake = layer(() => {                                          // lago distante entre a margem e o cais
+    ctx.translate(EXT, 0);
+    let g = ctx.createLinearGradient(0, HZ, 0, WATER_Y);
+    g.addColorStop(0, "#e9a69c"); g.addColorStop(0.4, "#c98ba2"); g.addColorStop(1, "#a8808f");
+    ctx.fillStyle = g; ctx.fillRect(-EXT, HZ, LW, WATER_Y - HZ);
+    g = ctx.createLinearGradient(0, HZ, 0, HZ + 13);                  // reflexo escuro da mata na água
+    g.addColorStop(0, "rgba(70,36,100,.6)"); g.addColorStop(1, "rgba(70,36,100,0)");
+    ctx.fillStyle = g; ctx.fillRect(-EXT, HZ, LW, 13);
+    g = ctx.createLinearGradient(0, HZ - 8, 0, HZ);                   // neblina rente à margem: afasta a mata
+    g.addColorStop(0, "rgba(255,200,170,0)"); g.addColorStop(1, "rgba(255,200,170,.38)");
+    ctx.fillStyle = g; ctx.fillRect(-EXT, HZ - 8, LW, 8);
+    let rr = 77; const rn = () => (rr = rr * 16807 % 2147483647) / 2147483647;     // marolas finas: mais curtas e juntas ao longe, maiores perto
+    for (let i = 0; i < 70; i++) {
+      const k = rn(), y = HZ + 3 + k * (WATER_Y - HZ - 5), len = 6 + k * 34 + rn() * 12, x = -EXT + rn() * LW;
+      rect(`rgba(255,226,196,${0.1 + 0.14 * k})`, x, y, len, 0.8);
+      if (rn() < 0.5) rect(`rgba(70,36,100,${0.08 + 0.1 * k})`, x + len * 0.3, y + 1.6, len * 0.7, 0.8);
+    }
+  });
   const deck = layer(() => {
     ctx.translate(EXT, 0);
     rect("#1a1230", -EXT, PIER_Y + 8, LW, WATER_Y - PIER_Y - 8);
@@ -569,11 +596,11 @@ function buildLayers(now) {
     const n = Math.floor((now / 1000 + c.seed * 3.7) / c.m);
     return { n, a: makeCloud(c.w, c.h, c.seed + n * 101, c.tone), b: makeCloud(c.w, c.h, c.seed + (n + 1) * 101, c.tone) };
   });
-  layers = { sky, far, mid, near, hills, deck, posts, water, clouds };
+  layers = { sky, far, mid, near, hills, lake, deck, posts, water, clouds };
 }
 
 // ---------- Parallax: cada camada acompanha a câmera numa fração diferente (0 = parada no fundo, 1 = mesma do cais) ----------
-const PAR = { sky: 0.04, cloud: 0.12, far: 0.25, mid: 0.37, near: 0.5, hills: 0.75, pier: 1 };
+const PAR = { sky: 0.04, cloud: 0.12, far: 0.25, mid: 0.37, near: 0.5, hills: 0.75, lake: 0.75, pier: 1 };
 const rctx = refl.getContext("2d");
 
 function reflect() {                       // copia o que está acima da água para o canvas do reflexo
@@ -682,6 +709,8 @@ function draw(now) {
   ctx.drawImage(layers.mid, lx(PAR.mid), 0, LW, H);
   ctx.drawImage(layers.near, lx(PAR.near), 0, LW, H);
   ctx.drawImage(layers.hills, lx(PAR.hills), 0, LW, H);
+  ctx.drawImage(layers.lake, lx(PAR.lake), 0, LW, H);
+  drawLakeGlints(now, ox + camX * PAR.sky + 366);
   ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOther(o, now));
