@@ -622,22 +622,23 @@ function updatePhone(dt) {
   PH.blink = Math.max(0, PH.blink - dt);
   PH.hold += ((PH.open ? 1 : 0) - PH.hold) * Math.min(1, dt * 7);
 }
-function drawHeldPhone(x, y, k) {
+function drawHeldPhone(x, y, k) {                                                  // celular 2D na mão (x,y = ponta da mão, em coordenadas do corpo)
   const a = clamp01((k - 0.3) / 0.5); if (a <= 0) return;
-  const fl = 0.9 + 0.1 * Math.sin(performance.now() / 90), px = x + 0.8, py = y - 3.2, sx = px - 0.7, sy = py - 1.9;   // sx,sy: centro da tela do celular
+  const fl = 0.9 + 0.1 * Math.sin(performance.now() / 90);
+  const x0 = Math.round(x) - 2, y0 = Math.round(y) - 8;                            // canto do celular (reto, sem rotação, como o resto do personagem)
+  const sx = x0 + 3.5, sy = y0 + 2.5;                                              // centro da tela
   ctx.save(); ctx.globalAlpha = a;
-  let g = ctx.createLinearGradient(sx, 0, 3, 0);                                                   // feixe de luz da tela até o rosto
+  let g = ctx.createLinearGradient(x0 + 1, 0, 3, 0);                               // feixe de luz da tela até o rosto
   g.addColorStop(0, `rgba(205,245,160,${0.7 * fl})`); g.addColorStop(1, "rgba(205,245,160,.12)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(sx - 1.5, sy - 1.8); ctx.lineTo(4.6, -34); ctx.lineTo(5.6, -24.5); ctx.lineTo(sx - 1.5, sy + 1.8); ctx.closePath(); ctx.fill();
-  g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 8);                                              // brilho em volta da tela
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0 + 1, sy - 1.6); ctx.lineTo(4.6, -34); ctx.lineTo(5.6, -24.5); ctx.lineTo(x0 + 1, sy + 1.6); ctx.closePath(); ctx.fill();
+  g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 8);                              // brilho em volta da tela
   g.addColorStop(0, `rgba(205,245,160,${0.5 * fl})`); g.addColorStop(1, "rgba(205,245,160,0)");
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7); ctx.fill();
-  ctx.translate(px, py); ctx.rotate(-0.38);                                                        // celular levemente inclinado para o rosto
-  rect("#161b27", -3, -4.8, 6, 9.6); rect("#2a3345", -2.6, -4.4, 5.2, 8.8);
-  rect("#cfe9a6", -2.1, -3.7, 4.2, 3.4); rect("#7f9a6c", -2.1, -0.6, 4.2, 0.5);                    // tela acesa
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) rect("#8d97a8", -1.9 + c * 1.45, 0.7 + r * 1.2, 1, 0.7);   // teclinhas
+  rect("#161b27", x0, y0, 7, 10); rect("#2a3345", x0 + 0.5, y0 + 0.5, 6, 9);        // corpo
+  rect("#cfe9a6", x0 + 1, y0 + 1, 5, 3); rect("#7f9a6c", x0 + 1, y0 + 4, 5, 0.5);    // tela acesa
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) rect("#8d97a8", x0 + 1 + c * 2, y0 + 5.5 + r * 1.4, 1, 0.8);   // teclinhas
+  rect("#f1c27d", x0 - 1, y0 + 6, 3, 3.5);                                         // dedos segurando por baixo
   ctx.restore();
-  rect("#f1c27d", x - 1.2, y - 0.4, 2.8, 2.6);                                                     // dedos segurando por baixo
 }
 function roundPath(x, y, w, h, r) {
   ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
@@ -659,9 +660,11 @@ function nokiaScreen(sw, sh, inv) {                                      // layo
     ctx.save(); ctx.translate(x, y); ctx.scale(maxW / w, 1); ctx.fillText(str, 0, 0); ctx.restore();
   };
   fit("Personalizar", 5, 26, sw - 10); fit("personagem", 5, 34, sw - 10);
-  const bw = 36, bx = Math.round((sw - bw) / 2), by = sh - 13;            // botão de baixo ("Selec.") dentro de uma caixinha arredondada
-  ctx.strokeStyle = LCD_INK; ctx.lineWidth = 1; roundPath(bx + 0.5, by + 0.5, bw - 1, 11, 3); ctx.stroke();
-  ctx.fillStyle = LCD_INK; ctx.textAlign = "center"; ctx.fillText("Selec.", sw / 2, by + 8); ctx.textAlign = "left";
+  const m = ctx.measureText("Selec."), tw = Math.round(m.width), asc = Math.ceil(m.actualBoundingBoxAscent || 6);   // botão de baixo: caixa se ajusta ao texto
+  const bw = tw + 8, bh = asc + 6, bx = Math.round((sw - bw) / 2), by = sh - bh - 2;
+  rect(LCD_INK, bx + 1, by, bw - 2, 1); rect(LCD_INK, bx + 1, by + bh - 1, bw - 2, 1);                            // contorno arredondado feito em pixels inteiros
+  rect(LCD_INK, bx, by + 1, 1, bh - 2); rect(LCD_INK, bx + bw - 1, by + 1, 1, bh - 2);
+  ctx.fillStyle = LCD_INK; ctx.fillText("Selec.", bx + 4, by + 3 + asc);
 }
 function drawPhone() {
   if (PH.pos <= 0.003 || !phoneImg.complete || !phoneImg.naturalWidth) return;
