@@ -722,9 +722,9 @@ function drawWaves(now, ox) {
 // A faixa que cobre o poste é copiada da água logo abaixo dele (mesma cor, ondas e brilho), então a água "vai junto";
 // uma linha clara fina na borda de cima dá o contraste.
 function pierShadow(now, wxp) {            // sombra do cais caindo na água logo abaixo: forte junto do deck e sumindo para a frente
-  const t = now / 1000, g = ctx.createLinearGradient(0, PIER_Y + 8, 0, PIER_Y + 52);
-  g.addColorStop(0, "rgba(22,10,44,.75)"); g.addColorStop(0.3, "rgba(22,10,44,.6)"); g.addColorStop(0.65, "rgba(22,10,44,.28)"); g.addColorStop(1, "rgba(22,10,44,0)");
-  ctx.fillStyle = g; ctx.fillRect(0, PIER_Y + 8, W, 44);
+  const t = now / 1000, g = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 34);   // começa na linha da água (não cobre o lago/céu atrás do cais)
+  g.addColorStop(0, "rgba(22,10,44,.42)"); g.addColorStop(0.35, "rgba(22,10,44,.28)"); g.addColorStop(0.7, "rgba(22,10,44,.1)"); g.addColorStop(1, "rgba(22,10,44,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, 34);
   for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {                   // sombra de cada poste, balançando de leve com a água
     const x = wxp + i; if (x < -20 || x > W + 20) continue;
     const sw = Math.sin(t * 1.4 + i * 0.37) * 1.2, pg = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 22);
