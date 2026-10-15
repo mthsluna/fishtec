@@ -147,13 +147,19 @@ const keys = {};
 
 // ---------- Multiplayer ----------
 const others = {};
-const myName = (prompt("Escolha seu apelido:") || "").trim().slice(0, 14) || "Pescador" + (100 + Math.random() * 900 | 0);
+let myName = "";
+const me = { shirt: DEF_SHIRT, pants: DEF_PANTS, h: 0 };                        // minha aparência (h: 0 a 1)
+let ready = false;                                                              // só entra na sala depois da tela de personalizar
+try { const sv = JSON.parse(localStorage.getItem("look") || "{}"); myName = String(sv.name || "").slice(0, 14);
+  if (/^#[0-9a-f]{6}$/i.test(sv.shirt)) me.shirt = sv.shirt; if (/^#[0-9a-f]{6}$/i.test(sv.pants)) me.pants = sv.pants; me.h = Math.max(0, Math.min(1, +sv.h || 0)); } catch (e) {}
+const lookPayload = () => ({ name: myName, shirt: me.shirt, pants: me.pants, h: +me.h.toFixed(3) });
 const socket = typeof io !== "undefined" ? io(API, { transports: ["websocket"] }) : null;
 if (socket) {
   const add = p => others[p.id] = { ...p, tx: p.x };
-  socket.on("connect", () => socket.emit("join", { name: myName }));
+  socket.on("connect", () => { if (ready) socket.emit("join", lookPayload()); });
   socket.on("players", list => { Object.keys(others).forEach(k => delete others[k]); list.forEach(p => p.id !== socket.id && add(p)); });
   socket.on("player:join", add);
+  socket.on("player:look", d => { const o = others[d.id]; if (o) Object.assign(o, d); });
   socket.on("player:move", ({ x, ...rest }) => { const o = others[rest.id]; if (o) { Object.assign(o, rest); o.tx = x; } });
   socket.on("player:leave", id => delete others[id]);
 }
@@ -216,10 +222,21 @@ function rodPose(R, b) {                                   // soma a animação 
 // ---------- Giro de lado -> de frente, parte por parte: primeiro a cabeça, depois o tronco, depois as pernas ----------
 // Cada parte é desenhada como um cilindro girando em torno do eixo vertical: x_tela = profundidade*cos(a) + lateral*sen(a)
 // (a = 0 é de lado, a = 90° é de frente). Os detalhes do rosto, do cinto e dos braços deslizam pela superfície enquanto giram.
-function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
+// Aparência (personalizável): camiseta, calça e altura. TW = meia largura do tronco (fino o bastante para a altura máxima não passar o Malto).
+const TW = 5, AW = TW - 0.5;
+const MALTO_TOP = 51, FISHER_TOP = 40, MAX_H = MALTO_TOP / FISHER_TOP;       // altura máxima = a do Malto (quepe a 51px do chão; o chapéu do pescador a 40px)
+const hScale = h => 1 + (MAX_H - 1) * Math.max(0, Math.min(1, +h || 0));    // h: 0 (altura normal) ... 1 (altura do Malto)
+const DEF_SHIRT = "#c0392b", DEF_PANTS = "#26384a";
+const shade = (hex, f) => "#" + [1, 3, 5].map(i => Math.round(parseInt(hex.substr(i, 2), 16) * f).toString(16).padStart(2, "0")).join("");
+let LEGS = [shade(DEF_PANTS, 0.75), DEF_PANTS];                              // perna de trás (escura) e da frente
+function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
+  const hs = look && look.hs || 1, pants = look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
+  LEGS = [shade(pants, 0.75), pants];
+  if (hs !== 1) { ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(hs, hs); ctx.translate(-x, -PIER_Y); }
   const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
-  if (tn && sum > 0.001 && sum < 2.999) return drawFisherTurn(x, dir, shirt, hat, tn);
-  return drawFisherBase(x, dir, shirt, hat, amp, pose);
+  let r = tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
+  if (hs !== 1) { ctx.restore(); r = { x: x + (r.x - x) * hs, y: PIER_Y + (r.y - PIER_Y) * hs }; }   // a ponta da vara acompanha o tamanho
+  return r;
 }
 function drawFisherTurn(x, dir, shirt, hat, tn) {
   const ang = v => v * v * (3 - 2 * v) * Math.PI / 2, mix = (a, b, k) => a + (b - a) * k;
@@ -237,24 +254,24 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
     const cx = wl * sl, hw = Math.hypot(2.3 * cl, 2 * sl), sx = Math.hypot(3.3 * cl, 2.5 * sl);
     rect(col, cx - hw, -11, hw * 2, 9); rect("#15110e", cx + 0.3 * cl - sx, -2.5, sx * 2, 2.5);
   };
-  leg(-2.6, "#1c2a38"); leg(2.6, "#26384a");
+  leg(-2.6, LEGS[0]); leg(2.6, LEGS[1]);
   // braço de longe (atrás do tronco; só aparece de fora quando já está bem de frente)
   const arm = (sx, y, a, alpha) => {
     ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(sx, y); ctx.rotate(a);
     rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5);
     ctx.restore();
   };
-  const farX = 5.5 * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
+  const farX = AW * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
   arm(farX, farY, farA, 1);
   // tronco
-  rect(shirt, -6, -24, 12, 14);
-  rect("rgba(0,0,0,.25)", -6, -24, mix(3.5, 2.5, kt), 14); rect("rgba(255,255,255,.18)", mix(3, 3.5, kt), -24, mix(2, 2.5, kt), 14);
-  if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, 6 * ct - 0.3, -24, 0.6, 12);        // costura da frente deslizando para o meio
-  rect("#5a3b22", -6, -12, 12, 2);
-  if (st > 0.15) rect("#e8c34a", 6 * ct - st, -12, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
+  rect(shirt, -TW, -24, TW * 2, 14);
+  rect("rgba(0,0,0,.25)", -TW, -24, mix(3.5, 2.5, kt), 14); rect("rgba(255,255,255,.18)", mix(TW - 3, TW - 2.5, kt), -24, mix(2, 2.5, kt), 14);
+  if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TW * ct - 0.3, -24, 0.6, 12);        // costura da frente deslizando para o meio
+  rect("#5a3b22", -TW, -12, TW * 2, 2);
+  if (st > 0.15) rect("#e8c34a", TW * ct - st, -12, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
   if (fa > 0) arm(farX, farY, farA, fa);                                                // de frente: o braço do outro lado passa a ficar por cima
-  arm(3 * ct - 5.5 * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1);                // braço de perto
+  arm(3 * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1);                // braço de perto
   // pescoço, cabeça e rosto (a cabeça gira antes do resto)
   const hx = ch, nx = -ch;
   rect("#e0ac69", nx - 2, -26, 4, 2.5);
@@ -287,13 +304,13 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.translate(0, idle ? Math.sin(performance.now() / 600) * 0.3 : -(P.hop || 0));    // parado: respira de leve
     if (idle) { ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-4, -14); ctx.lineTo(4.5, -44); ctx.stroke(); }   // vara nas costas, aparecendo atrás dele
     const lg = (lx, col) => { rect(col, lx, -11, 4, 9); rect("#15110e", lx - 0.5, -2.5, 5, 2.5); };
-    lg(-4.6, "#1c2a38"); lg(0.6, "#26384a");
-    rect(shirt, -6, -24, 12, 14); rect("rgba(0,0,0,.2)", -6, -24, 2.5, 14); rect("rgba(255,255,255,.18)", 3.5, -24, 2.5, 14);
-    rect("#5a3b22", -6, -12, 12, 2); rect("#e8c34a", -1, -12, 2, 2);
+    lg(-4.6, LEGS[0]); lg(0.6, LEGS[1]);
+    rect(shirt, -TW, -24, TW * 2, 14); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14);
+    rect("#5a3b22", -TW, -12, TW * 2, 2); rect("#e8c34a", -1, -12, 2, 2);
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
       rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5); ctx.restore(); };
-    if (idle) { arm(-5.5, Math.PI / 2 + 0.12); arm(5.5, Math.PI / 2 - 0.12); }
-    else { arm(-5.5, -Math.PI + 1.0 - wv * 0.12); arm(5.5, -1.0 + wv * 0.12); }
+    if (idle) { arm(-AW, Math.PI / 2 + 0.12); arm(AW, Math.PI / 2 - 0.12); }
+    else { arm(-AW, -Math.PI + 1.0 - wv * 0.12); arm(AW, -1.0 + wv * 0.12); }
     rect("#e0ac69", -2, -26, 4, 2.5);
     rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
     rect("#2a1a10", -2.6, -30.2, 1.6, 1.8); rect("#2a1a10", 1, -30.2, 1.6, 1.8);       // olhos
@@ -310,7 +327,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect(col, -2.3, 0, 4.6, 9); rect("#15110e", -3, 8.5, 6.6, 2.5);
     ctx.restore();
   };
-  leg(-sw * 0.75, "#1c2a38"); leg(sw * 0.75, "#26384a");                         // trás (escura) e frente
+  leg(-sw * 0.75, LEGS[0]); leg(sw * 0.75, LEGS[1]);                         // trás (escura) e frente
   if (P.crank === undefined) {                                                     // (na hora de puxar o peixe, esse braço vai girar a manivela)
     ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * (0.6 + 0.7 * (P.run || 0)) + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
     rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
@@ -322,9 +339,9 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const ra = P.rod - P.flex * 0.25;                                  // a ponta da vara atrasa quando ela chicoteia
   let tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const kS = s < SL0 ? 0 : ease3(Math.min(1, (s - SL0) / (SL1 - SL0)));   // quanto a vara já deslizou para as costas
-  rect(shirt, -6, -24, 12, 14);
-  rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
-  rect("#5a3b22", -6, -12, 12, 2);
+  rect(shirt, -TW, -24, TW * 2, 14);
+  rect("rgba(0,0,0,.25)", -TW, -24, 3.5, 14); rect("rgba(255,255,255,.18)", TW - 3, -24, 2, 14);
+  rect("#5a3b22", -TW, -12, TW * 2, 2);
   const foreArm = () => {
     ctx.save(); ctx.translate(3, -20.25); ctx.rotate(A);                               // antebraço gira no ombro
     rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5);
@@ -597,12 +614,12 @@ function drawOther(p, now) {
     p.ra += (inside ? 14 : -3) * dt;
     pose = reelPose(now, p.ra, inside);
   }
-  p.tip = drawFisher(p.x, p.dir, p.color, "#2d6a4f", p.amp, pose);   // o pescador entra no reflexo
+  p.tip = drawFisher(p.x, p.dir, p.shirt || p.color, "#2d6a4f", p.amp, pose, { pants: p.pants, hs: hScale(p.h) });   // o pescador entra no reflexo
 }
 function drawOtherLine(p, now) {                                 // linha e nome são desenhados por cima da água
   if (p.state === "cast" && p.cs && p.tip) drawCast(p.tip, p.cs, p.bx);
   else if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state);
-  text(p.name, p.x, PIER_Y - 46, "#cfe8ff", "center");
+  text(p.name, p.x, PIER_Y - FISHER_TOP * hScale(p.h) - 6, "#cfe8ff", "center");
 }
 
 // ---------- Arremesso da vara: recuo -> chicote -> soltura; a boia voa em arco e cai com respingo ----------
@@ -678,6 +695,7 @@ function togglePhone() { PH.open ? closePhone() : openPhone(); }
 function phoneSelect() {                                                // E: seleciona a opção (ainda sem função, só o visual)
   if (!PH.open || PH.lit < 0.9) return;
   PH.blink = 0.22; SND.play("step_wood_1", { vol: 0.12, rate: 2.2, jitter: 0.1 });
+  setTimeout(() => { closePhone(); openCustomizer(false); }, 260);          // "Personalizar personagem"
 }
 const nearOther = () => Object.values(others).some(o => Math.abs(o.x - px) < 40);
 const interacting = () => !!mTalk || mNear() || nearOther();             // conversando/perto do Malto ou de outro jogador: fica de lado
@@ -766,6 +784,7 @@ function drawPhone() {
 }
 
 addEventListener("keydown", e => {
+  if (UI.open) return;                                  // digitando o apelido: as teclas não são do jogo
   SND.unlock();                                         // o navegador só libera o som depois de uma tecla/toque
   keys[e.code] = true;
   if (e.code === "KeyM" && !e.repeat) say(SND.toggleMute() ? "Som desligado" : "Som ligado");
@@ -1336,7 +1355,7 @@ function draw(now) {
   ctx.save(); ctx.translate(wx, 0);
   drawMalto(now);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp * (1 + 0.45 * runK), state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose());
+  const tip = drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose(), { pants: me.pants, hs: hScale(me.h) });
   ctx.restore();
 
   // 2) água com reflexo
@@ -1351,7 +1370,7 @@ function draw(now) {
   // 3) linhas, boias e nomes por cima
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOtherLine(o, now));
-  if (state !== "show") text(myName, px, PIER_Y - 46, "#ffd166", "center");
+  if (state !== "show") text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
   drawMaltoUI(now);
   drawFx(now);
   drawCatch(now);
@@ -1388,12 +1407,117 @@ function draw(now) {
   present();
 }
 
+
+// ---------- Tela de entrada / personalizar personagem: apelido, altura (até a do Malto), cor da camiseta e da calça ----------
+// Abre sozinha ao entrar no jogo e depois pelo celular (F -> "Personalizar personagem" -> E). O boneco de prévia gira ao clicar.
+const UI = { open: false, first: true, snap: null };
+const SHIRTS = ["#c0392b", "#e67e22", "#f1c40f", "#27ae60", "#16a085", "#2980b9", "#8e44ad", "#e84393", "#ecf0f1", "#2c3e50"];
+const PANTS = ["#26384a", "#1a1a1f", "#4a4e57", "#6b4a2f", "#8c7a55", "#2f5d3a", "#3b6ea8", "#7a2e2e", "#d9d2c0", "#5b3a6b"];
+const cz = document.createElement("div"); cz.id = "cz";
+cz.innerHTML = `<div class="cz-box" role="dialog" aria-label="Personalizar personagem">
+  <div class="cz-title">Pesca no Cais</div>
+  <label class="cz-row"><span>Apelido</span><input id="cz-name" maxlength="14" autocomplete="off" spellcheck="false" placeholder="Pescador"></label>
+  <div class="cz-prevwrap"><canvas id="cz-prev" width="192" height="198" title="Clique para girar"></canvas></div>
+  <div class="cz-hint">clique no boneco para girar</div>
+  <label class="cz-row"><span>Altura</span><input id="cz-h" type="range" min="0" max="100" step="1"></label>
+  <div class="cz-hint">máximo = a altura do Malto (linha pontilhada)</div>
+  <div class="cz-row"><span>Camiseta</span><div class="cz-sw" id="cz-shirt"></div></div>
+  <div class="cz-row"><span>Calça</span><div class="cz-sw" id="cz-pants"></div></div>
+  <div class="cz-btns"><button id="cz-cancel" type="button">Cancelar</button><button id="cz-ok" type="button">Entrar</button></div>
+</div>`;
+const czStyle = document.createElement("style");
+czStyle.textContent = `
+#cz{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
+  font:18px/1.15 "Nokia Cellphone FC","VT323",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
+#cz.on{display:flex}
+#cz .cz-box{width:min(360px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 16px 16px;background:#97a888;
+  border:4px solid #1b2619;border-radius:10px;box-shadow:0 0 0 3px #7d8f71,0 14px 50px #000}
+#cz .cz-title{font-size:26px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:10px}
+#cz .cz-row{display:flex;align-items:center;gap:10px;margin:8px 0}
+#cz .cz-row>span{width:78px;flex:none}
+#cz #cz-name{flex:1;min-width:0;font:inherit;color:#1b2619;background:#a9b99b;border:2px solid #1b2619;padding:4px 6px;outline:none}
+#cz #cz-name:focus{background:#bccdac}
+#cz input[type=range]{flex:1;accent-color:#1b2619}
+#cz .cz-prevwrap{display:flex;justify-content:center;margin:6px 0 2px}
+#cz canvas{width:192px;height:198px;image-rendering:pixelated;border:2px solid #1b2619;cursor:pointer;touch-action:manipulation}
+#cz .cz-hint{font-size:14px;text-align:center;opacity:.75;margin:0 0 4px}
+#cz .cz-sw{display:flex;flex-wrap:wrap;gap:5px;flex:1}
+#cz .cz-sw button,#cz .cz-sw label{width:22px;height:22px;box-sizing:border-box;border:2px solid #1b2619;padding:0;cursor:pointer;display:block;position:relative}
+#cz .cz-sw button.sel{outline:3px solid #1b2619;outline-offset:1px}
+#cz .cz-sw label{background:conic-gradient(#e74c3c,#f1c40f,#2ecc71,#3498db,#9b59b6,#e74c3c);overflow:hidden}
+#cz .cz-sw label input{position:absolute;inset:-4px;width:40px;height:40px;opacity:0;cursor:pointer}
+#cz .cz-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+#cz .cz-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 16px;cursor:pointer}
+#cz .cz-btns button:hover{background:#2f4029}
+#cz #cz-cancel{background:transparent;color:#1b2619;border:2px solid #1b2619}
+`;
+document.head.appendChild(czStyle); document.body.appendChild(cz);
+const $cz = id => cz.querySelector("#cz-" + id);
+const czName = $cz("name"), czH = $cz("h"), czOk = $cz("ok"), czCancel = $cz("cancel"), pv = $cz("prev"), pvc = pv.getContext("2d");
+function czSwatches(id, list, key) {
+  const box = $cz(id); box.innerHTML = "";
+  list.forEach(c => { const b = document.createElement("button"); b.type = "button"; b.style.background = c; b.dataset.c = c; b.title = c;
+    b.onclick = () => { me[key] = c; czSync(); }; box.appendChild(b); });
+  const lb = document.createElement("label"); lb.title = "Outra cor"; const inp = document.createElement("input"); inp.type = "color";
+  inp.oninput = () => { me[key] = inp.value; czSync(); }; lb.appendChild(inp); box.appendChild(lb); box._inp = inp;
+}
+function czSync() {
+  [["shirt", "shirt"], ["pants", "pants"]].forEach(([id, key]) => { const box = $cz(id);
+    box.querySelectorAll("button").forEach(b => b.classList.toggle("sel", b.dataset.c.toLowerCase() === me[key].toLowerCase())); box._inp.value = me[key]; });
+  czH.value = Math.round(me.h * 100);
+}
+czSwatches("shirt", SHIRTS, "shirt"); czSwatches("pants", PANTS, "pants");
+czH.oninput = () => { me.h = czH.value / 100; };
+function openCustomizer(first) {
+  if (UI.open) return;
+  UI.open = true; UI.first = first; UI.snap = { name: myName, shirt: me.shirt, pants: me.pants, h: me.h };
+  for (const k in keys) keys[k] = false; PH.open = false;
+  czName.value = myName; czSync(); czOk.textContent = first ? "Entrar" : "Pronto"; czCancel.style.display = first ? "none" : "";
+  cz.classList.add("on"); setTimeout(() => czName.focus(), 30);
+}
+function closeCustomizer(save) {
+  if (!UI.open) return;
+  if (save) {
+    myName = czName.value.trim().slice(0, 14) || myName || "Pescador" + (100 + Math.random() * 900 | 0);
+    try { localStorage.setItem("look", JSON.stringify(lookPayload())); } catch (e) {}
+    if (socket && socket.connected) socket.emit(ready ? "look" : "join", lookPayload());   // 1ª vez: entra na sala; depois só atualiza a aparência
+    ready = true;
+  } else if (UI.snap) { myName = UI.snap.name; me.shirt = UI.snap.shirt; me.pants = UI.snap.pants; me.h = UI.snap.h; }
+  UI.open = false; cz.classList.remove("on"); cv.focus();
+}
+czOk.onclick = () => { SND.unlock(); closeCustomizer(true); };
+czCancel.onclick = () => closeCustomizer(false);
+cz.addEventListener("keydown", e => {
+  e.stopPropagation();
+  if (e.key === "Enter" && e.target === czName) { SND.unlock(); closeCustomizer(true); }
+  else if (e.key === "Escape" && !UI.first) closeCustomizer(false);
+});
+const PV = { k: 3, W: 64, H: 66, foot: 60, t: [1, 1, 1], goal: 1, last: 0 };    // prévia: boneco de frente; clicar gira (cabeça, tronco, pernas)
+pv.onclick = () => { PV.goal = 1 - PV.goal; };
+function drawPreview(now) {
+  const dt = Math.min(0.1, (now - (PV.last || now)) / 1000); PV.last = now;
+  const g = PV.goal, d = dt / TURN_PART, mv = (v, to) => v + Math.sign(to - v) * Math.min(Math.abs(to - v), d), t = PV.t;
+  t[0] = mv(t[0], g);
+  if (g ? t[0] > TURN_GATE : t[0] < 1 - TURN_GATE) t[1] = mv(t[1], g);
+  if (g ? t[1] > TURN_GATE : t[1] < 1 - TURN_GATE) t[2] = mv(t[2], g);
+  const avg = (t[0] + t[1] + t[2]) / 3, b = { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
+  if (avg > 0.001) { b.front = avg; b.turn = [t[0], t[1], t[2]]; }
+  const prev = ctx; ctx = pvc;
+  pvc.setTransform(PV.k, 0, 0, PV.k, 0, 0); pvc.imageSmoothingEnabled = false;
+  const sky = pvc.createLinearGradient(0, 0, 0, PV.foot); sky.addColorStop(0, "#3a3f6b"); sky.addColorStop(1, "#d98c72");
+  rect(sky, 0, 0, PV.W, PV.foot); rect("#7a4e32", 0, PV.foot, PV.W, PV.H - PV.foot); rect("#5a3622", 0, PV.foot, PV.W, 1);
+  for (let x = 1; x < PV.W - 1; x += 4) rect("rgba(255,255,255,.55)", x, PV.foot - MALTO_TOP, 2, 1);   // altura do Malto
+  pvc.save(); pvc.translate(0, PV.foot - PIER_Y);
+  drawFisher(PV.W / 2, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h) });
+  pvc.restore(); ctx = prev;
+}
+
 let last = performance.now(), slow = 0;
 (function loop(now) {
   const raw = (now - last) / 1000;
   update(Math.min(0.05, raw)); last = now;
   slow = raw > 0.04 ? slow + 1 : Math.max(0, slow - 1);          // abaixo de ~25 fps por um tempo: reduz a resolução
   if (slow > 60 && S > 1) { setScale(S > 1.5 ? 1.5 : 1); slow = 0; }
-  net(now); draw(now); requestAnimationFrame(loop);
+  net(now); draw(now); if (UI.open) drawPreview(now); requestAnimationFrame(loop);
 })(last);
-cv.focus();
+openCustomizer(true);

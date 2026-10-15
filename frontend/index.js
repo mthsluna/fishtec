@@ -37,17 +37,33 @@ const COLORS = ["#c0392b", "#2980b9", "#8e44ad", "#16a085", "#d35400", "#7f8c8d"
 const players = {};
 const STATES = ["walk", "cast", "wait", "bite", "reel"];
 const num = (v, min, max) => Math.max(min, Math.min(max, Number(v) || 0));
+// aparência do jogador: apelido, cor da camiseta, cor da calça e altura (0 = normal ... 1 = altura do Malto)
+const HEX = /^#[0-9a-f]{6}$/i;
+const lookOf = (d = {}, shirtDef = "#c0392b") => ({
+  name: String(d.name || "Pescador").trim().slice(0, 14) || "Pescador",
+  shirt: HEX.test(d.shirt) ? d.shirt : shirtDef,
+  pants: HEX.test(d.pants) ? d.pants : "#26384a",
+  h: num(d.h, 0, 1),
+});
 
 io.on("connection", (socket) => {
-  socket.on("join", ({ name } = {}) => {
+  socket.on("join", (d = {}) => {
+    const color = COLORS[Object.keys(players).length % COLORS.length];
     players[socket.id] = {
       id: socket.id,
-      name: String(name || "Pescador").slice(0, 14),
-      color: COLORS[Object.keys(players).length % COLORS.length],
+      color,
+      ...lookOf(d, color),
       x: 240, dir: 1, state: "walk", bx: 270, rs: false,
     };
     socket.emit("players", Object.values(players));
     socket.broadcast.emit("player:join", players[socket.id]);
+  });
+
+  socket.on("look", (d = {}) => {                           // mudou apelido/roupa/altura depois de entrar
+    const p = players[socket.id];
+    if (!p) return;
+    Object.assign(p, lookOf(d, p.shirt));
+    socket.broadcast.emit("player:look", { id: p.id, name: p.name, shirt: p.shirt, pants: p.pants, h: p.h });
   });
 
   socket.on("move", (d = {}) => {
