@@ -151,9 +151,11 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.restore();
   };
   leg(-sw * 0.75, "#1c2a38"); leg(sw * 0.75, "#26384a");                         // trás (escura) e frente
-  ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
-  rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
-  ctx.restore();
+  if (P.crank === undefined) {                                                     // (na hora de puxar o peixe, esse braço vai girar a manivela)
+    ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
+    rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
+    ctx.restore();
+  }
   ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril                                                         // tronco sobe e desce ao andar
   rect(shirt, -6, -24, 12, 14);
   rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
@@ -174,10 +176,41 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const cx = (hx + tx) / 2 + P.flex * 6.6 * Math.sin(P.rod), cy = (hy + ty) / 2 - P.flex * 6.6 * Math.cos(P.rod);
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke();
-  rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
+  if (P.crank === undefined) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
+  else {                                                                              // carretilha de verdade: corpo, manivela girando e a mão da frente puxando
+    const rdx = Math.cos(ra), rdy = Math.sin(ra);
+    const rcx = hx + rdx * 3 - rdy * 3, rcy = hy + rdy * 3 + rdx * 3;                  // carretilha pendurada embaixo da vara, logo à frente da mão
+    rect("#7d7d7d", rcx - 2.8, rcy - 2.8, 5.6, 5.6); rect("#c9c9c9", rcx - 2.1, rcy - 2.1, 4.2, 4.2);
+    rect("#8a8a8a", rcx - 2.1, rcy + 0.6, 4.2, 1.5); rect("#4d4d4d", rcx - 0.7, rcy - 0.7, 1.4, 1.4);
+    const kx = rcx + 2.6 * Math.cos(P.crank), ky = rcy + 2.6 * Math.sin(P.crank);       // ponta da manivela
+    ctx.strokeStyle = "#dcdcdc"; ctx.lineWidth = 1; ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.moveTo(rcx, rcy); ctx.lineTo(kx, ky); ctx.stroke();
+    const ax = 4, ay = -20.5, vx = kx - ax, vy = ky - ay, L = Math.max(6, Math.hypot(vx, vy) - 1.5);
+    ctx.save(); ctx.translate(ax, ay); ctx.rotate(Math.atan2(vy, vx));                // braço livre estica até a manivela
+    rect(shirt, 0, -1.7, L, 3.4); rect("rgba(0,0,0,.2)", 0, 1.25, L, 0.8); rect("#d9ab6f", L - 0.8, -1.7, 3, 3.4);
+    ctx.restore();
+    rect("#e8c34a", kx - 1, ky - 1, 2, 2);                                              // cabo da manivela
+  }
   ctx.restore();
   const dy = ty + 11, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
   return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - 11 + bob };
+}
+// zoom: reaproveita o quadro pronto (assim o reflexo continua certo) e redesenha só um pedaço dele, ampliado
+const zb = document.createElement("canvas"); let zctx = null;
+function zoomView(z, fx, fy) {
+  if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
+  zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
+  const sw = W / z, sh = H / z, sx = Math.max(0, Math.min(W - sw, fx - sw / 2)), sy = Math.max(0, Math.min(H - sh, fy - sh / 2));
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(zb, sx * S, sy * S, sw * S, sh * S, 0, 0, W, H);
+}
+// ---------- Puxando o peixe: inclina para trás, vara envergada pela força do peixe e manivela girando ----------
+let reelAng = 0, zk = 0;                                           // ângulo da manivela e quanto o zoom já "abriu" (0 a 1)
+function reelPose(now) {
+  const inside = fish && fp.y > bar.y && fp.y < bar.y + bar.h;     // peixe dentro da barra = vara mais folgada; fora = peixe puxando forte
+  const pull = (inside ? 0.55 : 0.95) + 0.2 * Math.sin(now / 95);
+  const tipA = -1.0 + 0.2 * (pull - 0.5) + 0.03 * Math.sin(now / 130);   // ângulo da ponta: abaixa quando o peixe puxa forte
+  return { rod: tipA + pull * 0.25, arm: -0.25, lean: -0.13 - 0.03 * Math.sin(now / 110), off: 0, flex: pull, crank: reelAng };
 }
 function drawLine(tx, ty, bx, now, st) {
   const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), by = BOB_Y + b;
@@ -268,7 +301,7 @@ function press() {
 
 function startReel() {
   if (!fish) fish = fishList[0];
-  state = "reel"; prog = 25; reelT = 0; SND.hook();
+  state = "reel"; prog = 25; reelT = 0; reelAng = 0; SND.hook();
   bar.y = TRACK.h - bar.h; bar.v = 0;
   fp.y = TRACK.h / 2; fp.target = fp.y; fp.timer = 0;
 }
@@ -282,6 +315,7 @@ function finish(win) {
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
+  zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
   if (state === "walk") {
     const m = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
@@ -298,6 +332,7 @@ function update(dt) {
   } else if (state === "bite") {
     bite -= dt; if (bite <= 0) { state = "walk"; SND.lose(); say("Fisgou tarde demais"); }
   } else if (state === "reel") {
+    reelAng += (keys.Space ? 16 : -3.5) * dt;                       // manivela gira rápido ao segurar ESPAÇO e volta devagar quando o peixe puxa a linha
     SND.reel(!!keys.Space);                                          // carretilha em loop enquanto segura ESPAÇO
     const d = fish.difficulty;
     bar.v += (keys.Space ? -900 : 700) * dt * 0.012 * 60 / 60;
@@ -502,7 +537,7 @@ function draw(now) {
   ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(castT) : null);
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(castT) : state === "reel" ? reelPose(now) : null);
   ctx.restore();
 
   // 2) água com reflexo
@@ -521,6 +556,8 @@ function draw(now) {
   if (state === "cast") drawCast(tip);
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
   ctx.restore();
+
+  if (zk > 0.003) zoomView(1 + 0.9 * zk, wx + px + dir * 16, PIER_Y - 6);   // aproxima no pescador enquanto puxa o peixe (a interface abaixo não é ampliada)
 
   // minigame estilo Stardew
   if (state === "reel") {
