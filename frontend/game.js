@@ -241,7 +241,7 @@ function update(dt) {
   } else if (state === "bite") {
     bite -= dt; if (bite <= 0) { state = "walk"; SND.lose(); say("Fisgou tarde demais"); }
   } else if (state === "reel") {
-    if (keys.Space && (reelT -= dt) <= 0) { SND.reel(); reelT = 0.55; }   // carretilha enquanto segura ESPAÇO
+    SND.reel(!!keys.Space);                                          // carretilha em loop enquanto segura ESPAÇO
     const d = fish.difficulty;
     bar.v += (keys.Space ? -900 : 700) * dt * 0.012 * 60 / 60;
     bar.v = Math.max(-6, Math.min(6, bar.v));

@@ -8,10 +8,11 @@ const SND = (() => {
     "step_wood_1", "step_wood_2", "step_wood_3", "step_wood_4",
     "pier_creak_1", "pier_creak_2",
     "cast_whoosh", "bobber_splash_1", "bobber_splash_2", "bobber_splash_3",
-    "bite_alert", "hook_set", "reel_1", "reel_2", "reel_ratchet",
+    "bite_alert", "hook_set", "reel_loop", "reel_ratchet",
     "catch_splash", "catch_chime", "fish_escaped",
   ];
-  const AMBIENCE = [["ambient_sea", 0.55], ["ambient_wind", 0.35], ["ambient_water_lap", 0.3]];
+  const AMBIENCE = [["ambient_sea", 0.3], ["ambient_wind", 0.08], ["ambient_water_lap", 0.18]];   // volumes de cada loop (0 a 1)
+  const CREAK_VOL = 0.22, CREAK_EVERY = [0.75, 1.25];      // ranger constante do cais: volume e intervalo (s)
 
   let ac = null, master = null, sfx = null, amb = null;
   const buf = {};
@@ -40,6 +41,30 @@ const SND = (() => {
       s.connect(g); g.connect(amb);
       s.start(0, Math.random() * buf[n].duration);       // cada visita começa num ponto diferente
     });
+    creak();
+  }
+
+  // madeira do cais rangendo o tempo todo: "nhec... nhec... nhec"
+  let lastCreak = 0;
+  function creak() {
+    if (buf.pier_creak_1 || buf.pier_creak_2) {
+      lastCreak = lastCreak === 1 ? 2 : 1;               // alterna 1, 2, 1, 2...
+      const n = buf["pier_creak_" + lastCreak] ? lastCreak : 3 - lastCreak;
+      play("pier_creak_" + n, { vol: CREAK_VOL, jitter: 0.12 });
+    }
+    setTimeout(creak, rnd(CREAK_EVERY[0], CREAK_EVERY[1]) * 1000);
+  }
+
+  // carretilha em loop: liga/desliga com fade enquanto segura ESPAÇO
+  let reelSrc = null, reelGain = null;
+  function reelLoop(on) {
+    if (!ac || !buf.reel_loop) return;
+    if (!reelSrc) {
+      reelSrc = ac.createBufferSource(); reelGain = ac.createGain();
+      reelSrc.buffer = buf.reel_loop; reelSrc.loop = true; reelGain.gain.value = 0;
+      reelSrc.connect(reelGain); reelGain.connect(sfx); reelSrc.start();
+    }
+    reelGain.gain.setTargetAtTime(on ? 0.5 : 0, ac.currentTime, 0.05);
   }
 
   function unlock() {
@@ -47,9 +72,9 @@ const SND = (() => {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       ac = new AC();
-      master = ac.createGain(); master.gain.value = muted ? 0 : 0.9; master.connect(ac.destination);
+      master = ac.createGain(); master.gain.value = muted ? 0 : 0.7; master.connect(ac.destination);
       sfx = ac.createGain(); sfx.gain.value = 1; sfx.connect(master);
-      amb = ac.createGain(); amb.gain.value = 0.8; amb.connect(master);
+      amb = ac.createGain(); amb.gain.value = 0.7; amb.connect(master);
     }
     if (ac.state === "suspended") ac.resume();
     load();
@@ -73,25 +98,24 @@ const SND = (() => {
     toggleMute() {
       muted = !muted;
       try { localStorage.setItem("muted", muted ? "1" : "0"); } catch (e) {}
-      if (master) master.gain.value = muted ? 0 : 0.9;
+      if (master) master.gain.value = muted ? 0 : 0.7;
       return muted;
     },
     get muted() { return muted; },
     step() {                                              // nunca repete o mesmo passo duas vezes seguidas
       let i; do { i = 1 + (Math.random() * 4 | 0); } while (i === lastStep); lastStep = i;
-      play("step_wood_" + i, { vol: 0.7, jitter: 0.08 });
-      if (Math.random() < 0.07) play("pier_creak_" + (1 + (Math.random() * 2 | 0)), { vol: 0.35, delay: 0.05 });
+      play("step_wood_" + i, { vol: 0.45, jitter: 0.08 });
     },
     cast() {
-      play("cast_whoosh", { vol: 0.9 });
-      play("bobber_splash_" + (1 + (Math.random() * 3 | 0)), { vol: 0.8, delay: 0.5 });   // a isca cai na água
+      play("cast_whoosh", { vol: 0.6 });
+      play("bobber_splash_" + (1 + (Math.random() * 3 | 0)), { vol: 0.5, delay: 0.5 });   // a isca cai na água
     },
-    retract() { play("reel_ratchet", { vol: 0.6 }); },
-    bite() { play("bite_alert", { vol: 0.9 }); },
-    hook() { play("hook_set", { vol: 0.9 }); play("reel_ratchet", { vol: 0.5, delay: 0.08 }); },
-    reel() { play(pick(["reel_1", "reel_2"]), { vol: 0.55, jitter: 0.1 }); },
-    win() { play("catch_splash", { vol: 0.95 }); play("catch_chime", { vol: 0.55, delay: 0.35, jitter: 0 }); },
-    lose() { play("fish_escaped", { vol: 0.8 }); },
+    retract() { play("reel_ratchet", { vol: 0.4 }); },
+    bite() { play("bite_alert", { vol: 0.6 }); },
+    hook() { play("hook_set", { vol: 0.6 }); play("reel_ratchet", { vol: 0.35, delay: 0.08 }); },
+    reel: reelLoop,                                       // reel(true) liga o loop, reel(false) desliga
+    win() { reelLoop(false); play("catch_splash", { vol: 0.65 }); play("catch_chime", { vol: 0.35, delay: 0.35, jitter: 0 }); },
+    lose() { play("fish_escaped", { vol: 0.5 }); reelLoop(false); },
   };
   return api;
 })();
