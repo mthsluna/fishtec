@@ -136,6 +136,9 @@ let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
 let cs = { t: 0, rel: null, hang: null }; const fxs = [];            // arremesso em andamento e respingos
 let stepDist = 0, reelT = 0;                       // controle dos sons de passo e de carretilha
+const WALK = 90, RUN = 165;                       // velocidades (px/s): andar e correr (SHIFT)
+let spd = 0, runK = 0, brake = 0, dustT = 0, wasBraking = false;   // velocidade atual, quanto está correndo (0-1), quanto está freando (0-1)
+const dust = [];                                  // fumacinha da freada
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
 
@@ -158,8 +161,10 @@ function net(now) {
   lastNet = now; lastSt = state;
   socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
 }
-function softShadow(x, y, rx, ry, a) {                             // sombra macia: centro mais escuro e bordas que somem
-  ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+function softShadow(x, y, rx, ry, a, maxY) {                       // sombra macia: centro mais escuro e bordas que somem (maxY: não passa da borda do deck)
+  ctx.save();
+  if (maxY !== undefined) { ctx.beginPath(); ctx.rect(x - rx - 2, y - ry - 2, rx * 2 + 4, maxY - (y - ry - 2)); ctx.clip(); }
+  ctx.translate(x, y); ctx.scale(1, ry / rx);
   const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
   g.addColorStop(0, `rgba(20,8,36,${a})`); g.addColorStop(0.55, `rgba(20,8,36,${a * 0.6})`); g.addColorStop(1, "rgba(20,8,36,0)");
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
@@ -167,9 +172,12 @@ function softShadow(x, y, rx, ry, a) {                             // sombra mac
 const REST = -0.846, POSE0 = { rod: REST, arm: 0, lean: 0, flex: 0 };   // pose parada da vara
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
-  const ph = x * dir / 11, sw = Math.sin(ph) * amp, bob = -Math.abs(Math.cos(ph)) * 1.4 * amp;
+  const ph = x * dir / (11 + 3 * (P.run || 0));
+  const sw = P.brake ? 0.85 * P.brake : Math.sin(ph) * amp;                          // freando: pernas abertas e firmes
+  const bob = P.brake ? 1.1 * P.brake : -Math.abs(Math.cos(ph)) * 1.4 * amp;         // freando: agacha um pouco
+  const A = P.run ? 1.05 + sw * 0.85 : P.arm;                                        // correndo: o braço da frente balança junto com o corpo
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
-  softShadow(-7 * dir, 1.4, 17, 2.6, 0.34); softShadow(0, 1.1, 8, 1.7, 0.5);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
+  softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
   const leg = (a, col) => {                                                      // perna gira a partir do quadril
     ctx.save(); ctx.translate(0, -11 + bob); ctx.rotate(a);
     rect(col, -2.3, 0, 4.6, 9); rect("#15110e", -3, 8.5, 6.6, 2.5);
@@ -177,15 +185,20 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   };
   leg(-sw * 0.75, "#1c2a38"); leg(sw * 0.75, "#26384a");                         // trás (escura) e frente
   if (P.crank === undefined) {                                                     // (na hora de puxar o peixe, esse braço vai girar a manivela)
-    ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
+    ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * (0.6 + 0.7 * (P.run || 0)) + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
     rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
     ctx.restore();
   }
-  ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril                                                         // tronco sobe e desce ao andar
+  ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril
+  if (P.run !== undefined) {                                                         // correndo/freando: vara guardada nas costas, na diagonal
+    ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-9, -5); ctx.lineTo(-3, -43); ctx.stroke();
+    rect("#b8b8b8", -7.6, -17, 2.4, 2.4);                                            // carretilha
+  }
   rect(shirt, -6, -24, 12, 14);
   rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
   rect("#5a3b22", -6, -12, 12, 2);
-  ctx.save(); ctx.translate(3, -20.25); ctx.rotate(P.arm);                                 // antebraço gira no ombro
+  ctx.save(); ctx.translate(3, -20.25); ctx.rotate(A);                                 // antebraço gira no ombro
   rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5);
   ctx.restore();
   
@@ -194,14 +207,14 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   rect("#2a1a10", 2.5, -30, 1.6, 1.8); rect("#c98d5a", 4, -27.5, 2, 1);
   rect(hat, -6, -35.5, 14, 3); rect(hat, -3.5, -40, 9, 5);
   rect("rgba(0,0,0,.25)", -6, -34, 14, 1.2); rect("rgba(255,255,255,.35)", -3.5, -36.5, 9, 1.2);
-  const ca = Math.cos(P.arm), sa = Math.sin(P.arm);
+  const ca = Math.cos(A), sa = Math.sin(A);
   const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
   const ra = P.rod - P.flex * 0.25, RL = 33.1;                       // a ponta da vara atrasa quando ela chicoteia
   const tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const cx = (hx + tx) / 2 + P.flex * 6.6 * Math.sin(P.rod), cy = (hy + ty) / 2 - P.flex * 6.6 * Math.cos(P.rod);
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
-  if (P.cheer === undefined) { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke(); }   // (comemorando: sem vara)
-  if (P.cheer !== undefined) { /* braços pro alto, mãos vazias */ }
+  if (P.cheer === undefined && P.run === undefined) { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke(); }   // (comemorando: sem vara)
+  if (P.cheer !== undefined || P.run !== undefined) { /* braços pro alto / vara nas costas: mãos vazias */ }
   else if (P.crank === undefined) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
   else {                                                                              // carretilha de verdade: corpo, manivela girando e a mão da frente puxando
     const rdx = Math.cos(ra), rdy = Math.sin(ra);
@@ -277,15 +290,15 @@ function drawCrate(x, y, w, h, v = 0) {                              // x,y = ca
 function drawMalto(now) {
   const t = now / 1000, by = Math.sin(t * 1.6) * 0.3;                 // respiração leve
   // caixas ao fundo
-  const cb = PIER_Y + 1.5;                                                       // base das caixas: apoiada na tábua do deck
-  softShadow(MX - 40, cb - 0.3, 30, 3.2, 0.42);                                  // sombra das caixas caindo no deck (sol à direita)
-  softShadow(MX - 6, cb, 26, 2, 0.5);                                            // sombra de contato embaixo delas
+  const cb = PIER_Y - 0.5, dk = PIER_Y + 3.2;                                    // base das caixas: um pouco atrás dos pés do Malto, em cima das tábuas
+  softShadow(MX - 40, PIER_Y + 1.2, 30, 3, 0.42, dk);                            // sombra das caixas caindo SÓ nas tábuas do deck (sol à direita)
+  softShadow(MX - 6, PIER_Y + 0.9, 26, 2.2, 0.55, dk);                           // sombra de contato logo embaixo delas
   drawCrate(MX - 30, cb - 15, 16, 15, 0); drawCrate(MX - 14, cb - 15, 16, 15, 1); drawCrate(MX + 2, cb - 15, 16, 15, 2);
   drawCrate(MX - 22, cb - 30, 16, 15, 2); drawCrate(MX + 4, cb - 26, 12, 11, 0);
   rect("rgba(20,8,36,.22)", MX - 14, cb - 30, 2, 15);                            // sombra da caixa de cima na lateral da de baixo
 
   ctx.save(); ctx.translate(MX, PIER_Y);
-  softShadow(-7, 1.4, 17, 2.6, 0.34); softShadow(0, 1.1, 8, 1.7, 0.5);              // sombra longa para a esquerda + sombra de contato nos pés
+  softShadow(-7, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);              // sombra longa para a esquerda + sombra de contato nos pés
 
   // pernas e botas
   rect("#1d2531", -4.2, -12, 3.8, 10.5); rect("#232c3a", 0.4, -12, 3.8, 10.5);
@@ -484,6 +497,7 @@ addEventListener("keydown", e => {
   if (e.code === "Space") { e.preventDefault(); if (!e.repeat) press(); }
 });
 addEventListener("keyup", e => keys[e.code] = false);
+addEventListener("blur", () => { for (const k in keys) keys[k] = false; });   // perdeu o foco: solta todas as teclas (evita ficar correndo sozinho)
 cv.addEventListener("pointerdown", e => {
   if (state === "walk" && e.clientX) { /* toque: metade esquerda/direita move, centro lança */ }
   SND.unlock();
@@ -546,19 +560,48 @@ function drawCatch(now) {
 }
 
 
+function spawnDust(n, sgn) {                                                    // nuvenzinhas junto aos pés
+  for (let i = 0; i < n; i++) dust.push({ x: px + (Math.random() - 0.5) * 6, y: PIER_Y + 0.5 + Math.random() * 1.8, vx: sgn * (-6 + Math.random() * 22), vy: -(6 + Math.random() * 16), t: 0, life: 0.4 + Math.random() * 0.3, r: 1.4 + Math.random() * 1.6 });
+}
+function drawDust() {
+  dust.forEach(d => { const k = d.t / d.life; ctx.fillStyle = `rgba(238,224,214,${0.6 * (1 - k)})`; ctx.beginPath(); ctx.arc(d.x, d.y, d.r * (1 + k * 1.6), 0, 7); ctx.fill(); });
+}
+function movePose() {                                                           // pose de corrida (inclinado, vara nas costas) ou de freada (corpo pra trás, braços abertos)
+  if (state !== "walk") return null;
+  if (brake > 0.08) return { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
+  if (runK > 0.05) return { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
+  return null;
+}
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
   maltoUpdate(dt);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
+  if (state !== "walk") { spd = 0; runK = 0; brake = 0; wasBraking = false; }
+  for (let i = dust.length - 1; i >= 0; i--) {                                  // fumacinha da freada sobe e some
+    const d = dust[i]; d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy *= 0.95; d.vx *= 0.97;
+    if (d.t > d.life) dust.splice(i, 1);
+  }
   if (state === "walk") {
     const m = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
-    const ox = px;
-    if (m) { dir = m; px = Math.max(16, Math.min(WORLD - 16, px + m * 90 * dt)); }
-    moving = Math.abs(px - ox) > 0.001;
+    const ox = px, run = keys.ShiftLeft || keys.ShiftRight;
+    const aim = m ? (run ? RUN : WALK) * m : 0;                   // velocidade desejada
+    if (Math.abs(spd) <= WALK + 1 && Math.abs(aim) <= WALK) spd = aim;                       // andar normal: resposta imediata
+    else { const r = Math.abs(aim) > Math.abs(spd) ? 700 : 430; spd += Math.max(-r * dt, Math.min(r * dt, aim - spd)); }   // correr: acelera e freia com inércia
+    if (m) dir = m;
+    px = Math.max(16, Math.min(WORLD - 16, px + spd * dt));
+    if ((px <= 16 && spd < 0) || (px >= WORLD - 16 && spd > 0)) spd = 0;
+    moving = Math.abs(spd) > 1;
     stepDist += Math.abs(px - ox);
-    if (stepDist >= 22) { stepDist -= 22; SND.step(); }          // um passo a cada ~22px andados
+    const stride = Math.abs(spd) > WALK + 20 ? 28 : 22;           // passos mais espaçados ao correr
+    if (stepDist >= stride) { stepDist -= stride; SND.step(); }
+    const braking = Math.abs(spd) > WALK + 20 && Math.abs(aim) < Math.abs(spd) - 20;   // vinha correndo e soltou: está freando
+    if (braking && !wasBraking) { SND.play("pier_creak_1", { vol: 0.3, rate: 1.25 }); spawnDust(6, Math.sign(spd)); dustT = 0; }
+    wasBraking = braking;
+    if (braking && (dustT -= dt) <= 0) { dustT = 0.045; spawnDust(2, Math.sign(spd)); }
+    brake += ((braking ? 1 : 0) - brake) * Math.min(1, dt * 14);
+    runK += (Math.max(0, Math.min(1, (Math.abs(spd) - WALK) / (RUN - WALK))) - runK) * Math.min(1, dt * 10);
   } else if (state === "show") {
     showT += dt; if (showT > 3.2) state = "walk";
   } else if (state === "cast") {
@@ -999,7 +1042,7 @@ function draw(now) {
   ctx.save(); ctx.translate(wx, 0);
   drawMalto(now);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp, state === "cast" ? castPose(cs.t) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : null);
+  const tip = drawFisher(px, dir, "#c0392b", "#d98e04", walkAmp * (1 + 0.45 * runK), state === "cast" ? castPose(cs.t) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose());
   ctx.restore();
 
   // 2) água com reflexo
@@ -1018,6 +1061,7 @@ function draw(now) {
   drawMaltoUI(now);
   drawFx(now);
   drawCatch(now);
+  drawDust();
   if (state === "cast") drawCast(tip, cs, bobber.x);
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
   ctx.restore();
@@ -1037,7 +1081,7 @@ function draw(now) {
 
   // HUD
   text("Pontos: " + score, 10, 16);
-  const hint = { walk: "← → mover   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : ""), cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
+  const hint = { walk: "← → mover   SHIFT correr   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : ""), cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
   text(hint, 10, H - 10, "#fff");
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   present();
