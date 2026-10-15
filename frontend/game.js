@@ -223,23 +223,28 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const hold = P.phone || 0, A0n = P.run !== undefined && !P.brake ? (1.4 - 0.35 * (P.run || 0)) + sw * (0.55 + 0.3 * (P.run || 0)) : P.arm;
   const A0 = hold ? lerp(A0n, PHONE_ARM, hold) : A0n;             // para onde o braço volta ao soltar a vara (correndo: balança com o corpo)
   const A = s <= 0 ? P.arm : s < SL0 ? spl(K_ARM, s) + P.arm * Math.max(0, 1 - s / 0.3) : s < 0.70 ? RA : lerp(RA, A0 - 2 * Math.PI, spl(K_REL, (s - 0.70) / 0.30));   // o braço cai por trás das costas (não atravessa o rosto)   // sobe, segura no alto e só então solta (com sobra)
+  const fk = P.front || 0;                                                         // virando de frente: 0 = de lado ... 1 = de frente
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
+  if (fk > 0 && fk < 1) ctx.scale(Math.max(0.1, fk < 0.5 ? 1 - 2 * fk : 2 * fk - 1), 1);   // gira: encolhe de lado até sumir e abre de frente
   softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
-  if (P.cheer !== undefined) {                                                       // comemorando: de frente para o jogador, os dois braços pro alto
-    const wv = P.wv || 0;
-    ctx.translate(0, -(P.hop || 0));
+  if (P.cheer !== undefined || fk >= 0.5) {                                          // comemorando (braços pro alto) ou parado (braços caídos): de frente para o jogador
+    const wv = P.wv || 0, idle = P.cheer === undefined;
+    ctx.translate(0, idle ? Math.sin(performance.now() / 600) * 0.3 : -(P.hop || 0));    // parado: respira de leve
+    if (idle) { ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-4, -14); ctx.lineTo(4.5, -44); ctx.stroke(); }   // vara nas costas, aparecendo atrás dele
     const lg = (lx, col) => { rect(col, lx, -11, 4, 9); rect("#15110e", lx - 0.5, -2.5, 5, 2.5); };
     lg(-4.6, "#1c2a38"); lg(0.6, "#26384a");
     rect(shirt, -6, -24, 12, 14); rect("rgba(0,0,0,.2)", -6, -24, 2.5, 14); rect("rgba(255,255,255,.18)", 3.5, -24, 2.5, 14);
     rect("#5a3b22", -6, -12, 12, 2); rect("#e8c34a", -1, -12, 2, 2);
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
       rect(shirt, 0, -1.75, 8, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, 8, 0.8); rect("#f1c27d", 7.5, -1.75, 3, 3.5); ctx.restore(); };
-    arm(-5.5, -Math.PI + 1.0 - wv * 0.12); arm(5.5, -1.0 + wv * 0.12);
+    if (idle) { arm(-5.5, Math.PI / 2 + 0.12); arm(5.5, Math.PI / 2 - 0.12); }
+    else { arm(-5.5, -Math.PI + 1.0 - wv * 0.12); arm(5.5, -1.0 + wv * 0.12); }
     rect("#e0ac69", -2, -26, 4, 2.5);
     rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
     rect("#2a1a10", -2.6, -30.2, 1.6, 1.8); rect("#2a1a10", 1, -30.2, 1.6, 1.8);       // olhos
     rect("rgba(230,120,100,.45)", -3.8, -28.6, 1.4, 1.2); rect("rgba(230,120,100,.45)", 2.4, -28.6, 1.4, 1.2);
-    rect("#7a2a1a", -1.6, -27.6, 3.2, 1.5); rect("#fff", -1.2, -27.6, 2.4, 0.7);       // sorriso
+    if (idle) rect("#a0583a", -1.4, -27.4, 2.8, 0.8);                                  // parado: boca neutra
+    else { rect("#7a2a1a", -1.6, -27.6, 3.2, 1.5); rect("#fff", -1.2, -27.6, 2.4, 0.7); }   // comemorando: sorriso
     rect(hat, -7.5, -35.5, 15, 3); rect(hat, -4.5, -40, 9, 5);
     rect("rgba(0,0,0,.25)", -7.5, -34, 15, 1.2); rect("rgba(255,255,255,.35)", -4.5, -36.5, 9, 1.2);
     ctx.restore();
@@ -595,12 +600,14 @@ function drawFx(now) {                                                   // ané
 // E interage com o menu. Ao lançar a vara, ou ao sair do modo andar, ele desce sozinho.
 const PHONE_SRC = "assets/imgs/telefish.png";
 const NOKIA_FONT = '8px "Nokia Cellphone FC", monospace';              // a fonte vem de assets/fonts (ver @font-face no index.html)
-const PH_H = 336, PH_VIS = 0.64, PH_MARGIN = 6;                          // altura do celular (px lógicos), quanto dele aparece e distância da borda direita
+const PH_REF = 336, PH_H = 252, PH_VIS = 0.64, PH_MARGIN = 6, PH_SHIFT = 0.10;                          // altura do celular (px lógicos), quanto dele aparece e distância da borda direita
 const PH_SCR = { x: 0.2845, y: 0.2436, w: 0.4237, h: 0.1763, r: 0.0228 };   // posição do vidro da tela dentro do PNG (medida na imagem)
 const LCD_INK = "#1b2619", LCD_BG = "#97a888";                           // "pixel" escuro e fundo da tela acesa
 const phoneImg = Object.assign(new Image(), { src: PHONE_SRC });
 if (document.fonts) document.fonts.load(NOKIA_FONT).catch(() => {});
 const PH = { open: false, pos: 0, vel: 0, lit: 0, delay: 0, blink: 0, hold: 0 };   // hold: 0 a 1, quanto o pescador já ergueu o celular e baixou a cabeça
+let idleT = 0, frontK = 0;                                              // idleT: segundos parado; frontK: 0 = de lado ... 1 = de frente
+const IDLE_FRONT = 2, TURN_T = 0.28;                                     // parado por 2s: o pescador vira de frente (a virada leva ~0,28s)
 const PHONE_ARM = -0.12;                                                // ângulo do braço: mão baixa, na altura do peito
 const PHONE_LIGHT = 0.15;                                               // força da luz do celular (0 a 1)                                                // ângulo do braço segurando o celular na frente do rosto
 function openPhone() {
@@ -612,6 +619,11 @@ function togglePhone() { PH.open ? closePhone() : openPhone(); }
 function phoneSelect() {                                                // E: seleciona a opção (ainda sem função, só o visual)
   if (!PH.open || PH.lit < 0.9) return;
   PH.blink = 0.22; SND.play("step_wood_1", { vol: 0.12, rate: 2.2, jitter: 0.1 });
+}
+function updateIdle(dt) {
+  const still = state === "walk" && !PH.open && !wantDraw && Math.abs(spd) < 1 && !(keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD);
+  idleT = still ? idleT + dt : 0;
+  frontK = state === "walk" ? clamp01(frontK + (idleT >= IDLE_FRONT ? 1 : -1) * dt / TURN_T) : 0;   // qualquer movimento/ação faz ele virar de volta
 }
 function updatePhone(dt) {
   if (PH.open && state !== "walk") closePhone();
@@ -663,7 +675,7 @@ function nokiaScreen(sw, sh, inv) {                                      // layo
 function drawPhone() {
   if (PH.pos <= 0.003 || !phoneImg.complete || !phoneImg.naturalWidth) return;
   const ph = PH_H, pw = ph * phoneImg.naturalWidth / phoneImg.naturalHeight;
-  const x = Math.round(W - pw - PH_MARGIN), y = Math.round(H - ph * PH_VIS * Math.min(PH.pos, 1.08));
+  const x = Math.round(W - pw - PH_MARGIN + pw * PH_SHIFT), y = Math.round(H - ph * PH_VIS * Math.min(PH.pos, 1.08));
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 12 * S;
   ctx.drawImage(phoneImg, x, y, pw, ph);
@@ -675,8 +687,9 @@ function drawPhone() {
     ctx.globalAlpha = PH.lit; ctx.fillStyle = g; ctx.fillRect(sx, sy, sw, sh);              // a tela fica mais clara (sem sombra nas bordas)
     const ca = Math.floor(clamp01((PH.lit - 0.35) / 0.5) * 3) / 3;                          // as opções aparecem em 3 "quadros", como num LCD
     if (ca > 0) {
-      ctx.globalAlpha = ca; ctx.translate(sx, sy);
-      nokiaScreen(sw, sh, !(PH.blink > 0 && ((PH.blink * 20) | 0) % 2 === 0));
+      const k = ph / PH_REF;                                                              // o layout da tela é desenhado em 84 px e escalado junto com o celular
+      ctx.globalAlpha = ca; ctx.translate(sx, sy); ctx.scale(k, k);
+      nokiaScreen(sw / k, sh / k, !(PH.blink > 0 && ((PH.blink * 20) | 0) % 2 === 0));
     }
   }
   ctx.restore();
@@ -773,12 +786,13 @@ function movePose() {                                                           
   if (brake > 0.08) base = { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
   else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
   const b = base || { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
+  if (frontK > 0.001) b.front = frontK;
   if (PH.hold > 0.001) { b.phone = PH.hold; b.lean = (b.lean || 0) + 0.05 * PH.hold; }   // celular na mão: braço erguido, cabeça baixa, tronco levemente inclinado
   return rodPose(rodL, b);   // (sempre com a animação da vara: nas costas, guardando ou sacando)
 }
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
-  updatePhone(dt);
+  updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
