@@ -24,6 +24,44 @@ let prog = 0;
 const TRACK = { x: 420, y: 50, h: 170 };
 const keys = {};
 
+// ---------- Multiplayer ----------
+const others = {};
+const myName = (prompt("Escolha seu apelido:") || "").trim().slice(0, 14) || "Pescador" + (100 + Math.random() * 900 | 0);
+const socket = typeof io !== "undefined" ? io(API, { transports: ["websocket"] }) : null;
+if (socket) {
+  const add = p => others[p.id] = { ...p, tx: p.x };
+  socket.on("connect", () => socket.emit("join", { name: myName }));
+  socket.on("players", list => { Object.keys(others).forEach(k => delete others[k]); list.forEach(p => p.id !== socket.id && add(p)); });
+  socket.on("player:join", add);
+  socket.on("player:move", ({ x, ...rest }) => { const o = others[rest.id]; if (o) { Object.assign(o, rest); o.tx = x; } });
+  socket.on("player:leave", id => delete others[id]);
+}
+let lastNet = 0;
+function net(now) {
+  if (!socket || !socket.connected || now - lastNet < 66) return;
+  lastNet = now;
+  socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
+}
+function drawOther(p, now) {
+  p.x += (p.tx - p.x) * 0.25;
+  const bx = p.x - 6, by = PIER_Y - 30;
+  rect("#2d6a4f", bx - 1, by - 4, 14, 4);
+  rect("#f1c27d", bx + 2, by, 8, 8);
+  rect(p.color, bx, by + 8, 12, 12);
+  rect("#2c3e50", bx + 1, by + 20, 4, 10); rect("#2c3e50", bx + 7, by + 20, 4, 10);
+  const tipX = p.x + p.dir * 30, tipY = PIER_Y - 46;
+  ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(p.x + p.dir * 4, by + 12); ctx.lineTo(tipX, tipY); ctx.stroke();
+  if (p.state !== "walk") {
+    const b = Math.sin(now / 200) * (p.state === "bite" ? 3 : 1), yy = WATER_Y + 6 + b;
+    ctx.strokeStyle = "#eee"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(p.bx, yy); ctx.stroke();
+    rect("#e63946", p.bx - 2, yy - 3, 5, 3); rect("#fff", p.bx - 2, yy, 5, 3);
+    if (p.state === "bite" || p.state === "reel") text("!", p.bx, yy - 22, "#ffd166", "center");
+  }
+  text(p.name, p.x, by - 10, "#cfe8ff", "center");
+}
+
 addEventListener("keydown", e => {
   keys[e.code] = true;
   if (e.code === "Space") { e.preventDefault(); if (!e.repeat) press(); }
@@ -103,6 +141,8 @@ function draw(now) {
   rect("#8a5a35", 0, PIER_Y, W, 3);
   for (let i = 0; i < W; i += 48) rect("#4a2d19", i, PIER_Y + 8, 6, 20);
 
+  Object.values(others).forEach(o => drawOther(o, now));
+  text(myName, px, PIER_Y - 40, "#ffd166", "center");
   // jogador
   const bx = px - 6, by = PIER_Y - 30;
   rect("#d98e04", bx - 1, by - 4, 14, 4);       // chapéu
@@ -144,6 +184,6 @@ function draw(now) {
 let last = performance.now();
 (function loop(now) {
   update(Math.min(0.05, (now - last) / 1000)); last = now;
-  draw(now); requestAnimationFrame(loop);
+  net(now); draw(now); requestAnimationFrame(loop);
 })(last);
 cv.focus();
