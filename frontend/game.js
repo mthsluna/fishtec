@@ -140,59 +140,63 @@ function net(now) {
   socket.volatile.emit("move", { x: px, dir, state: state === "cast" ? "wait" : state, bx: bobber.x });   // o servidor só conhece walk/wait/bite/reel
 }
 const REST = -0.846, POSE0 = { rod: REST, arm: 0, lean: 0, flex: 0 };   // pose parada da vara
-// formas arredondadas (o personagem é feito de curvas, não de retângulos)
-function rrPath(x, y, w, h, r) {
-  r = Math.min(r, w / 2, h / 2);
-  ctx.beginPath(); ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-}
-const rr = (c, x, y, w, h, r) => { ctx.fillStyle = c; rrPath(x, y, w, h, r); ctx.fill(); };
-const dot = (c, x, y, r) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
   const P = pose || POSE0;
   const ph = x * dir / 11, sw = Math.sin(ph) * amp, bob = -Math.abs(Math.cos(ph)) * 1.4 * amp;
+  const HIP = 14, SX = 2.5, SY = -27;                                            // quadril (altura das pernas) e ombro
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
-  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 9, 2, 0, 0, 7); ctx.fill();
-  const leg = (a, col) => {                                                      // perna gira a partir do quadril
-    ctx.save(); ctx.translate(0, -11 + bob); ctx.rotate(a);
-    rr(col, -2.3, -1, 4.6, 10, 2.3); rr("#15110e", -3, 8, 6.6, 3, 1.5);
+  ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(0, 0, 8, 2, 0, 0, 7); ctx.fill();
+  const leg = (a, col, lite) => {                                                // perna gira a partir do quadril
+    ctx.save(); ctx.translate(0, -HIP + bob); ctx.rotate(a);
+    rect(col, -2, 0, 4, 11.5);                                                   // calça
+    rect(lite, 0.6, 0, 1.4, 11.5);                                               // luz na frente da perna
+    rect("rgba(0,0,0,.25)", -2, 5.5, 4, 0.8);                                    // dobra do joelho
+    rect("#15110e", -2.4, 11, 6, 2.6); rect("#3a2c22", -2.4, 11, 6, 0.8);        // bota
+    rect("#6b5a48", -2.4, 13.2, 6, 0.8);                                         // sola
     ctx.restore();
   };
-  leg(-sw * 0.75, "#1c2a38"); leg(sw * 0.75, "#26384a");                         // trás (escura) e frente
-  ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
-  rr(shirt, -1.7, -1, 3.4, 10, 1.7); rr("rgba(0,0,0,.35)", -1.7, -1, 3.4, 10, 1.7); dot("#d9ab6f", 0, 10, 1.9);
+  leg(-sw * 0.75, "#1c2a38", "#2b3f55"); leg(sw * 0.75, "#26384a", "#365069");   // trás (escura) e frente
+  ctx.save(); ctx.translate(0, SY + bob); ctx.rotate(-sw * 0.6 + 0.1 + (P.off || 0));   // braço livre (faz contrapeso no arremesso)
+  rect(shirt, -1.5, 0, 3, 8); rect("rgba(0,0,0,.35)", -1.5, 0, 3, 8);
+  rect("rgba(0,0,0,.3)", -1.5, 6, 3, 1); rect("#d9ab6f", -1.5, 8, 3, 3);
   ctx.restore();
-  ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril
-  ctx.save(); rr(shirt, -6, -24, 12, 14, 5); ctx.clip();                          // tronco arredondado, com sombra, luz e cinto recortados na forma
-  rect("rgba(0,0,0,.25)", -6, -24, 3.5, 14); rect("rgba(255,255,255,.18)", 3, -24, 2, 14);
-  rect("#5a3b22", -6, -12.5, 12, 2);
-  ctx.restore();
-  ctx.save(); ctx.translate(3, -20.25); ctx.rotate(P.arm);                                 // antebraço gira no ombro
-  rr(shirt, -1.5, -1.75, 9.5, 3.5, 1.75); rr("rgba(0,0,0,.2)", 0, 0.6, 7.5, 1.1, 0.55); dot("#f1c27d", 8.8, 0, 2);
+  ctx.translate(0, bob); ctx.translate(0, -HIP); ctx.rotate(P.lean); ctx.translate(0, HIP);   // tronco inclina a partir do quadril
+  rect(shirt, -5, -30, 10, 17);                                                  // camisa
+  for (let i = -26; i < -14; i += 4) rect("rgba(255,255,255,.12)", -5, i, 10, 1.2);   // listras
+  rect("rgba(0,0,0,.25)", -5, -30, 3, 17); rect("rgba(255,255,255,.2)", 3.5, -30, 1.5, 17);
+  rect("#e0ac69", -1.5, -30, 4, 2); rect("rgba(0,0,0,.2)", -1.5, -28.2, 4, 0.8);  // gola em V
+  rect("rgba(0,0,0,.3)", 0.5, -24, 4, 3.5); rect("rgba(255,255,255,.15)", 0.5, -24, 4, 0.7);   // bolso
+  rect("#5a3b22", -5, -15.5, 10, 2); rect("#d8b04a", 1, -15.5, 2.2, 2);          // cinto e fivela
+  ctx.save(); ctx.translate(SX, SY); ctx.rotate(P.arm);                          // antebraço gira no ombro
+  rect(shirt, 0, -1.5, 6.5, 3); rect("rgba(0,0,0,.2)", 0, 0.6, 6.5, 0.9);
+  rect("rgba(0,0,0,.3)", 5, -1.5, 1.5, 3); rect("#f1c27d", 6.5, -1.5, 3, 3);
   ctx.restore();
 
-  rr("#e0ac69", -3, -27, 4, 4, 1.6);                                                // pescoço
-  ctx.save(); rr("#f1c27d", -3.5, -33, 9, 8.5, 4); ctx.clip();                      // cabeça redonda
-  rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
-  ctx.restore();
-  dot("#e0ac69", -0.6, -28.8, 1.2);                                                 // orelha
-  dot("#2a1a10", 3.4, -29.2, 1); dot("#c98d5a", 5.3, -27.2, 1.1);                    // olho e nariz
-  ctx.fillStyle = hat; ctx.beginPath(); ctx.ellipse(1, -34, 7.2, 1.9, 0, 0, 7); ctx.fill();   // aba do chapéu
-  ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(1, -33.4, 6.6, 0.9, 0, 0, 7); ctx.fill();
-  rr(hat, -3.5, -40.5, 9, 7.5, 3.5);                                                // copa do chapéu
-  rr("rgba(255,255,255,.35)", -3.5, -37.2, 9, 1.2, 0.6);
+  rect("#e0ac69", -2, -33, 3.5, 3.5); rect("rgba(0,0,0,.2)", -2, -33, 3.5, 1);    // pescoço
+  rect("#f1c27d", -3, -41, 8, 8.5); rect("rgba(0,0,0,.12)", -3, -41, 2.5, 8.5);   // cabeça
+  rect("#3a2416", -3.4, -39.5, 2.2, 5); rect("#3a2416", -1.2, -39.5, 1, 2);       // cabelo atrás
+  rect("#e0ac69", -1, -37, 1.6, 2.2);                                            // orelha
+  rect("#3a2416", 2, -38.2, 2.6, 0.8);                                           // sobrancelha
+  rect("#fff", 2.2, -36.8, 1.4, 1.8); rect("#2a1a10", 2.9, -36.6, 0.9, 1.6);      // olho
+  rect("#c98d5a", 5, -36, 1.8, 1.6);                                             // nariz
+  rect("#8a4b3a", 3, -34.2, 2.2, 0.6);                                           // boca
+  rect(hat, -5.5, -42, 13, 2.5); rect("rgba(0,0,0,.3)", -5.5, -40.3, 13, 0.8);    // aba do chapéu
+  rect(hat, -3, -47, 8, 5.5); rect("rgba(255,255,255,.3)", -3, -47, 8, 1);
+  rect("#3a2a1a", -3, -43.3, 8, 1.3); rect("rgba(0,0,0,.2)", -3, -47, 2, 5.5);    // faixa e sombra da copa
+  rect("#fff", 3.2, -44.3, 1.2, 1.6); rect("#e63946", 3.2, -44.3, 1.2, 0.7);      // isca presa no chapéu
   const ca = Math.cos(P.arm), sa = Math.sin(P.arm);
-  const hx = 3 + 8 * ca, hy = -20.25 + 8 * sa;                     // posição da mão
+  const hx = SX + 8.5 * ca, hy = SY + 8.5 * sa;                    // posição da mão
   const ra = P.rod - P.flex * 0.25, RL = 33.1;                       // a ponta da vara atrasa quando ela chicoteia
   const tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const cx = (hx + tx) / 2 + P.flex * 6.6 * Math.sin(P.rod), cy = (hy + ty) / 2 - P.flex * 6.6 * Math.cos(P.rod);
-  ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+  ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "butt";
   ctx.beginPath(); ctx.moveTo(hx, hy); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke();
-  dot("#b8b8b8", hx, hy, 1.7);                                                      // carretilha
+  ctx.strokeStyle = "#8a5a30"; ctx.lineWidth = 2.4;                                 // cabo da vara
+  ctx.beginPath(); ctx.moveTo(hx - 2 * Math.cos(ra), hy - 2 * Math.sin(ra)); ctx.lineTo(hx + 5 * Math.cos(ra), hy + 5 * Math.sin(ra)); ctx.stroke();
+  rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3); rect("#6d6d6d", hx - 1.5, hy + 0.5, 3, 1);   // carretilha
   ctx.restore();
-  const dy = ty + 11, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
-  return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - 11 + bob };
+  const dy = ty + HIP, c = Math.cos(P.lean), sn = Math.sin(P.lean);   // ponta da vara no mundo (com a inclinação)
+  return { x: x + dir * (tx * c - dy * sn), y: PIER_Y + (tx * sn + dy * c) - HIP + bob };
 }
 function drawLine(tx, ty, bx, now, st) {
   const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), by = BOB_Y + b;
@@ -209,7 +213,7 @@ function drawOther(p, now) {
 }
 function drawOtherLine(p, now) {                                 // linha e nome são desenhados por cima da água
   if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state);
-  text(p.name, p.x, PIER_Y - 46, "#cfe8ff", "center");
+  text(p.name, p.x, PIER_Y - 54, "#cfe8ff", "center");
 }
 
 // ---------- Arremesso da vara: recuo -> chicote -> soltura; a boia voa em arco e cai com respingo ----------
@@ -474,7 +478,7 @@ function draw(now) {
   // 3) linhas, boias e nomes por cima
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOtherLine(o, now));
-  text(myName, px, PIER_Y - 46, "#ffd166", "center");
+  text(myName, px, PIER_Y - 54, "#ffd166", "center");
   drawFx(now);
   if (state === "cast") drawCast(tip);
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
