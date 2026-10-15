@@ -43,8 +43,14 @@ const SND = (() => {
     });
   }
 
-  // ranger da madeira: só toca junto com cada passo ("nhec... nhec... nhec")
-  let lastCreak = 0;
+  // ranger da madeira: só de vez em quando, junto de um passo (não a cada passo)
+  const CREAK_CHANCE = 0.22;                             // chance de ranger a cada passo (0 a 1)
+  const CREAK_MIN_STEPS = 3;                             // mínimo de passos silenciosos entre um ranger e outro
+  let lastCreak = 0, stepsSinceCreak = 0;
+  function maybeCreak() {
+    stepsSinceCreak++;
+    if (stepsSinceCreak >= CREAK_MIN_STEPS && Math.random() < CREAK_CHANCE) { stepsSinceCreak = 0; creak(); }
+  }
   function creak() {
     lastCreak = lastCreak === 1 ? 2 : 1;                 // alterna 1, 2, 1, 2...
     play("pier_creak_" + lastCreak, { vol: CREAK_VOL, jitter: 0.12, delay: 0.02 });
@@ -100,9 +106,9 @@ const SND = (() => {
     step() {                                              // nunca repete o mesmo passo duas vezes seguidas
       let i; do { i = 1 + (Math.random() * 4 | 0); } while (i === lastStep); lastStep = i;
       play("step_wood_" + i, { vol: 0.45, jitter: 0.08 });
-      creak();
+      maybeCreak();
     },
-    cast() { play("cast_whoosh", { vol: 0.6, delay: 0.25 }); },          // o swish acompanha o chicote da vara
+    cast() { play("cast_whoosh", { vol: 0.6, delay: 0.42 }); },          // o swish acompanha o chicote da vara (começa em ~0,45s)
     splash() { play("bobber_splash_" + (1 + (Math.random() * 3 | 0)), { vol: 0.5 }); },   // toca quando a isca cai na água
     retract() { play("reel_ratchet", { vol: 0.4 }); },
     bite() { play("bite_alert", { vol: 0.6 }); },

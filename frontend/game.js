@@ -116,7 +116,7 @@ let fish = null, score = 0, msg = "", msgT = 0, bite = 0;
 const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
-let castT = 0, castRel = null; const fxs = [];            // arremesso em andamento e respingos
+let castT = 0, castRel = null, castHang = null; const fxs = [];            // arremesso em andamento e respingos
 let stepDist = 0, reelT = 0;                       // controle dos sons de passo e de carretilha
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
@@ -151,7 +151,7 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.restore();
   };
   leg(-sw * 0.75, "#1c2a38"); leg(sw * 0.75, "#26384a");                         // trás (escura) e frente
-  ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1);          // braço livre balançando
+  ctx.save(); ctx.translate(0, -22 + bob); ctx.rotate(-sw * 0.6 + 0.1 + (P.off || 0));   // braço livre balançando (e fazendo contrapeso no arremesso)
   rect(shirt, -1.7, 0, 3.4, 9); rect("rgba(0,0,0,.35)", -1.7, 0, 3.4, 9); rect("#d9ab6f", -1.7, 8.5, 3.4, 3);
   ctx.restore();
   ctx.translate(0, bob); ctx.translate(0, -11); ctx.rotate(P.lean); ctx.translate(0, 11);   // tronco inclina a partir do quadril                                                         // tronco sobe e desce ao andar
@@ -199,21 +199,25 @@ function drawOtherLine(p, now) {                                 // linha e nome
 
 // ---------- Arremesso da vara: recuo -> chicote -> soltura; a boia voa em arco e cai com respingo ----------
 const lerp = (a, b, k) => a + (b - a) * k, easeOut = k => 1 - (1 - k) * (1 - k), easeIn = k => k * k;
-const CAST_RELEASE = 0.45, CAST_FLIGHT = 0.55, CAST_SWING = 0.75;     // segundos
+const easeInOut = k => k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);
+const CAST_SWING = 1.0, CAST_RELEASE = CAST_SWING * 0.6, CAST_FLIGHT = 0.6;   // segundos (a soltura acontece no fim do chicote)
 function castPose(c) {
   const u = Math.min(1, c / CAST_SWING);
-  if (u < 0.42) { const k = easeOut(u / 0.42);                          // vara vai para trás, por cima do ombro
-    return { rod: lerp(REST, -2.45, k), arm: lerp(0, -1.0, k), lean: lerp(0, -0.1, k), flex: -0.3 * Math.sin(Math.PI * k) }; }
-  if (u < 0.6) { const k = (u - 0.42) / 0.18, e = easeIn(k);            // chicote para a frente (a vara envergando)
-    return { rod: lerp(-2.45, -0.15, e), arm: lerp(-1.0, 0.2, e), lean: lerp(-0.1, 0.08, e), flex: 1.1 * Math.sin(Math.PI * k) }; }
-  const k = easeOut((u - 0.6) / 0.4);                                   // acompanha o movimento e a vara balança até parar
-  return { rod: lerp(-0.15, REST, k), arm: lerp(0.2, 0, k), lean: lerp(0.08, 0, k), flex: 0.6 * (1 - k) * Math.sin(k * 14) };
+  if (u < 0.45) { const k = easeInOut(u / 0.45);                        // recuo: vara vai para trás, corpo inclina e o braço livre abre
+    return { rod: lerp(REST, -2.5, k), arm: lerp(0, -1.15, k), lean: lerp(0, -0.2, k), off: lerp(0, -0.5, k), flex: -0.35 * Math.sin(Math.PI * k) }; }
+  if (u < 0.6) { const k = (u - 0.45) / 0.15, e = easeIn(k);            // chicote rápido para a frente (a vara envergando)
+    return { rod: lerp(-2.5, -0.3, e), arm: lerp(-1.15, 0.3, e), lean: lerp(-0.2, 0.18, e), off: lerp(-0.5, 0.7, e), flex: 1.2 * Math.sin(Math.PI * k) }; }
+  const k = easeOut((u - 0.6) / 0.4);                                   // follow-through: a vara baixa um pouco, volta e balança até parar
+  return { rod: lerp(-0.3, REST, k) + 0.3 * Math.sin(Math.PI * Math.min(1, k * 1.6)) * (1 - k), arm: lerp(0.3, 0, k), lean: lerp(0.18, 0, k), off: lerp(0.7, 0, k), flex: 0.6 * (1 - k) * Math.sin(k * 14) };
 }
 function drawCast(tip) {
   let bx, by, sag = 3;
-  if (castT < CAST_RELEASE) { bx = tip.x; by = tip.y + 13; }              // boia pendurada na linha antes de soltar
-  else {
-    if (!castRel) castRel = { x: tip.x, y: tip.y + 13 };
+  if (castT < CAST_RELEASE) {                                              // boia pendurada na linha antes de soltar, balançando atrás da ponta
+    if (!castHang) castHang = { x: tip.x, y: tip.y + 13 };
+    castHang.x += (tip.x - castHang.x) * 0.18; castHang.y += (tip.y + 13 - castHang.y) * 0.18;
+    bx = castHang.x; by = castHang.y; sag = 3 + Math.abs(tip.x - bx) * 0.6;
+  } else {
+    if (!castRel) castRel = castHang ? { x: castHang.x, y: castHang.y } : { x: tip.x, y: tip.y + 13 };
     const s = Math.min(1, (castT - CAST_RELEASE) / CAST_FLIGHT);
     bx = lerp(castRel.x, bobber.x, s);
     by = lerp(castRel.y, BOB_Y, s) - 4 * 45 * s * (1 - s);               // arco
@@ -254,7 +258,7 @@ function say(m) { msg = m; msgT = 2.5; }
 
 function press() {
   if (state === "walk") {
-    state = "cast"; castT = 0; castRel = null;
+    state = "cast"; castT = 0; castRel = null; castHang = null;
     bobber = { x: clearOfPosts(px + dir * 70), y: BOB_Y };
     fish = null; SND.cast();
     post("/api/bite").then(f => fish = f).catch(() => fish = fishList[Math.random() * fishList.length | 0]);
