@@ -1615,7 +1615,7 @@ introStyle.textContent = `
 #help .hp-row{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed rgba(27,38,25,.35)}
 #help .hp-row:last-of-type{border-bottom:0}
 #help .hp-row{align-items:center}
-#help .hp-keys{flex:none;width:158px;display:flex;align-items:center;color:#1b2619}
+#help .hp-keys{flex:none;width:158px;display:flex;align-items:center;justify-content:center;color:#1b2619}
 #help .key{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:28px;height:24px;margin:3px 4px 8px;padding-top:1px;
   background:#bccdac;color:#1b2619;font-size:16px;line-height:1;
   box-shadow:0 2px 0 0 #7d8f71,0 -2px 0 0 #1b2619,-2px 0 0 0 #1b2619,2px 0 0 0 #1b2619,-2px 2px 0 0 #1b2619,2px 2px 0 0 #1b2619,0 4px 0 0 #1b2619}
