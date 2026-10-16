@@ -151,6 +151,7 @@ const dust = [];                                  // fumacinha da freada
 const rodL = newRod(1);                           // a vara começa (e fica) nas costas; só é sacada para pescar
 let wantDraw = false, vigK = 0;                    // wantDraw: quer lançar mas ainda está sacando a vara; vigK: vinheta
 const STOW_T = 0.6, DRAW_T = 0.55;                // segundos para guardar nas costas / sacar de volta
+let PAUSED = false;                               // menu de pausa (ESC) aberto: o jogo congela
 let SHAKE_ON = true;                               // config: tremor da tela ligado?
 try { SHAKE_ON = localStorage.getItem("shake") !== "0"; } catch (e) {}
 let GSHAKE = 0;                                   // tremor leve do jogo (px): sobe nos eventos e decai sozinho
@@ -941,6 +942,7 @@ function movePose() {                                                           
   return rodPose(rodL, b);   // (sempre com a animação da vara: nas costas, guardando ou sacando)
 }
 function update(dt) {
+  if (PAUSED) return;
   msgT = Math.max(0, msgT - dt);
   if (INTRO.phase === "go") introUpdate(dt);
   updatePhone(dt); updateIdle(dt);
@@ -1472,8 +1474,9 @@ function draw(now) {
   // HUD
   if (!INTRO.active) {
   text("Pontos: " + score, 10, 16);
-  const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : "", cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
-  text(hint, 10, H - 10, "#fff");
+  const SP = { key: "space" };
+  const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : "", cast: "Lançando...", wait: "Aguarde a fisgada...", bite: [SP, " agora!"], reel: ["Segure ", SP, " para subir a barra"], show: "" }[state];
+  hintLine(Array.isArray(hint) ? hint : [hint], 10, H - 10);
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   }
   drawPhone();                                         // por último, antes do filtro: o celular também leva o dithering
@@ -1704,6 +1707,45 @@ cfgSnd.onclick = () => { SND.toggleMute(); cfgSync(); };
 cfgShk.onclick = () => { SHAKE_ON = !SHAKE_ON; try { localStorage.setItem("shake", SHAKE_ON ? "1" : "0"); } catch (e) {} cfgSync(); };
 cfgEl.addEventListener("pointerdown", e => { if (e.target === cfgEl) closeCfg(); });
 addEventListener("keydown", e => { if (e.code === "Escape") closeCfg(); });
+
+// ---------- Pausa (ESC no jogo): voltar ao jogo, escolher a tecla de voltar e ir para a tela inicial ----------
+let RESUME_KEY = "Escape";                              // tecla (além do ESC) que fecha a pausa; dá para trocar no menu
+try { RESUME_KEY = localStorage.getItem("resumeKey") || "Escape"; } catch (e) {}
+const keyLabel = c => c === "Escape" ? "ESC" : c === "Space" ? "ESPAÇO" : c.replace(/^(Key|Digit)/, "").replace(/^Arrow/, "SETA ").toUpperCase();
+const pzEl = document.createElement("div"); pzEl.id = "pz";
+const pzStyle = document.createElement("style");
+pzStyle.textContent = cfgStyle.textContent.replaceAll("#cfg", "#pz") + `
+#pz .pz-btn{display:block;width:100%;margin:8px 0 0;font:inherit;color:#97a888;background:#1b2619;border:0;padding:9px 14px;cursor:pointer}
+#pz .pz-btn:hover,#pz .pz-btn:focus-visible{background:#2f4029;outline:none}`;
+document.head.appendChild(pzStyle);
+pzEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Pausa"><div class="hp-title">Pausa</div>
+  <button class="pz-btn" id="pz-back" type="button">Voltar ao jogo</button>
+  <div class="hp-row"><span>Tecla para voltar</span><button id="pz-key" type="button"></button></div>
+  <button class="pz-btn" id="pz-home" type="button">Tela inicial</button></div>`;
+document.body.appendChild(pzEl);
+const pzBack = pzEl.querySelector("#pz-back"), pzKey = pzEl.querySelector("#pz-key"), pzHome = pzEl.querySelector("#pz-home");
+let rebinding = false;
+const pzSync = () => { pzKey.textContent = rebinding ? "PRESSIONE..." : keyLabel(RESUME_KEY); };
+function pauseGame() {
+  PAUSED = true; rebinding = false; pzSync();
+  for (const k in keys) keys[k] = false; SND.reel(false);
+  pzEl.classList.add("on"); pzBack.focus();
+}
+function resumeGame() { PAUSED = false; rebinding = false; pzEl.classList.remove("on"); cv.focus(); }
+pzBack.onclick = resumeGame;
+pzKey.onclick = () => { rebinding = true; pzSync(); };
+pzHome.onclick = () => location.reload();               // recomeça do título (a aparência fica salva)
+pzEl.addEventListener("pointerdown", e => { if (e.target === pzEl) resumeGame(); });
+addEventListener("keydown", e => {                      // captura antes do resto do jogo (assim o ESC que guarda o celular não abre a pausa junto)
+  if (INTRO.active || UI.open) return;
+  if (PAUSED) {
+    e.preventDefault(); e.stopPropagation();
+    if (rebinding) { RESUME_KEY = e.code; try { localStorage.setItem("resumeKey", RESUME_KEY); } catch (er) {} rebinding = false; pzSync(); }
+    else if (!e.repeat && (e.code === "Escape" || e.code === RESUME_KEY)) resumeGame();
+    return;
+  }
+  if (e.code === "Escape" && !e.repeat && !PH.open) { e.preventDefault(); e.stopPropagation(); pauseGame(); }
+}, true);
 function introPlay() {
   if (INTRO.phase !== "title") return;
   SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
@@ -1805,6 +1847,21 @@ function introBackdrop(now) {                           // com a câmera longe, 
   ctx.save(); ctx.translate(wx, 0); drawMalto(now); ctx.restore();
   wide(layers.posts, lx(PAR.pier));
   ctx.save(); ctx.translate(wx, 0); drawMaltoUI(now); ctx.restore();
+}
+// tecla ESPAÇO desenhada em pixels (mesmo visual da Ajuda); quando o jogador segura, a tecla aparece apertada (desce 2px, sem a "espessura")
+function spaceKey(x, y, down) {                          // y = linha de base do texto
+  const kw = 30, d = down ? 2 : 0;
+  rect("#1b2619", x, y - 10 + d, kw, 10 + (down ? 0 : 2));                       // contorno + espessura
+  rect(down ? "#97a888" : "#bccdac", x + 1, y - 9 + d, kw - 2, 8);                   // face da tecla (mais escura quando apertada)
+  if (!down) rect("#7d8f71", x + 1, y - 1, kw - 2, 1);                               // sombra da espessura
+  rect("#1b2619", x + 8, y - 5 + d, kw - 16, 1);                                     // traço central (barra de espaço)
+}
+function hintLine(parts, x, y) {                         // parts: textos e SP (a tecla ESPAÇO no meio da frase)
+  ctx.font = UI_PX + "px " + UI_FONT;
+  for (const p of parts) {
+    if (typeof p === "string") { text(p, x, y); x += Math.ceil(ctx.measureText(p).width); }
+    else { spaceKey(x + 2, y, !!keys.Space); x += 34; }
+  }
 }
 function shakeView(now) {                                // balança o quadro pronto: leve ao fisgar/pegar e um tremor bem fraquinho enquanto puxa o peixe
   const a = SHAKE_ON ? GSHAKE + (state === "reel" ? 0.22 : 0) : 0;
