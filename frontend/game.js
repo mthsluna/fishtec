@@ -1634,14 +1634,12 @@ function introCam(now) {                                // câmera: A = longe e 
   const A = { z: ZA, x: W / 2, y: INTRO_BOTTOM - H / ZA / 2 + Math.sin(now / 2600) * 2 };   // a base da tela fica na linha da água: só o deck aparece lá embaixo
   const B = { z: ZIN, x: wx + px, y: PIER_Y - 26 };
   const C = { z: 1, x: W / 2, y: H / 2 };
-  const mix = (a, b, k) => ({ z: a.z * Math.pow(b.z / a.z, k), x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+  const mix = (a, b, p) => {                           // zoom e posição na MESMA curva: o zoom é geométrico e o centro acompanha o tamanho da janela (zoom em direção a um ponto)
+    const z = a.z * Math.pow(b.z / a.z, p), q = (1 / z - 1 / a.z) / (1 / b.z - 1 / a.z);
+    return { z, x: a.x + (b.x - a.x) * q, y: a.y + (b.y - a.y) * q };
+  };
   if (I.phase !== "go") return A;
-  if (I.t < ZOOM_T) {                                   // 1) abre o zoom em torno da base (sem aparecer água); 2) depois desce até o deck
-    const p = ease3(I.t / ZOOM_T), z = ZA * Math.pow(ZIN / ZA, p), y1 = INTRO_BOTTOM - H / 2;
-    if (z < 1) return { z, x: A.x, y: INTRO_BOTTOM - H / z / 2 + Math.sin(now / 2600) * 2 * (1 - p) };
-    const q = (z - 1) / (ZIN - 1);
-    return { z, x: A.x + (B.x - A.x) * q, y: y1 + (B.y - y1) * q };
-  }
+  if (I.t < ZOOM_T) return mix(A, B, ease3(I.t / ZOOM_T));
   if (I.t < SETTLE0) return B;
   return mix(B, C, ease3(Math.min(1, (I.t - SETTLE0) / SETTLE_T)));
 }
@@ -1701,14 +1699,16 @@ function introBackdrop(now) {                           // com a câmera longe, 
 function introView(now) {                               // longe (zoom < 1): cenário redesenhado; perto (zoom >= 1): reaproveita o quadro pronto (com água e reflexo)
   const c = introCam(now), z = c.z, sw = W / z, sh = H / z, direct = z < 1;
   const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? INTRO.shake * Math.sin(now / 18) * 5.5 : 0);
-  if (!direct) {
-    if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
-    zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
-  }
+  if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
+  zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
   ctx.fillStyle = "#241a45"; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
   ctx.save(); ctx.translate(-sx * z, -sy * z); ctx.scale(z, z);
   if (sy < 0) introExtra(now);
-  if (direct) introBackdrop(now);
+  if (direct) {
+    introBackdrop(now);
+    const sl = (x0, flip) => { ctx.save(); ctx.translate(x0, 0); ctx.scale(flip, 1); ctx.drawImage(zb, 0, WATER_Y * S, W * S, (H - WATER_Y) * S, 0, WATER_Y, W, H - WATER_Y); ctx.restore(); };
+    sl(0, 1); sl(0, -1); sl(2 * W, -1);                  // água do quadro pronto (com reflexo) no meio e espelhada nas pontas
+  }
   ctx.restore();
   if (direct) return;
   const x0 = Math.max(0, sx), y0 = Math.max(0, sy), x1 = Math.min(W, sx + sw), y1 = Math.min(H, sy + sh);
