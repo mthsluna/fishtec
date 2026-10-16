@@ -729,12 +729,12 @@ function drawTiao(now) {
   // pernas, chinelos e bermuda
   [-4.6, 0.6].forEach(lx => {
     rect(C.skin, lx, -19, 4, 17); rect("rgba(0,0,0,.22)", lx, -19, 1.2, 17); rect("rgba(255,210,160,.1)", lx + 3, -19, 1, 17);
-    rect(C.skin, lx - 0.5, -2.6, 5, 1.7); rect("#1a120c", lx - 0.7, -1.1, 5.4, 1.1);   // pé com a sola do chinelo
+    rect(C.skin, lx - 0.5, -2.6, 5, 1.7); rect("#1a120c", lx - 0.7, -1.1, 5.4, 1.1); rect("#1a120c", lx + 0.9, -2.8, 2.2, 0.7);   // pé com a sola do chinelo
   });
   ctx.beginPath(); ctx.moveTo(-5.3, S + 14); ctx.lineTo(5.3, S + 14); ctx.lineTo(5.9, -9.5); ctx.lineTo(0.7, -9.5); ctx.lineTo(0, -13.5); ctx.lineTo(-0.7, -9.5); ctx.lineTo(-5.9, -9.5); ctx.closePath();
   ctx.fillStyle = "#2f627d"; ctx.fill();
   ctx.save(); ctx.clip(); rect("rgba(10,20,40,.3)", -7, S + 14, 3.4, 30); rect("rgba(255,255,255,.1)", 3.4, S + 14, 3, 30); rect("rgba(10,20,40,.35)", -7, -10.9, 14, 1.4); ctx.restore();
-  rect("#1f4559", -5.3, S + 14, 10.6, 1.4); rect("#e6d9b8", -0.4, S + 15.2, 0.8, 3.2); rect("#e6d9b8", -1.1, S + 15, 2.2, 0.8);   // cós e cordinha
+  rect("#1f4559", -5.3, S + 14, 10.6, 1.4); rect("rgba(10,20,40,.3)", -4.6, S + 16.6, 3, 0.6); rect("rgba(10,20,40,.3)", 1.6, S + 16.6, 3, 0.6); rect("#e6d9b8", -0.4, S + 15.2, 0.8, 3.2); rect("#e6d9b8", -1.1, S + 15, 2.2, 0.8);   // cós e cordinha
 
   // tronco sem camiseta
   const torso = () => { ctx.beginPath(); ctx.moveTo(-6.3, S); ctx.lineTo(6.3, S); ctx.lineTo(5.5, S + 15); ctx.lineTo(-5.5, S + 15); ctx.closePath(); };
@@ -826,57 +826,79 @@ function drawTiao(now) {
   }
   ctx.restore();
 }
-function drawTiaoSide(now) {                                                            // Pedro andando: de perfil (parado ele fica de frente)
+function drawTiaoSide(now) {                                                            // Pedro andando: de perfil, com a mesma estrutura de corpo do pescador na altura máxima (a do Malto)
   const t = now / 1000, K = TWK, C = TIAO_C, gs = Math.sin(K.ph), gc = Math.cos(K.ph);
-  const GA = 0.5 * K.amp, KB = 0.35 * K.amp, LT = 9.5;                                  // GA: abertura das coxas; KB: dobra do joelho; LT: coxa e canela (9,5 cada = 19)
+  const GA = 0.5 * K.amp, KB = 0.34 * K.amp, LT = 9.5;                                  // GA: abertura das coxas; KB: dobra do joelho; LT: coxa e canela (9,5 cada = 19)
   const dy = 19 * (1 - Math.cos(GA * gs));                                              // o quadril desce quando as pernas abrem (o pé fica no chão)
-  const by = Math.sin(t * 1.5 + 1) * 0.3 * (1 - K.amp), S = -35 + by + dy, hy = S + 30, mY = -31.2 + hy, hipY = -19 + dy;
+  const by = Math.sin(t * 1.5 + 1) * 0.3 * (1 - K.amp), S = -35 + by + dy, hipY = -19 + dy;   // S: linha dos ombros (a mesma do Malto)
+  const hy0 = S - 8.5 - 0.35 * Math.abs(gc) * K.amp;                                    // topo do rosto (a cabeça quica de leve a cada passo)
+  const SH = "#2f627d", SHD = "#27526a", SHH = "#1f4559";                               // bermuda: frente, trás e barra/cós
   ctx.save(); ctx.translate(TX, PIER_Y); ctx.scale(K.face, 1);
   softShadow(-7 * K.face, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);
-  const leg = (th, kn, col) => {                                                        // mesma mecânica das pernas do pescador: coxa gira no quadril, canela no joelho
+  const leg = (th, kn, col, sh, front) => {                                             // coxa gira no quadril (com a perna da bermuda), canela gira no joelho
     ctx.save(); ctx.translate(0, hipY); ctx.rotate(th);
     rect(col, -2.3, 0, 4.6, LT + 0.4);
+    rect(sh, -3.3, -0.6, 6.6, 8.6); rect(SHH, -3.3, 6.6, 6.6, 1.4);                     // perna da bermuda + barra
+    rect("rgba(10,20,40,.28)", -3.3, -0.6, 1.8, 8.6);
+    if (front) rect("rgba(255,255,255,.1)", 1.8, -0.6, 1.4, 6);
     ctx.translate(0, LT); ctx.rotate(kn);
-    rect(col, -2.3, 0, 4.6, LT - 1); rect(col, -2.3, LT - 2.2, 6.6, 1.4); rect("#1a120c", -2.5, LT - 1, 7, 1);   // canela, pé apontando para a frente e sola do chinelo
+    rect(col, -2.3, 0, 4.6, LT - 1); rect("rgba(0,0,0,.22)", -2.3, 0, 1.3, LT - 1);      // canela
+    if (front) rect("rgba(255,210,160,.12)", 1.2, 0.5, 0.7, 5);                          // luz na canela
+    rect(col, -2.3, LT - 2.2, 6.6, 1.4);                                                // pé apontando para a frente
+    rect("#1a120c", -2.5, LT - 1, 7, 1);                                                // sola do chinelo
+    rect("#1a120c", 1.0, LT - 2.7, 1.1, 1.7); rect("#1a120c", -1.8, LT - 2.0, 3.2, 0.5);   // tira do chinelo
     ctx.restore();
   };
-  leg(-GA * gs, KB * Math.max(0, gc), C.dk); leg(GA * gs, KB * Math.max(0, -gc), C.skin);   // perna de trás (escura) e da frente
-  const wt = S + 14, hb = hipY + 8.5, yF = hb - 0.9 * Math.abs(gs) * K.amp, yB = hb + 0.4;   // bermuda larga como a de frente: abre para baixo e a barra sobe do lado da perna que vai à frente
-  const shorts = () => { ctx.beginPath(); ctx.moveTo(-5.2, wt); ctx.lineTo(5.2, wt); ctx.lineTo(6, yF); ctx.lineTo(-6, yB); ctx.closePath(); };
-  shorts(); ctx.fillStyle = "#2f627d"; ctx.fill();
-  ctx.save(); shorts(); ctx.clip();
-  rect("rgba(10,20,40,.3)", -7, wt, 3.6, 20); rect("rgba(255,255,255,.1)", 3, wt, 4, 20); rect("rgba(10,20,40,.28)", 0.2, wt + 3, 0.8, 6);   // sombra à esquerda, luz à direita e uma dobra
-  rect("#1f4559", -5.2, wt, 10.4, 1.4); rect("#e6d9b8", 3.4, wt + 1.2, 0.8, 3.2);       // cós e cordinha
-  ctx.fillStyle = "#1f4559"; ctx.beginPath(); ctx.moveTo(-6.2, yB - 1.5); ctx.lineTo(6.2, yF - 1.5); ctx.lineTo(6.2, yF + 0.2); ctx.lineTo(-6.2, yB + 0.2); ctx.fill();   // barra
-  ctx.restore();
+  leg(-GA * gs, KB * Math.max(0, gc), C.dk, SHD, false); leg(GA * gs, KB * Math.max(0, -gc), C.skin, SH, true);   // perna de trás (escura) e da frente
+  const wh = 5.4 - by;                                                                  // cós: cobre o quadril e esconde a junta das pernas
+  rect(SH, -5.8, S + 13.8, 11.6, wh); rect("rgba(10,20,40,.3)", -5.8, S + 13.8, 3, wh); rect("rgba(255,255,255,.1)", 3.6, S + 13.8, 2.2, wh);
+  rect(SHH, -5.8, S + 13.8, 11.6, 1.4); rect("#e6d9b8", 3.8, S + 15.2, 0.8, 3); rect("#e6d9b8", 3.1, S + 15, 2.2, 0.7);   // cós e cordinha
   ctx.save(); ctx.translate(0, hipY); ctx.rotate(0.05 * K.amp); ctx.translate(0, -hipY);   // tronco inclina de leve para a frente
-  const arm = (th, col, hand) => {                                                            // braço em duas partes, com o cotovelo dobrando de leve para a frente
-    ctx.save(); ctx.translate(0, S + 2.8); ctx.rotate(th);
-    rect(col, -1.6, -1, 3.2, 7.5); ctx.translate(0, 6.5); ctx.rotate(-0.08 - 0.3 * K.amp);
-    rect(col, -1.5, 0, 3, 6.2); rect(hand, -1.5, 5.6, 3, 2.8); ctx.restore();
+  const arm = (th, col, hand, front) => {                                               // braço em duas partes, com o cotovelo dobrando para a frente
+    ctx.save(); ctx.translate(0.3, S + 3); ctx.rotate(th);
+    rect(col, -1.8, -1, 3.6, 7.4); if (front) rect("rgba(255,210,160,.18)", 0.2, 0.4, 0.8, 4.6); else rect("rgba(0,0,0,.2)", -1.8, -1, 1, 7.4);
+    ctx.translate(0, 6.3); ctx.rotate(-0.1 - 0.32 * K.amp);
+    rect(col, -1.6, 0, 3.2, 6.2); rect("rgba(0,0,0,.2)", -1.6, 0, 1, 6.2); rect(hand, -1.7, 5.6, 3.4, 3.1); rect("rgba(0,0,0,.18)", -1.7, 7.9, 3.4, 0.8);   // antebraço e punho
+    ctx.restore();
   };
-  arm(GA * gs, C.dk, C.dk);                                                             // braço de trás (atrás do tronco)
-  const tor = () => { ctx.beginPath(); ctx.moveTo(-5.2, S); ctx.lineTo(5.8, S); ctx.lineTo(5.2, S + 6); ctx.lineTo(5, S + 15.5); ctx.lineTo(-5, S + 15.5); ctx.lineTo(-5.4, S + 6); ctx.closePath(); };
-  tor(); ctx.fillStyle = C.skin; ctx.fill(); ctx.save(); tor(); ctx.clip(); rect("rgba(0,0,0,.3)", -6, S, 3.2, 16); rect("rgba(255,210,160,.14)", 3, S, 3, 16); ctx.restore();   // tronco: ombros mais largos que a cintura
-  rect("rgba(0,0,0,.25)", 1.2, S + 5.4, 3.6, 0.7); rect("rgba(0,0,0,.2)", -3.2, S + 9.2, 7, 0.5);
-  arm(-GA * gs, C.lt, "#8a5a3c");                                                          // braço da frente (por cima do tronco)
-  ctx.fillStyle = C.skin; roundPath(-2.2, S - 0.6, 4.4, 5, 1.6); ctx.fill();            // ombro cobrindo a junta
-  rect(C.dk, -2.2, S - 3.5, 4.4, 4.2);                                                  // pescoço
-  rect(C.skin, -3.5, -38.5 + hy, 9, 9); rect(C.dk, -3.5, -38.5 + hy, 1.6, 9);           // cabeça de perfil (um pouco à frente do tronco, como a do pescador)
-  rect("rgba(0,0,0,.22)", -3.5, -32.4 + hy, 9, 3); rect(C.hair, 3.3, -29.9 + hy, 2.2, 1.4);   // barba por fazer e cavanhaque
-  rect(C.dk, -0.8, -35.4 + hy, 1.6, 2.6);                                               // orelha
-  rect("#e9dfcf", 2.2, -36.2 + hy, 2.6, 1); rect(C.hair, 3.4, -36.2 + hy, 1.2, 1); rect("rgba(0,0,0,.55)", 2, -36.6 + hy, 2.9, 0.55);
+  arm(GA * gs * 1.1, C.dk, C.dk, false);                                                // braço de trás (atrás do tronco)
+  const tor = () => { ctx.beginPath(); ctx.moveTo(-5.4, S); ctx.lineTo(6, S); ctx.lineTo(5.8, S + 5); ctx.lineTo(5.2, S + 10); ctx.lineTo(5, S + 15.5); ctx.lineTo(-5, S + 15.5); ctx.lineTo(-5.4, S + 6); ctx.closePath(); };
+  tor(); ctx.fillStyle = C.skin; ctx.fill(); ctx.save(); tor(); ctx.clip();
+  rect("rgba(0,0,0,.3)", -6, S, 3.2, 16); rect("rgba(255,210,160,.14)", 3.2, S, 3, 16);   // sombra nas costas, luz do pôr do sol na frente
+  rect("rgba(255,210,160,.15)", 0.8, S + 2, 5, 3.4); rect("rgba(0,0,0,.3)", 0.8, S + 5.4, 5.2, 0.7); rect("#35200f", 3.9, S + 4.2, 1, 1);   // peitoral e mamilo
+  rect("rgba(0,0,0,.2)", 2.2, S + 8.6, 3.4, 0.5); rect("rgba(0,0,0,.2)", 2.2, S + 11.2, 3.4, 0.5); rect("rgba(0,0,0,.16)", 2.2, S + 13.6, 3, 0.5);   // abdômen
+  rect("rgba(0,0,0,.14)", -3.4, S + 3, 2.6, 0.6); rect("rgba(0,0,0,.14)", -3.4, S + 6, 2.6, 0.6);   // costelas
+  ctx.restore();
+  ctx.strokeStyle = "#e8d9a8"; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(-0.6, S - 0.8); ctx.quadraticCurveTo(4.6, S - 0.2, 5.7, S + 3.6); ctx.stroke();   // colar com o pingente dourado
+  rect("#d9a441", 5.2, S + 3.4, 1.1, 1.6);
+  arm(-GA * gs * 1.1, C.skin, C.lt, true);                                              // braço da frente (por cima do tronco)
+  ctx.fillStyle = C.skin; roundPath(-2.5, S - 0.7, 5.2, 5.4, 1.9); ctx.fill();          // ombro (deltoide) cobrindo a junta
+  rect("rgba(255,210,160,.2)", 0.4, S - 0.1, 1.6, 0.7);
+  rect(C.dk, -3, S - 3.4, 4.6, 4.2); rect("rgba(0,0,0,.2)", -3, S - 1.2, 4.6, 1.2);     // pescoço
+  // cabeça de perfil: rosto + nuca inteiros (a nuca e o queixo antes ficavam sem preenchimento)
+  const mY = hy0 + 7.1, blink = (t + 1.3) % 4.4 > 4.28;
+  rect(C.skin, -4, hy0, 9.4, 9); rect(C.dk, -4, hy0, 1.5, 9);                           // rosto e sombra atrás
+  rect("rgba(0,0,0,.22)", -2.6, hy0 + 6, 8, 3);                                          // barba por fazer na mandíbula
+  rect("rgba(255,210,160,.12)", 3.6, hy0, 1.8, 9);                                       // luz na frente do rosto
+  rect(C.dk, -1.7, hy0 + 3.2, 1.9, 2.8); rect("rgba(0,0,0,.35)", -1.1, hy0 + 3.9, 0.8, 1.2);   // orelha
+  if (blink) rect(C.hair, 2.3, hy0 + 2.8, 2.6, 0.55);
+  else { rect("#e9dfcf", 2.4, hy0 + 2.4, 2.4, 1); rect(C.hair, 3.6, hy0 + 2.4, 1.2, 1); rect("rgba(0,0,0,.55)", 2.2, hy0 + 2, 2.9, 0.55); }   // olho com pálpebra pesada
   ctx.strokeStyle = C.hair; ctx.lineWidth = 1.15; ctx.lineCap = "butt";
-  ctx.beginPath(); ctx.moveTo(1.6, -38 + hy); ctx.lineTo(5, -37.2 + hy); ctx.stroke(); // sobrancelha franzida
-  rect("#3a2214", 5.5, -34.8 + hy, 1.4, 2.4); rect("#6b4430", 5.7, -34.8 + hy, 0.5, 1.8);   // nariz
-  rect("#a05a48", 3, mY, 2.6, 0.7);                                                     // boca
-  ctx.save(); ctx.translate(4.4, mY + 0.3 + Math.sin(t * 2.6) * 0.2); ctx.rotate(0.15 + Math.sin(t * 1.3) * 0.05);   // graveto no canto da boca
+  ctx.beginPath(); ctx.moveTo(1.4, hy0 + 0.9); ctx.lineTo(5.2, hy0 + 1.8); ctx.stroke();   // sobrancelha franzida
+  rect("#8a5a40", 5, hy0 + 1.2, 0.5, 2.2);                                               // cicatriz
+  rect(C.skin, 5.2, hy0 + 3.9, 1.8, 2.6); rect(C.dk, 5.2, hy0 + 6, 1.8, 0.5); rect(C.lt, 5.4, hy0 + 4.1, 0.6, 1.4);   // nariz
+  rect(C.hair, 3.2, hy0 + 6.2, 2.4, 0.6);                                                // bigode
+  rect("#a05a48", 3.2, mY + 0.5, 2.3, 0.7); rect("#a05a48", 2.7, mY + 1.0, 0.6, 0.6);   // boca emburrada
+  rect(C.hair, 3.8, hy0 + 8.4, 2.2, 1.5);                                                // cavanhaque
+  ctx.save(); ctx.translate(4.6, mY + 0.7 + Math.sin(t * 2.6) * 0.2); ctx.rotate(0.15 + Math.sin(t * 1.3) * 0.05);   // graveto no canto da boca
   rect("#b58e55", 0, -0.45, 5, 0.9); rect("#8a6a38", 0, 0.1, 5, 0.35); rect("#e0c690", 4.5, -0.45, 0.5, 0.9);
   ctx.restore();
-  ctx.fillStyle = C.hair; roundPath(-4.8, -46 + hy, 10.8, 6.6, 2.8); ctx.fill();         // cabelo curto, cobrindo o topo e a nuca
-  roundPath(-4.8, -43 + hy, 2.6, 7.6, 1.2); ctx.fill();                                    // nuca/costeleta atrás da orelha
-  rect(C.hair, -3.6, -40.4 + hy, 9.1, 0.7);        // linha da testa
-  for (let i = 0; i < 5; i++) rect(C.hair2, -3.4 + i * 1.7, -45.3 + hy + (i % 2) * 0.6, 0.9, 0.9);
+  ctx.fillStyle = C.hair; roundPath(-4.8, hy0 - 7.5, 10.6, 6.8, 2.8); ctx.fill();        // cabelo curto no topo
+  roundPath(-4.8, hy0 - 2.5, 3.2, 8.2, 1.3); ctx.fill();                                 // e descendo pela nuca até atrás da orelha (cobre a parte que ficava cortada)
+  rect(C.hair, -1.6, hy0 - 1, 1, 3.2);                                                   // costeleta na frente da orelha
+  rect(C.hair, -3.4, hy0 - 0.9, 9.2, 0.7);                                               // linha da testa
+  for (let i = 0; i < 5; i++) rect(C.hair2, -3.6 + i * 1.8, hy0 - 6.8 + (i % 2) * 0.6, 0.9, 0.9);   // textura
+  rect("rgba(255,255,255,.07)", -3, hy0 - 6.8, 5, 0.9);
   ctx.restore(); ctx.restore();
 }
 function drawTiaoUI(now) {
