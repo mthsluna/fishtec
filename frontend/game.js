@@ -184,8 +184,10 @@ const dust = [];                                  // fumacinha da freada
 const rodL = newRod(1);                           // a vara começa (e fica) nas costas; só é sacada para pescar
 let wantDraw = false, vigK = 0;                    // wantDraw: quer lançar mas ainda está sacando a vara; vigK: vinheta
 const STOW_T = 0.6, DRAW_T = 0.55;                // segundos para guardar nas costas / sacar de volta
+let SHAKE_ON = true;                               // config: tremor da tela ligado?
+try { SHAKE_ON = localStorage.getItem("shake") !== "0"; } catch (e) {}
 let GSHAKE = 0;                                   // tremor leve do jogo (px): sobe nos eventos e decai sozinho
-const kick = a => { GSHAKE = Math.max(GSHAKE, a); };
+const kick = a => { if (SHAKE_ON) GSHAKE = Math.max(GSHAKE, a); };
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
 
@@ -1625,7 +1627,7 @@ const ZIN = 1.3, ZOOM_T = 1.1;                    // zoom no deck: quanto aproxi
 const I_FALL0 = 0.8, I_FALL_T = 0.8, I_BOUNCE = 0.5, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
 const SETTLE0 = 2.1, SETTLE_T = 1.0, I_FREE = 2.5, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
 const introEl = document.createElement("div"); introEl.id = "intro";
-introEl.innerHTML = `<h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="intro-play" type="button">JOGAR</button><button id="intro-help" type="button" class="sec">AJUDA</button>`;
+introEl.innerHTML = `<h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="intro-play" type="button">JOGAR</button><button id="intro-help" type="button" class="sec">AJUDA</button><button id="intro-config" type="button" class="sec">CONFIG</button>`;
 const introStyle = document.createElement("style");
 introStyle.textContent = `
 #intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
@@ -1692,11 +1694,46 @@ function closeHelp() { if (!helpEl.classList.contains("on")) return; helpEl.clas
 helpBtn.onclick = openHelp; helpClose.onclick = closeHelp;
 helpEl.addEventListener("pointerdown", e => { if (e.target === helpEl) closeHelp(); });
 addEventListener("keydown", e => { if (e.code === "Escape") closeHelp(); });
+
+// ---------- Config (tela inicial): som e tremor da tela ----------
+const cfgEl = document.createElement("div"); cfgEl.id = "cfg";
+const cfgStyle = document.createElement("style");
+cfgStyle.textContent = `#cfg{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
+  font:16px/1.2 "DigitalDisco",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
+#cfg.on{display:flex}
+#cfg .hp-box{width:min(380px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 18px 16px;background:#97a888;
+  border:4px solid #1b2619;border-radius:10px;box-shadow:0 0 0 3px #7d8f71,0 14px 50px #000}
+#cfg .hp-title{font-size:32px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:8px}
+#cfg .hp-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px dashed rgba(27,38,25,.35)}
+#cfg .hp-row:last-of-type{border-bottom:0}
+#cfg .hp-row button,#cfg .hp-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 14px;cursor:pointer}
+#cfg .hp-row button{min-width:112px}
+#cfg .hp-row button.off{color:#1b2619;background:transparent;box-shadow:inset 0 0 0 2px #1b2619}
+#cfg .hp-row button:hover,#cfg .hp-row button:focus-visible,#cfg .hp-btns button:hover,#cfg .hp-btns button:focus-visible{background:#2f4029;color:#97a888;outline:none}
+#cfg .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}`;
+document.head.appendChild(cfgStyle);
+cfgEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Config"><div class="hp-title">Config</div>
+  <div class="hp-row"><span>Som</span><button id="cfg-snd" type="button"></button></div>
+  <div class="hp-row"><span>Tremor da tela</span><button id="cfg-shk" type="button"></button></div>
+  <div class="hp-btns"><button id="cfg-close" type="button">Voltar</button></div></div>`;
+document.body.appendChild(cfgEl);
+const cfgBtn = introEl.querySelector("#intro-config"), cfgSnd = cfgEl.querySelector("#cfg-snd"), cfgShk = cfgEl.querySelector("#cfg-shk"), cfgClose = cfgEl.querySelector("#cfg-close");
+function cfgSync() {
+  cfgSnd.textContent = SND.muted ? "DESLIGADO" : "LIGADO"; cfgSnd.classList.toggle("off", SND.muted);
+  cfgShk.textContent = SHAKE_ON ? "LIGADO" : "DESLIGADO"; cfgShk.classList.toggle("off", !SHAKE_ON);
+}
+function openCfg() { cfgSync(); cfgEl.classList.add("on"); cfgClose.focus(); }
+function closeCfg() { if (!cfgEl.classList.contains("on")) return; cfgEl.classList.remove("on"); cfgBtn.focus(); }
+cfgBtn.onclick = openCfg; cfgClose.onclick = closeCfg;
+cfgSnd.onclick = () => { SND.toggleMute(); cfgSync(); };
+cfgShk.onclick = () => { SHAKE_ON = !SHAKE_ON; try { localStorage.setItem("shake", SHAKE_ON ? "1" : "0"); } catch (e) {} cfgSync(); };
+cfgEl.addEventListener("pointerdown", e => { if (e.target === cfgEl) closeCfg(); });
+addEventListener("keydown", e => { if (e.code === "Escape") closeCfg(); });
 function introPlay() {
   if (INTRO.phase !== "title") return;
   SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
   INTRO.phase = "custom"; introEl.classList.add("off");
-  setTimeout(() => introEl.remove(), 700); helpEl.remove();
+  setTimeout(() => introEl.remove(), 700); helpEl.remove(); cfgEl.remove();
   openCustomizer(true);
 }
 function introGo() { INTRO.phase = "go"; INTRO.t = 0; }
@@ -1795,7 +1832,7 @@ function introBackdrop(now) {                           // com a câmera longe, 
   ctx.save(); ctx.translate(wx, 0); drawMaltoUI(now); ctx.restore();
 }
 function shakeView(now) {                                // balança o quadro pronto: leve ao fisgar/pegar e um tremor bem fraquinho enquanto puxa o peixe
-  const a = GSHAKE + (state === "reel" ? 0.22 : 0);
+  const a = SHAKE_ON ? GSHAKE + (state === "reel" ? 0.22 : 0) : 0;
   if (a < 0.02) return;
   if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
   zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
@@ -1805,7 +1842,7 @@ function shakeView(now) {                                // balança o quadro pr
 }
 function introView(now) {                               // longe (zoom < 1): cenário redesenhado; perto (zoom >= 1): reaproveita o quadro pronto (com água e reflexo)
   const c = introCam(now), z = c.z, sw = W / z, sh = H / z, direct = z < 1;
-  const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? INTRO.shake * Math.sin(now / 18) * 5.5 : 0);
+  const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? (SHAKE_ON ? INTRO.shake : 0) * Math.sin(now / 18) * 5.5 : 0);
   if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
   zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
   ctx.fillStyle = "#241a45"; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
