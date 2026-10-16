@@ -20,6 +20,7 @@ const viewW = () => Math.max(WORLD, Math.min(WORLD + 240, Math.round(H * innerWi
 // ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
 const LEVELS = 4;                        // níveis por canal: 2 = bem radical (8 cores), 4 = equilibrado, 6 = mais suave
 const STEP = 255 / (LEVELS - 1);
+const NIGHT_LIFT = 0.40;                // clareia as sombras à noite ANTES do dithering (0 = igual a antes, 0.5 = bem mais claro). A paleta continua a mesma de 4 níveis
 const BAYER = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
                3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
 
@@ -32,7 +33,7 @@ const gl = (() => {
 })();
 const out = gl ? null : cv.getContext("2d");
 const buf = document.createElement("canvas");
-let glTex;
+let glTex, liftLoc;
 if (gl) {
   const VS = "attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}";
   const FS = `#ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -40,11 +41,11 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform sampler2D t;uniform float steps;varying vec2 uv;
+uniform sampler2D t;uniform float steps;uniform float lift;varying vec2 uv;
 float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
 float b8(vec2 a){return (b2(a*.25)*.25+b2(a*.5))*.25+b2(a);}
 void main(){
-  vec3 c=texture2D(t,uv).rgb*255.;
+  vec3 c=pow(texture2D(t,uv).rgb,vec3(lift))*255.;
   float st=255./(steps-1.);
   float th=(b8(mod(floor(gl_FragCoord.xy),8.))-.47)*st;
   c=clamp(floor((c+th)/st+.5)*st,0.,255.)/255.;
@@ -61,6 +62,7 @@ void main(){
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.uniform1f(gl.getUniformLocation(pg, "steps"), LEVELS);
+  liftLoc = gl.getUniformLocation(pg, "lift");
 }
 
 function setScale(s) {
@@ -76,9 +78,17 @@ addEventListener("resize", () => setScale(S));
 
 // Fallback (CPU): tabela pronta, sem contas por pixel
 const LUT = new Uint8Array(64 * 256);
-for (let t = 0; t < 64; t++) for (let v = 0; v < 256; v++)
-  LUT[(t << 8) | v] = Math.max(0, Math.min(255, Math.round((v + (BAYER[t] / 64 - 0.47) * STEP) / STEP) * STEP));
+let lutLift = -1;
+function buildLUT(lift) {                              // lift < 1 clareia as sombras antes de quantizar (ver NIGHT_LIFT)
+  lutLift = lift;
+  for (let t = 0; t < 64; t++) for (let v = 0; v < 256; v++) {
+    const l = Math.pow(v / 255, lift) * 255;
+    LUT[(t << 8) | v] = Math.max(0, Math.min(255, Math.round((l + (BAYER[t] / 64 - 0.47) * STEP) / STEP) * STEP));
+  }
+}
+const nightLift = () => 1 - NIGHT_LIFT * Math.max(0, Math.min(1, DAY.starA));   // 1 de dia, até 1-NIGHT_LIFT com o céu estrelado
 function dither() {
+  const lf = Math.round(nightLift() * 50) / 50; if (lf !== lutLift) buildLUT(lf);
   const w = cv.width, h = cv.height, im = ctx.getImageData(0, 0, w, h), d = im.data;
   for (let y = 0; y < h; y++) {
     const row = (y & 7) << 3;
@@ -92,6 +102,7 @@ function dither() {
 function present() {
   if (!gl) return dither();
   gl.viewport(0, 0, cv.width, cv.height);
+  gl.uniform1f(liftLoc, nightLift());
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, buf);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
