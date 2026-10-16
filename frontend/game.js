@@ -1587,12 +1587,15 @@ const ZIN = 1.3, ZOOM_T = 1.1;                    // zoom no deck: quanto aproxi
 const I_FALL0 = 0.8, I_FALL_T = 0.8, I_BOUNCE = 0.5, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
 const SETTLE0 = 2.1, SETTLE_T = 1.0, I_FREE = 2.5, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
 const introEl = document.createElement("div"); introEl.id = "intro";
-introEl.innerHTML = `<h1>FISHTEC</h1><button id="intro-play" type="button">JOGAR</button><button id="intro-help" type="button" class="sec">AJUDA</button>`;
+introEl.innerHTML = `<h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="intro-play" type="button">JOGAR</button><button id="intro-help" type="button" class="sec">AJUDA</button>`;
 const introStyle = document.createElement("style");
 introStyle.textContent = `
 #intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
   pointer-events:none;transition:opacity .55s ease;font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none}
 #intro.off{opacity:0}
+#intro h1 span{display:inline-block;transform-origin:50% 70%;animation:introWave 2.2s ease-in-out infinite;animation-delay:calc(var(--i) * .12s)}
+@keyframes introWave{0%{transform:translateY(0) scale(1)}25%{transform:translateY(-.07em) scale(1.13)}50%,100%{transform:translateY(0) scale(1)}}
+@media (prefers-reduced-motion:reduce){#intro h1 span{animation:none}}
 #intro h1{margin:0;font-weight:400;font-size:clamp(54px,12vw,140px);line-height:1;letter-spacing:.09em;color:#ffe0a8;padding-left:.09em;
   text-shadow:0 .045em 0 #f4a261,0 .09em 0 #b83f6a,0 .135em 0 #5e3274,0 0 .6em rgba(255,200,120,.4)}
 #intro button{pointer-events:auto;font:inherit;font-size:clamp(24px,4vw,40px);letter-spacing:.14em;padding:.35em 1.7em .35em 1.84em;cursor:pointer;
