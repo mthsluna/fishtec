@@ -841,18 +841,25 @@ function drawTiaoSide(now) {                                                    
     ctx.restore();
   };
   leg(-GA * gs, KB * Math.max(0, gc), C.dk); leg(GA * gs, KB * Math.max(0, -gc), C.skin);   // perna de trás (escura) e da frente
-  const sh = hipY + 10 - (S + 14);                                                      // bermuda
-  rect("#2f627d", -5.4, S + 14, 10.8, sh); rect("rgba(10,20,40,.3)", -5.4, S + 14, 3, sh); rect("rgba(255,255,255,.1)", 2.6, S + 14, 2.4, sh); rect("#1f4559", -5.4, S + 14, 10.8, 1.4);
+  const wt = S + 14, hb = hipY + 8.5, yF = hb - 0.9 * Math.abs(gs) * K.amp, yB = hb + 0.4;   // bermuda larga como a de frente: abre para baixo e a barra sobe do lado da perna que vai à frente
+  const shorts = () => { ctx.beginPath(); ctx.moveTo(-5.4, wt); ctx.lineTo(5.4, wt); ctx.lineTo(6.5, yF); ctx.lineTo(-6.5, yB); ctx.closePath(); };
+  shorts(); ctx.fillStyle = "#2f627d"; ctx.fill();
+  ctx.save(); shorts(); ctx.clip();
+  rect("rgba(10,20,40,.3)", -7, wt, 3.6, 20); rect("rgba(255,255,255,.1)", 3, wt, 4, 20); rect("rgba(10,20,40,.28)", 0.2, wt + 3, 0.8, 6);   // sombra à esquerda, luz à direita e uma dobra
+  rect("#1f4559", -5.4, wt, 10.8, 1.4); rect("#e6d9b8", 3.4, wt + 1.2, 0.8, 3.2);       // cós e cordinha
+  ctx.fillStyle = "#1f4559"; ctx.beginPath(); ctx.moveTo(-6.5, yB - 1.5); ctx.lineTo(6.5, yF - 1.5); ctx.lineTo(6.5, yF + 0.2); ctx.lineTo(-6.5, yB + 0.2); ctx.fill();   // barra
+  ctx.restore();
   ctx.save(); ctx.translate(0, hipY); ctx.rotate(0.05 * K.amp); ctx.translate(0, -hipY);   // tronco inclina de leve para a frente
-  const arm = (th, col) => {                                                            // braço em duas partes, com o cotovelo dobrando de leve para a frente
+  const arm = (th, col, hand) => {                                                            // braço em duas partes, com o cotovelo dobrando de leve para a frente
     ctx.save(); ctx.translate(0, S + 2.8); ctx.rotate(th);
-    rect(col, -1.6, -1, 3.2, 6); ctx.translate(0, 5); ctx.rotate(-0.08 - 0.3 * K.amp);
-    rect(col, -1.5, 0, 3, 5.6); rect(C.lt, -1.5, 5, 3, 2.6); ctx.restore();
+    rect(col, -1.6, -1, 3.2, 7.5); ctx.translate(0, 6.5); ctx.rotate(-0.08 - 0.3 * K.amp);
+    rect(col, -1.5, 0, 3, 6.2); rect(hand, -1.5, 5.6, 3, 2.8); ctx.restore();
   };
-  arm(GA * gs * 0.8, C.dk);                                                             // braço de trás (atrás do tronco)
-  rect(C.skin, -5, S, 10, 15.5); rect("rgba(0,0,0,.3)", -5, S, 2.8, 15.5); rect("rgba(255,210,160,.14)", 2.8, S, 2.2, 15.5);
+  arm(GA * gs, C.dk, C.dk);                                                             // braço de trás (atrás do tronco)
+  const tor = () => { ctx.beginPath(); ctx.moveTo(-5.2, S); ctx.lineTo(5.8, S); ctx.lineTo(5.2, S + 6); ctx.lineTo(4.6, S + 15.5); ctx.lineTo(-4.6, S + 15.5); ctx.lineTo(-5.4, S + 6); ctx.closePath(); };
+  tor(); ctx.fillStyle = C.skin; ctx.fill(); ctx.save(); tor(); ctx.clip(); rect("rgba(0,0,0,.3)", -6, S, 3.2, 16); rect("rgba(255,210,160,.14)", 3, S, 3, 16); ctx.restore();   // tronco: ombros mais largos que a cintura
   rect("rgba(0,0,0,.25)", 1.2, S + 5.4, 3.6, 0.7); rect("rgba(0,0,0,.2)", -3.2, S + 9.2, 7, 0.5);
-  arm(-GA * gs * 0.8, C.skin);                                                          // braço da frente (por cima do tronco)
+  arm(-GA * gs, C.lt, "#8a5a3c");                                                          // braço da frente (por cima do tronco)
   ctx.fillStyle = C.skin; roundPath(-2.2, S - 0.6, 4.4, 5, 1.6); ctx.fill();            // ombro cobrindo a junta
   rect(C.dk, -2.2, S - 3.5, 4.4, 4.2);                                                  // pescoço
   rect(C.skin, -3.5, -38.5 + hy, 9, 9); rect(C.dk, -3.5, -38.5 + hy, 1.6, 9);           // cabeça de perfil (um pouco à frente do tronco, como a do pescador)
@@ -866,8 +873,9 @@ function drawTiaoSide(now) {                                                    
   ctx.save(); ctx.translate(4.4, mY + 0.3 + Math.sin(t * 2.6) * 0.2); ctx.rotate(0.15 + Math.sin(t * 1.3) * 0.05);   // graveto no canto da boca
   rect("#b58e55", 0, -0.45, 5, 0.9); rect("#8a6a38", 0, 0.1, 5, 0.35); rect("#e0c690", 4.5, -0.45, 0.5, 0.9);
   ctx.restore();
-  ctx.fillStyle = C.hair; roundPath(-4.4, -46 + hy, 10.4, 6.4, 2.6); ctx.fill();        // cabelo curto
-  rect(C.hair, -4.4, -42 + hy, 1.8, 4.5); rect(C.hair, -3.6, -40.4 + hy, 9, 0.7);
+  ctx.fillStyle = C.hair; roundPath(-4.8, -46 + hy, 10.8, 6.6, 2.8); ctx.fill();         // cabelo curto, cobrindo o topo e a nuca
+  roundPath(-4.8, -43 + hy, 2.6, 7.6, 1.2); ctx.fill();                                    // nuca/costeleta atrás da orelha
+  rect(C.hair, -3.6, -40.4 + hy, 9.1, 0.7);        // linha da testa
   for (let i = 0; i < 5; i++) rect(C.hair2, -3.4 + i * 1.7, -45.3 + hy + (i % 2) * 0.6, 0.9, 0.9);
   ctx.restore(); ctx.restore();
 }
