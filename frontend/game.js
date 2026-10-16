@@ -1420,24 +1420,41 @@ let showT = 0;
 const cheerPose = now => { const s = Math.sin(now / 140); return { rod: REST, arm: -1.3 + 0.12 * s, lean: 0.04, off: Math.PI - 0.3 - 0.12 * s, flex: 0, cheer: 1, wv: s, hop: Math.abs(s) * 1.8 }; };
 const easeOutBack = k => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
 const fishCache = new Map();
-function scaledFish(fi, tw, th) {                                              // reduz a imagem aos poucos (metade por vez) até o tamanho da tela: sem serrilhado nem "pixels comidos" quando o PNG é bem maior que o peixe
+function scaledFish(fi, tw, th, id) {                                              // reduz a imagem aos poucos (metade por vez) até o tamanho da tela: sem serrilhado nem "pixels comidos" quando o PNG é bem maior que o peixe
   tw = Math.max(2, Math.round(tw / 4) * 4); th = Math.max(2, Math.round(th / 4) * 4);
-  if (fi.naturalWidth <= tw * 1.25) return fi;                                 // PNG pequeno: só amplia (suave) direto na tela
-  const key = fi.src + "|" + tw; let c = fishCache.get(key); if (c) return c;
-  let cur = fi, cw = fi.naturalWidth, ch = fi.naturalHeight;
+  const fw = fi.naturalWidth || fi.width, fh = fi.naturalHeight || fi.height;
+  if (fw <= tw * 1.25) return fi;                                 // PNG pequeno: só amplia (suave) direto na tela
+  const key = id + "|" + tw; let c = fishCache.get(key); if (c) return c;
+  let cur = fi, cw = fw, ch = fh;
   while (cw / 2 > tw) {
     const n = document.createElement("canvas"); n.width = Math.ceil(cw / 2); n.height = Math.ceil(ch / 2);
     const x = n.getContext("2d"); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, n.width, n.height);
     cur = n; cw = n.width; ch = n.height;
   }
-  c = document.createElement("canvas"); c.width = tw; c.height = Math.max(2, Math.round(tw * fi.naturalHeight / fi.naturalWidth));
+  c = document.createElement("canvas"); c.width = tw; c.height = Math.max(2, Math.round(tw * fh / fw));
   const x = c.getContext("2d"); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, c.width, c.height);
   if (fishCache.size > 40) fishCache.clear();
   fishCache.set(key, c); return c;
 }
+const cropCache = new Map();
+function fishCrop(fi, id) {                                                    // recorta as margens transparentes do PNG: o tamanho e a posição passam a valer para o peixe de verdade (e não para a imagem com folga em volta)
+  if (cropCache.has(id)) return cropCache.get(id);
+  let out = fi;
+  try {
+    const w = fi.naturalWidth, h = fi.naturalHeight, c = document.createElement("canvas"); c.width = w; c.height = h;
+    const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(fi, 0, 0);
+    const d = x.getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (d[(j * w + i) * 4 + 3] > 24) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+    if (x1 >= x0 && y1 >= y0 && (x1 - x0 + 1 < w || y1 - y0 + 1 < h)) {
+      const cw = x1 - x0 + 1, ch = y1 - y0 + 1, n = document.createElement("canvas"); n.width = cw; n.height = ch;
+      n.getContext("2d").drawImage(fi, x0, y0, cw, ch, 0, 0, cw, ch); out = n;
+    }
+  } catch (e) {}                                                               // sem acesso aos pixels: usa a imagem inteira
+  cropCache.set(id, out); return out;
+}
 let CU = null;                                                                 // onde o texto da pescaria vai aparecer (calculado no mundo, desenhado na tela depois do zoom)
 function catchDims() {                                                         // tamanho do peixe na tela (proporcional aos cm) e altura da cabeça do pescador
-  const fi = img(fish.file), ok = fi.complete && fi.naturalWidth, iw = ok ? fi.naturalWidth : 4, ih = ok ? fi.naturalHeight : 3;
+  const f0 = img(fish.file), ok = f0.complete && f0.naturalWidth, fi = ok ? fishCrop(f0, fish.file) : f0, iw = ok ? fi.naturalWidth || fi.width : 4, ih = ok ? fi.naturalHeight || fi.height : 3;
   const above = FISHER_TOP * hScale(me.h) + 10;                                // cabeça (com chapéu) + folga: o peixe fica acima da cabeça e das mãos levantadas
   let r = Math.max(14, catchCm * PX_PER_CM) / Math.max(iw, ih);
   if (ih * r > PIER_Y - above - 30) r = (PIER_Y - above - 30) / ih;           // peixe enorme: nunca passa do topo da tela
@@ -1470,7 +1487,7 @@ function drawCatchUI() {                                                       /
     const w = CU.w * CU.sc * v.z, h = CU.h * CU.sc * v.z;
     ctx.save(); ctx.translate(X, (CU.cy - v.sy) * v.z); ctx.rotate(CU.rot);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
-    if (CU.ok) ctx.drawImage(scaledFish(CU.fi, w * S, h * S), -w / 2, -h / 2, w, h); else rect("#ffd166", -w / 2, -h / 2, w, h);
+    if (CU.ok) ctx.drawImage(scaledFish(CU.fi, w * S, h * S, fish.file), -w / 2, -h / 2, w, h); else rect("#ffd166", -w / 2, -h / 2, w, h);
     ctx.restore();
   }
   text(fish.name, X, y1, "#ffd166", "center");
