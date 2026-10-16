@@ -123,7 +123,7 @@ const PIER_Y = 150, WATER_Y = 168;
 const HZ = 132;                                  // linha do horizonte: montanhas e mata acabam aqui; daqui até o cais é o lago distante
 const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
 // o cais ACABA em DECK_END (x do mundo); o pescador anda até PX_MAX, um pouco antes da ponta, e não passa dali
-const DECK_END = 496, PX_MAX = 480, CAM_K = 0.12;
+const DECK_END = 640, PX_MAX = 480, CAM_K = 0.12;   // DECK_END = 640: o cais passa da borda direita mesmo na tela mais larga (a camada de fundo vai até 640)
 const pxMax = () => PX_MAX;
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
@@ -1608,8 +1608,10 @@ function makeFog(f) {
 }
 function drawFog(i, now, ox) {
   const f = FOGS[i], x0 = ox + camX * f.par - EXT, d = ((now / 1000 * f.sp) % LW + LW) % LW;
+  ctx.globalAlpha = 1 - 0.8 * DAY.starA;                   // à noite a névoa quase some (senão fica tudo lavado)
   ctx.drawImage(layers.fogs[i], x0 + d - LW, f.y0, LW, f.bh);
   ctx.drawImage(layers.fogs[i], x0 + d, f.y0, LW, f.bh);
+  ctx.globalAlpha = 1;
 }
 function buildLayers(now) {
   // todas as camadas usam coordenadas do mundo (0..480) e têm EXT px de sobra de cada lado
@@ -1763,7 +1765,7 @@ function pierShadow(now, wxp) {            // sombra do cais caindo na água log
   ctx.globalAlpha = 0.35 + 0.65 * DAY.lightA;                                  // sem sol forte, sombra mais fraca
   const t = now / 1000, g = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 34);   // começa na linha da água (não cobre o lago/céu atrás do cais)
   g.addColorStop(0, "rgba(22,10,44,.42)"); g.addColorStop(0.35, "rgba(22,10,44,.28)"); g.addColorStop(0.7, "rgba(22,10,44,.1)"); g.addColorStop(1, "rgba(22,10,44,0)");
-  ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, 34);
+  ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, Math.max(0, Math.min(W, wxp + DECK_END)), 34);   // só até a ponta do cais
   for (let i = 6 - 48 * 4; i < DECK_END; i += 48) {                   // sombra de cada poste, balançando de leve com a água
     const x = wxp + i; if (x < -20 || x > W + 20) continue;
     const sw = Math.sin(t * 1.4 + i * 0.37) * 1.2, pg = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 22);
@@ -1851,7 +1853,7 @@ function drawReelUI(now) {
 }
 
 // ---------- Postes de luz do cais: acendem à noite com luz amarela quente ----------
-const LAMPS = [-110, 30, 170, 310, 450];            // x de cada poste no mundo (mude aqui para mover/adicionar)
+const LAMPS = [-110, 30, 170, 310, 450, 590];            // x de cada poste no mundo (mude aqui para mover/adicionar)
 const LAMP_H = 80;                                       // altura do fuste; a lanterna fica no topo
 const LAMP_WARM = [255, 190, 70];                        // cor da luz (amarelo quente)
 const lampOn = x => DAY.lamp > 0.01 && x + ox0() > -100 && x + ox0() < W + 100;

@@ -14,9 +14,9 @@ const DAY = (() => {
   // at: hora do dia | sky: [topo, meio, baixo, horizonte] | wash: [r,g,b,força] sobre o cenário | water: idem sobre a água | stars: 0 a 1
   // O visual original do jogo (pôr do sol) é a chave "17:45": força 0 = nada muda.
   const KEYS = [
-    { at: "00:00", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [60, 80, 150, .28], water: [30, 50, 110, .34], stars: 1 },
-    { at: "04:00", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [60, 80, 150, .28], water: [30, 50, 110, .34], stars: 1 },
-    { at: "05:30", sky: ["#161c42", "#3a3472", "#7a528a", "#cc7a80"], wash: [90, 80, 130, .22], water: [60, 70, 120, .28], stars: .55 },
+    { at: "00:00", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [14, 22, 66, .55], water: [10, 20, 60, .5], stars: 1 },
+    { at: "04:00", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [14, 22, 66, .55], water: [10, 20, 60, .5], stars: 1 },
+    { at: "05:30", sky: ["#161c42", "#3a3472", "#7a528a", "#cc7a80"], wash: [50, 48, 100, .36], water: [35, 42, 90, .36], stars: .55 },
     { at: "06:15", sky: ["#2d3f7a", "#c25a7a", "#f4a261", "#ffd9a0"], wash: [255, 170, 130, .14], water: [255, 170, 140, .16], stars: 0 },
     { at: "07:30", sky: ["#3d78c8", "#78b2e6", "#b4d8f0", "#f2e6c8"], wash: [200, 215, 235, .18], water: [90, 150, 200, .34], stars: 0 },
     { at: "10:00", sky: ["#2f6dc2", "#5aa3e6", "#9fcdf0", "#dcecf5"], wash: [205, 225, 240, .24], water: [60, 140, 200, .42], stars: 0 },
@@ -25,9 +25,9 @@ const DAY = (() => {
     { at: "17:00", sky: ["#34407e", "#d4807a", "#f5b070", "#ffe6b0"], wash: [255, 200, 140, .08], water: [255, 190, 140, .12], stars: 0 },
     { at: "17:45", sky: ["#241a45", "#b83f6a", "#f4a261", "#ffe0a8"], wash: [0, 0, 0, 0], water: [0, 0, 0, 0], stars: 0 },      // = visual original
     { at: "18:30", sky: ["#161634", "#5a2c66", "#a4426a", "#e07a5a"], wash: [80, 50, 110, .2], water: [70, 50, 105, .2], stars: .1 },
-    { at: "19:30", sky: ["#0c1234", "#1c2250", "#3a3568", "#7a4a74"], wash: [55, 65, 130, .3], water: [35, 45, 100, .36], stars: .6 },
-    { at: "20:30", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [60, 80, 150, .28], water: [30, 50, 110, .34], stars: 1 },
-    { at: "24:00", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [60, 80, 150, .28], water: [30, 50, 110, .34], stars: 1 },
+    { at: "19:30", sky: ["#0c1234", "#1c2250", "#3a3568", "#7a4a74"], wash: [24, 34, 90, .46], water: [18, 30, 80, .44], stars: .6 },
+    { at: "20:30", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [14, 22, 66, .55], water: [10, 20, 60, .5], stars: 1 },
+    { at: "24:00", sky: ["#0a1030", "#121c48", "#1e2d5c", "#2e3d70"], wash: [14, 22, 66, .55], water: [10, 20, 60, .5], stars: 1 },
   ].map(k => {
     const [h, m] = k.at.split(":").map(Number);
     return { t: h * 60 + m, sky: k.sky.map(c => [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16))), wash: k.wash, water: k.water, stars: k.stars };
