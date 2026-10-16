@@ -2170,6 +2170,32 @@ function drawLampWater(now) {                            // brilho amarelo na á
   ctx.restore();
 }
 
+// ---------- Optical flare do sol (bem sutil): raia horizontal, halo e "fantasmas" de lente ao longo da linha sol -> centro da tela ----------
+// Soma luz por cima da cena (nada de escurecer). Para mexer na força: FLARE_K (1 = como está, 0 = desligado).
+const FLARE_K = 1;
+const FLARE_GHOSTS = [[0.55, 5, [255, 214, 150], 0.075], [1.0, 9, [150, 205, 255], 0.05], [1.45, 4, [255, 165, 205], 0.065], [1.95, 13, [175, 255, 215], 0.04]];   // [posição na linha, raio, cor, força]
+function drawSunFlare(now, X, Y) {
+  const e = DAY.sunE, k = DAY.sunA * Math.min(1, 0.2 + e * 1.2) * FLARE_K;       // some junto com o sol (e fica fraco com ele baixo, perto das montanhas)
+  if (k < 0.02 || X < -80 || X > W + 80 || Y < -80 || Y > H) return;
+  const A = k * (1 + 0.05 * Math.sin(now / 1300) + 0.03 * Math.sin(now / 410 + 1)), [r, g, b] = DAY.lc.map(Math.round);
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  let gr = ctx.createLinearGradient(X - 100, 0, X + 100, 0);                        // raia horizontal fininha atravessando o sol
+  gr.addColorStop(0, `rgba(${r},${g},${b},0)`); gr.addColorStop(0.5, `rgba(255,248,225,${0.16 * A})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = gr; ctx.fillRect(X - 100, Y - 0.7, 200, 1.4);
+  gr = ctx.createRadialGradient(X, Y, 12, X, Y, 32);                                // anel suave em volta do sol
+  gr.addColorStop(0, `rgba(${r},${g},${b},0)`); gr.addColorStop(0.55, `rgba(${r},${g},${b},${0.05 * A})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = gr; ctx.fillRect(X - 32, Y - 32, 64, 64);
+  const dx = W / 2 - X, dy = H / 2 - Y;
+  FLARE_GHOSTS.forEach(([p, R, c, a]) => {                                          // reflexos da lente: discos suaves, em cores diferentes, do lado oposto ao sol
+    const x = X + dx * p, y = Y + dy * p;
+    gr = ctx.createRadialGradient(x, y, 0, x, y, R);
+    gr.addColorStop(0, `rgba(${c.join(",")},${a * 0.35 * A})`);
+    gr.addColorStop(0.75, `rgba(${c.join(",")},${a * A})`); gr.addColorStop(1, `rgba(${c.join(",")},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(x - R, y - R, R * 2, R * 2);
+  });
+  ctx.restore();
+}
+
 function draw(now) {
   DAY.update(gameMinutes());
   if (!layers) buildLayers(now);
@@ -2247,6 +2273,7 @@ function draw(now) {
   ctx.restore();
 
   ctx.restore();                                           // fim da câmera: a interface abaixo não é ampliada
+  if (!INTRO.on) drawSunFlare(now, (ox + camX * PAR.sky + DAY.sunX - lastView.sx) * lastView.z, (DAY.sunY - lastView.sy) * lastView.z);   // flare do sol (em tela, por cima da cena)
   if (INTRO.on) introView(now);
 
   if (!INTRO.on) shakeView(now);                                       // tremor levinho (só o cenário; a interface abaixo não treme)
@@ -2410,26 +2437,28 @@ introStyle.textContent = `
 #intro button.sec{color:#ffe0a8;background:#241a45;border-color:#ffe0a8;box-shadow:0 .14em 0 #5e3274;margin-top:-1vh}
 #intro button.sec:hover,#intro button.sec:focus-visible{background:#3a2a66}
 #intro button.sec:active{box-shadow:0 .04em 0 #5e3274}
-#help{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
-  font:16px/1.2 "DigitalDisco",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
+#help{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.6);
+  font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none;--u:3px;--acc:#ffd166}
 #help.on{display:flex}
-#help .hp-box{width:min(460px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 18px 16px;background:#97a888;
-  border:4px solid #1b2619;border-radius:10px;box-shadow:0 0 0 3px #7d8f71,0 14px 50px #000}
-#help .hp-title{font-size:32px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:8px}
-#help .hp-row{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed rgba(27,38,25,.35)}
-#help .hp-row:last-of-type{border-bottom:0}
-#help .hp-row{align-items:center}
-#help .hp-keys{flex:none;width:158px;display:flex;align-items:center;justify-content:center;color:#1b2619}
-#help .key{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:28px;height:24px;margin:3px 4px 8px;padding-top:1px;
-  background:#bccdac;color:#1b2619;font-size:16px;line-height:1;
-  box-shadow:0 2px 0 0 #7d8f71,0 -2px 0 0 #1b2619,-2px 0 0 0 #1b2619,2px 0 0 0 #1b2619,-2px 2px 0 0 #1b2619,2px 2px 0 0 #1b2619,0 4px 0 0 #1b2619}
-#help .key.w{width:50px}
-#help .key.sp{width:112px}
+#help .hp-box{width:min(calc(320 * var(--u)),96vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:calc(8 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u));
+  background:rgba(15,22,36,.96);color:#fff;box-shadow:0 0 0 var(--u) var(--acc),0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0,0,0,.6);animation:pzPop .18s ease-out}
+#help .hp-title{font-size:calc(11 * var(--u));line-height:1;text-align:center;color:var(--acc);text-shadow:var(--u) var(--u) 0 #000}
+#help .hp-line{height:var(--u);margin:calc(6 * var(--u)) calc(2 * var(--u)) calc(4 * var(--u));background:rgba(255,255,255,.18)}
+#help .hp-row{display:flex;gap:calc(8 * var(--u));align-items:center;padding:calc(3 * var(--u)) calc(6 * var(--u));font-size:calc(11 * var(--u));line-height:1.25;text-shadow:var(--u) var(--u) 0 #000}
+#help .hp-keys{flex:none;width:calc(86 * var(--u));display:flex;align-items:center;justify-content:center;gap:calc(2 * var(--u));color:#1b2230;text-shadow:none}
+#help .key{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:calc(14 * var(--u));height:calc(14 * var(--u));padding-bottom:var(--u);
+  background:#fff;color:#1b2230;border-bottom:calc(2 * var(--u)) solid #9aa6b8;font-size:calc(11 * var(--u));line-height:1}
+#help .key.w{width:calc(26 * var(--u))}
+#help .key.sp{width:calc(62 * var(--u))}
 #help .key svg,#help .hp-keys>svg{display:block}
-#help .or{margin:0 2px 5px;opacity:.7}
-#help .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}
-#help .hp-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 18px;cursor:pointer}
-#help .hp-btns button:hover,#help .hp-btns button:focus-visible{background:#2f4029;outline:none}`;
+#help .hp-keys>svg{color:#fff}
+#help .or{color:#9aa6b8;margin:0 calc(1 * var(--u))}
+#help .hp-btns{margin-top:calc(2 * var(--u))}
+#help .hp-btns button{display:flex;align-items:center;justify-content:space-between;width:100%;height:calc(22 * var(--u));box-sizing:border-box;padding:0 calc(6 * var(--u));margin:0;border:0;border-radius:0;
+  background:transparent;color:#fff;font:inherit;font-size:calc(11 * var(--u));line-height:1;text-align:left;cursor:pointer;text-shadow:var(--u) var(--u) 0 #000}
+#help .hp-btns button:focus,#help .hp-btns button:active{outline:none;background:rgba(255,209,102,.16);color:var(--acc)}
+#help .hp-btns button::after{content:"";width:calc(4 * var(--u));height:calc(4 * var(--u));background:var(--acc);opacity:0;clip-path:polygon(0 0,100% 50%,0 100%)}
+#help .hp-btns button:focus::after{opacity:1}`;
 document.head.appendChild(introStyle); document.body.appendChild(introEl);
 const introBtns = [...introEl.querySelectorAll("button")];
 function sizeIntroBtns() {                              // os três botões ficam com o mesmo tamanho (o do mais largo: CONFIGURAÇÕES)
@@ -2441,7 +2470,7 @@ sizeIntroBtns(); addEventListener("resize", sizeIntroBtns);
 if (document.fonts) document.fonts.ready.then(sizeIntroBtns);
 const introBtn = introEl.querySelector("#intro-play"), helpBtn = introEl.querySelector("#intro-help");
 const helpEl = document.createElement("div"); helpEl.id = "help";
-const PIX = rows => `<svg width="${rows[0].length * 2}" height="${rows.length * 2}" viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor">` +
+const PIX = rows => `<svg style="width:calc(var(--u) * ${rows[0].length * 0.8});height:calc(var(--u) * ${rows.length * 0.8})" viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor">` +
   rows.map((r, y) => [...r].map((c, x) => c === "#" ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : "").join("")).join("") + `</svg>`;   // desenho em pixels (cada # = 1 quadradinho)
 const ICO = {
   left:  PIX(["...#.....", "..##.....", ".########", "..##.....", "...#....."]),
@@ -2450,7 +2479,7 @@ const ICO = {
   mouse: PIX([".#######.", "#####...#", "#####...#", "#####...#", "#####...#", "#########", "#.......#", "#.......#", "#.......#", "#.......#", "#.......#", "#.......#", ".#######."]),
 };
 const KEY = (c, cls = "") => `<span class="key ${cls}">${c}</span>`;
-helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div class="hp-title">Ajuda</div>
+helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div class="hp-title">Ajuda</div><div class="hp-line"></div>
   <div class="hp-row"><div class="hp-keys">${KEY(ICO.left)}${KEY(ICO.right)}<span class="or">/</span>${KEY("A")}${KEY("D")}</div><span>andar pelo cais</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY(ICO.shift, "w")}</div><span>correr (segure enquanto anda)</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("", "sp")}</div><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
@@ -2458,10 +2487,12 @@ helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div cl
   <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>falar com o Malto e o Pedro (perto deles)</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("F")}</div><span>abrir ou guardar o celular</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("M")}</div><span>ligar ou desligar o som</span></div>
-  <div class="hp-btns"><button id="help-close" type="button">Voltar</button></div></div>`;
+  <div class="hp-line"></div><div class="hp-btns"><button id="help-close" type="button">Voltar</button></div></div>`;
 document.body.appendChild(helpEl);
 const helpClose = helpEl.querySelector("#help-close");
-function openHelp() { helpEl.classList.add("on"); helpClose.focus(); }
+function helpSize() { const r = cv.getBoundingClientRect(); helpEl.style.setProperty("--u", (r.height / H || 3) + "px"); }   // 1 pixel do jogo na tela (mesma escala da pausa)
+addEventListener("resize", helpSize);
+function openHelp() { helpSize(); helpEl.classList.add("on"); helpClose.focus(); }
 function closeHelp() { if (!helpEl.classList.contains("on")) return; helpEl.classList.remove("on"); introBtn.focus(); }
 helpBtn.onclick = openHelp; helpClose.onclick = closeHelp;
 helpEl.addEventListener("pointerdown", e => { if (e.target === helpEl) closeHelp(); });
@@ -2529,10 +2560,9 @@ pzStyle.textContent = `
 #pz.on{display:flex}
 #pz .pz-card{width:calc(200 * var(--u));box-sizing:border-box;padding:calc(8 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u));background:rgba(15,22,36,.96);
   box-shadow:0 0 0 var(--u) var(--acc),0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0,0,0,.6);animation:pzPop .18s ease-out}
-#pz .pz-top{display:flex;justify-content:space-between;align-items:baseline;padding:0 calc(4 * var(--u));font-size:calc(11 * var(--u));line-height:1;
+#pz .pz-top{display:flex;justify-content:center;align-items:baseline;padding:0 calc(4 * var(--u));font-size:calc(11 * var(--u));line-height:1;
   text-shadow:var(--u) var(--u) 0 #000}
 #pz .pz-top b{font-weight:400;color:var(--acc)}
-#pz .pz-top i{font-style:normal;color:#9fd3ff}
 #pz .pz-line{height:var(--u);margin:calc(6 * var(--u)) calc(2 * var(--u)) calc(4 * var(--u));background:rgba(255,255,255,.18)}
 #pz .pz-list{display:flex;flex-direction:column;gap:calc(2 * var(--u))}
 #pz button{display:flex;align-items:center;justify-content:space-between;width:100%;height:calc(22 * var(--u));box-sizing:border-box;padding:0 calc(6 * var(--u));margin:0;border:0;border-radius:0;
@@ -2540,14 +2570,12 @@ pzStyle.textContent = `
 #pz button:focus,#pz button:active{outline:none;background:rgba(255,209,102,.16);color:var(--acc)}
 #pz button::after{content:"";width:calc(4 * var(--u));height:calc(4 * var(--u));background:var(--acc);opacity:0;clip-path:polygon(0 0,100% 50%,0 100%)}
 #pz button:focus::after{opacity:1}
-#pz .pz-foot{padding:0 calc(4 * var(--u));font-size:calc(11 * var(--u));line-height:1;color:#9aa6b8;text-shadow:var(--u) var(--u) 0 #000}
 @keyframes pzPop{from{transform:translateY(calc(6 * var(--u)));opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){#pz .pz-card{animation:none}}`;                                  // painel escuro com borda amarela, no mesmo estilo do inventário
 document.head.appendChild(pzStyle);
-pzEl.innerHTML = `<div class="pz-card" role="dialog" aria-label="Pausa"><div class="pz-top"><b>Pausa</b><i>FISHTEC</i></div><div class="pz-line"></div><div class="pz-list"><button id="pz-back" type="button">Voltar ao jogo</button><button id="pz-cfg" type="button">Configurações</button><button id="pz-home" type="button">Tela inicial</button></div><div class="pz-line"></div><div class="pz-foot" id="pz-foot"></div></div>`;
+pzEl.innerHTML = `<div class="pz-card" role="dialog" aria-label="Pausa"><div class="pz-top"><b>Pausa</b></div><div class="pz-line"></div><div class="pz-list"><button id="pz-back" type="button">Voltar ao jogo</button><button id="pz-cfg" type="button">Configurações</button><button id="pz-home" type="button">Tela inicial</button></div></div>`;
 document.body.appendChild(pzEl);
 const pzBtns = [...pzEl.querySelectorAll("button")], pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
-const pzFoot = pzEl.querySelector("#pz-foot");
 function pzSize() { const r = cv.getBoundingClientRect(); pzEl.style.setProperty("--u", (r.height / H || 3) + "px"); }   // 1 pixel do jogo na tela
 addEventListener("resize", pzSize);
 pzBtns.forEach(b => b.addEventListener("mouseenter", () => b.focus()));
@@ -2556,7 +2584,7 @@ function pauseGame() {
   PAUSED = true; rebinding = false;
   for (const k in keys) keys[k] = false; SND.reel(false);
   pzEl.classList.add("on");
-  pzSize(); pzFoot.textContent = (RESUME_KEY === "Escape" ? "ESC" : "ESC ou " + keyLabel(RESUME_KEY)) + " voltar ao jogo";
+  pzSize();
   pzBack.focus();
 }
 function resumeGame() { PAUSED = false; rebinding = false; pzEl.classList.remove("on"); cv.focus(); }
