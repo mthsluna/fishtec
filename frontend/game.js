@@ -124,7 +124,7 @@ const HZ = 132;                                  // linha do horizonte: montanha
 const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
 // o cais ACABA em DECK_END (x do mundo); o pescador anda até PX_MAX, um pouco antes da ponta, e não passa dali
 const DECK_END = 600, PX_MAX = 584, CAM_K = 0.12;   // o cais acaba em 600 e o pescador anda até 584; depois do x=440 a câmera acompanha de perto para a ponta do cais aparecer na tela
-const CAM_FAR = 440;
+const CAM_FAR = 380, CAM_EXTRA = 110;   // a partir de CAM_FAR a câmera vai abrindo em curva suave (até CAM_EXTRA px a mais na ponta do cais), sem tranco
 const pxMax = () => PX_MAX;
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
@@ -1346,7 +1346,8 @@ function update(dt) {
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt); tiaoUpdate(dt);
   GSHAKE *= Math.exp(-dt * 6);
-  camX += (-(Math.min(px, CAM_FAR) - WORLD / 2) * CAM_K - Math.max(0, px - CAM_FAR) - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
+  const cu = Math.max(0, Math.min(1, (px - CAM_FAR) / (PX_MAX - CAM_FAR)));
+  camX += (-(px - WORLD / 2) * CAM_K - CAM_EXTRA * cu * cu * (3 - 2 * cu) - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
   vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
@@ -1854,7 +1855,7 @@ function drawReelUI(now) {
 }
 
 // ---------- Postes de luz do cais: acendem à noite com luz amarela quente ----------
-const LAMPS = [-110, 30, 170, 310, 450, 590];            // x de cada poste no mundo (mude aqui para mover/adicionar)
+const LAMPS = [-110, 30, 170, 310, 450, 560];            // x de cada poste no mundo (mude aqui para mover/adicionar)
 const LAMP_H = 80;                                       // altura do fuste; a lanterna fica no topo
 const LAMP_WARM = [255, 190, 70];                        // cor da luz (amarelo quente)
 const lampOn = x => DAY.lamp > 0.01 && x + ox0() > -100 && x + ox0() < W + 100;
