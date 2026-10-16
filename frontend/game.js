@@ -233,12 +233,12 @@ function rodPose(R, b) {                                   // soma a animação 
 const LEG_SHARE = 0.73;                                                         // fatia do ganho de altura que vai para as pernas (o resto vai para o tronco)
 let LEGX = 0, TORSOX = 0, AL = 8;                                               // AL: comprimento do braço (cresce com a altura, junto com as pernas)
 function collarFront(col) {                                                    // gola redonda de frente: barra escura em "U" em volta do pescoço
-  ctx.fillStyle = shade(col, 0.76); roundPath(-3.5, -25, 7, 4.8, 2.3); ctx.fill();                 // barra (ribana)
-  ctx.fillStyle = "#e0ac69"; roundPath(-2.3, -25.2, 4.6, 3.4, 1.6); ctx.fill();                    // pescoço aparecendo no decote
-  rect("rgba(0,0,0,.12)", -2.3, -24.6, 4.6, 0.7);                                                  // sombrinha embaixo do queixo
+  ctx.fillStyle = shade(col, 0.76); roundPath(-2.7, -25, 5.4, 3.5, 1.7); ctx.fill();                 // barra (ribana)
+  ctx.fillStyle = "#e0ac69"; roundPath(-1.9, -25.2, 3.8, 2.5, 1.2); ctx.fill();                    // pescoço aparecendo no decote
+  rect("rgba(0,0,0,.12)", -1.9, -24.6, 3.8, 0.6);                                                  // sombrinha embaixo do queixo
 }
 function collarSide(col) {                                                     // gola redonda de lado: barra fina em volta da base do pescoço
-  ctx.fillStyle = shade(col, 0.76); roundPath(-3.6, -25, 6, 2, 0.9); ctx.fill();
+  ctx.fillStyle = shade(col, 0.76); roundPath(-3.2, -24.9, 5, 1.5, 0.7); ctx.fill();
 }
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
   ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
