@@ -7,12 +7,16 @@
 <style>
   @font-face{font-family:"Nokia Cellphone FC";src:url("assets/fonts/nokia-cellphone-fc.ttf") format("truetype");font-display:block}
   html,body{margin:0;height:100%;background:#14202b;display:grid;place-items:center;overflow:hidden}
+  *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  input,textarea{-webkit-user-select:text;user-select:text}
+  img,canvas{-webkit-user-drag:none}
   canvas{max-width:100vw;max-height:100vh;image-rendering:auto;touch-action:none;outline:none}
 </style>
 </head>
 <body>
 <canvas id="g" tabindex="0" aria-label="Jogo de pesca"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
+<script src="protect.js"></script>
 <script src="config.js"></script>
 <script src="audio.js"></script>
 <script src="game.js"></script>
