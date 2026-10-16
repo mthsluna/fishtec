@@ -74,39 +74,6 @@ function setScale(s) {
 setScale(2);
 addEventListener("resize", () => setScale(S));
 
-// ---------- Efeito bitmap também na interface HTML (intro, ajuda, personalizar, celular em HTML) ----------
-// Mesmo dithering Bayer 8x8 do canvas, mas feito por um filtro SVG: LEVELS níveis por canal, bordas sem suavização (alfa de 1 bit)
-// e sombras/brilhos viram pontilhado.
-const BITMAP = (() => {
-  const tile = px => { const c = document.createElement("canvas"); c.width = c.height = 8;
-    const g = c.getContext("2d"), im = g.createImageData(8, 8);
-    for (let i = 0; i < 64; i++) im.data.set(px(BAYER[i] / 64), i * 4);
-    g.putImageData(im, 0, 0); return c.toDataURL(); };
-  const thr  = tile(b => { const v = Math.round(b * 255); return [v, v, v, 255]; });          // limiares do dithering
-  const st = 1 / (LEVELS - 1), n = 2 * (LEVELS - 1);
-  const table = Array.from({ length: n }, (_, j) => +(Math.round((j + 0.5) / n / st) * st).toFixed(4)).join(" ");
-  document.body.insertAdjacentHTML("beforeend",
-    `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-      <filter id="bitmap" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
-        <feImage result="b" x="0" y="0" width="16" height="16" preserveAspectRatio="none" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/>
-        <feTile in="b" result="t"/>
-        <feComposite in="SourceGraphic" in2="t" operator="arithmetic" k1="0" k2="1" k3="${st}" k4="${-0.47 * st}"/>
-        <feComponentTransfer><feFuncR type="discrete" tableValues="${table}"/><feFuncG type="discrete" tableValues="${table}"/><feFuncB type="discrete" tableValues="${table}"/><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer>
-      </filter></defs></svg>`);
-  const img = document.querySelector("#bitmap feImage");
-  img.setAttribute("href", thr); img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", thr);
-  const css = document.createElement("style");
-  css.textContent = `.hp-box,.cz-box{filter:url(#bitmap)}`;
-  document.head.appendChild(css);
-  function sync() {                                            // 1 "pixel" do dithering da interface = 1 pixel do canvas na tela
-    const p = Math.max(1, Math.round(cv.clientWidth / cv.width) || 2);
-    document.documentElement.style.setProperty("--bm-p", p);
-    img.setAttribute("width", 8 * p); img.setAttribute("height", 8 * p);
-  }
-  addEventListener("resize", sync); sync();
-  return { sync };
-})();
-
 // Fallback (CPU): tabela pronta, sem contas por pixel
 const LUT = new Uint8Array(64 * 256);
 for (let t = 0; t < 64; t++) for (let v = 0; v < 256; v++)
@@ -1627,7 +1594,7 @@ const ZIN = 1.3, ZOOM_T = 1.1;                    // zoom no deck: quanto aproxi
 const I_FALL0 = 0.8, I_FALL_T = 0.8, I_BOUNCE = 0.5, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
 const SETTLE0 = 2.1, SETTLE_T = 1.0, I_FREE = 2.5, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
 const introEl = document.createElement("div"); introEl.id = "intro";
-introEl.innerHTML = `<h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="intro-play" type="button">JOGAR</button><button id="intro-help" type="button" class="sec">AJUDA</button><button id="intro-config" type="button" class="sec">CONFIG</button>`;
+introEl.innerHTML = `<h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="intro-play" type="button">JOGAR</button><button id="intro-help" type="button" class="sec">AJUDA</button><button id="intro-config" type="button" class="sec">CONFIGURAÇÕES</button>`;
 const introStyle = document.createElement("style");
 introStyle.textContent = `
 #intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
@@ -1643,7 +1610,7 @@ introStyle.textContent = `
   color:#241a45;background:#ffe0a8;border:3px solid #241a45;box-shadow:0 .14em 0 #b83f6a,0 0 0 3px #ffe0a8}
 #intro button:hover,#intro button:focus-visible{background:#fff6dc;outline:none}
 #intro button:active{transform:translateY(.1em);box-shadow:0 .04em 0 #b83f6a,0 0 0 3px #ffe0a8}
-#intro button.sec{font-size:clamp(18px,2.8vw,28px);color:#ffe0a8;background:#241a45;border-color:#ffe0a8;box-shadow:0 .14em 0 #5e3274;margin-top:-1vh}
+#intro button.sec{color:#ffe0a8;background:#241a45;border-color:#ffe0a8;box-shadow:0 .14em 0 #5e3274;margin-top:-1vh}
 #intro button.sec:hover,#intro button.sec:focus-visible{background:#3a2a66}
 #intro button.sec:active{box-shadow:0 .04em 0 #5e3274}
 #help{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
@@ -1667,6 +1634,14 @@ introStyle.textContent = `
 #help .hp-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 18px;cursor:pointer}
 #help .hp-btns button:hover,#help .hp-btns button:focus-visible{background:#2f4029;outline:none}`;
 document.head.appendChild(introStyle); document.body.appendChild(introEl);
+const introBtns = [...introEl.querySelectorAll("button")];
+function sizeIntroBtns() {                              // os três botões ficam com o mesmo tamanho (o do mais largo: CONFIGURAÇÕES)
+  introBtns.forEach(b => { b.style.width = ""; });
+  const w = Math.max(...introBtns.map(b => b.offsetWidth));
+  if (w) introBtns.forEach(b => { b.style.width = w + "px"; });
+}
+sizeIntroBtns(); addEventListener("resize", sizeIntroBtns);
+if (document.fonts) document.fonts.ready.then(sizeIntroBtns);
 const introBtn = introEl.querySelector("#intro-play"), helpBtn = introEl.querySelector("#intro-help");
 const helpEl = document.createElement("div"); helpEl.id = "help";
 const PIX = rows => `<svg width="${rows[0].length * 2}" height="${rows.length * 2}" viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor">` +
@@ -1712,7 +1687,7 @@ cfgStyle.textContent = `#cfg{position:fixed;inset:0;z-index:45;display:none;alig
 #cfg .hp-row button:hover,#cfg .hp-row button:focus-visible,#cfg .hp-btns button:hover,#cfg .hp-btns button:focus-visible{background:#2f4029;color:#97a888;outline:none}
 #cfg .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}`;
 document.head.appendChild(cfgStyle);
-cfgEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Config"><div class="hp-title">Config</div>
+cfgEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Configurações"><div class="hp-title">Configurações</div>
   <div class="hp-row"><span>Som</span><button id="cfg-snd" type="button"></button></div>
   <div class="hp-row"><span>Tremor da tela</span><button id="cfg-shk" type="button"></button></div>
   <div class="hp-btns"><button id="cfg-close" type="button">Voltar</button></div></div>`;
