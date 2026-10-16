@@ -20,6 +20,8 @@ const viewW = () => Math.max(WORLD, Math.min(WORLD + 240, Math.round(H * innerWi
 // ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
 const LEVELS = 4;                        // níveis por canal: 2 = bem radical (8 cores), 4 = equilibrado, 6 = mais suave
 const STEP = 255 / (LEVELS - 1);
+let SAT = 0, SAT_T0 = -1, satLoc = null;   // saturação do jogo: começa em preto e branco (0) e vai para as cores (1) quando o jogador aperta JOGAR
+const SAT_DUR = 2400;                      // duração da transição de cor (ms)
 const BAYER = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
                3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
 
@@ -40,11 +42,12 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform sampler2D t;uniform float steps;varying vec2 uv;
+uniform sampler2D t;uniform float steps;uniform float sat;varying vec2 uv;
 float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
 float b8(vec2 a){return (b2(a*.25)*.25+b2(a*.5))*.25+b2(a);}
 void main(){
   vec3 c=texture2D(t,uv).rgb*255.;
+  c=mix(vec3(dot(c,vec3(.299,.587,.114))),c,sat);
   float st=255./(steps-1.);
   float th=(b8(mod(floor(gl_FragCoord.xy),8.))-.47)*st;
   c=clamp(floor((c+th)/st+.5)*st,0.,255.)/255.;
@@ -61,6 +64,7 @@ void main(){
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.uniform1f(gl.getUniformLocation(pg, "steps"), LEVELS);
+  satLoc = gl.getUniformLocation(pg, "sat");
 }
 
 function setScale(s) {
@@ -117,6 +121,7 @@ function dither() {
     const row = (y & 7) << 3;
     for (let x = 0, i = y * w * 4; x < w; x++, i += 4) {
       const o = (row | (x & 7)) << 8;
+      if (SAT < 1) { const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; d[i] = l + (d[i] - l) * SAT; d[i + 1] = l + (d[i + 1] - l) * SAT; d[i + 2] = l + (d[i + 2] - l) * SAT; }
       d[i] = LUT[o | d[i]]; d[i + 1] = LUT[o | d[i + 1]]; d[i + 2] = LUT[o | d[i + 2]];
     }
   }
@@ -125,6 +130,7 @@ function dither() {
 function present() {
   if (!gl) return dither();
   gl.viewport(0, 0, cv.width, cv.height);
+  gl.uniform1f(satLoc, SAT);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, buf);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
@@ -1625,6 +1631,7 @@ const introStyle = document.createElement("style");
 introStyle.textContent = `
 #intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
   pointer-events:none;transition:opacity .55s ease;font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none}
+#intro,#help{filter:grayscale(1)}   /* tela inicial e ajuda em preto e branco; as cores chegam depois do JOGAR */
 #intro.off{opacity:0}
 #intro h1{perspective:3.5em;perspective-origin:50% 50%}
 #intro h1 span{display:inline-block;transform-origin:50% 60%;will-change:transform;animation:introWave 3.2s cubic-bezier(.45,0,.55,1) infinite;animation-delay:calc(var(--i) * -.22s)}
@@ -1690,7 +1697,7 @@ addEventListener("keydown", e => { if (e.code === "Escape") closeHelp(); });
 function introPlay() {
   if (INTRO.phase !== "title") return;
   SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
-  INTRO.phase = "custom"; introEl.classList.add("off");
+  INTRO.phase = "custom"; introEl.classList.add("off"); SAT_T0 = performance.now();   // começa a transição preto e branco -> cores
   setTimeout(() => introEl.remove(), 700); helpEl.remove();
   openCustomizer(true);
 }
@@ -1815,6 +1822,7 @@ let last = performance.now(), slow = 0;
   update(Math.min(0.05, raw)); last = now;
   slow = raw > 0.04 ? slow + 1 : Math.max(0, slow - 1);          // abaixo de ~25 fps por um tempo: reduz a resolução
   if (slow > 60 && S > 1) { setScale(S > 1.5 ? 1.5 : 1); slow = 0; }
+  if (SAT_T0 >= 0 && SAT < 1) { const k = Math.min(1, (now - SAT_T0) / SAT_DUR); SAT = k * k * (3 - 2 * k); }   // suaviza a entrada das cores
   net(now); draw(now); if (UI.open) drawPreview(now); requestAnimationFrame(loop);
 })(last);
 // (o personalizar agora abre pelo botão JOGAR, ver introPlay)
