@@ -122,9 +122,9 @@ const API = window.API_URL;
 const PIER_Y = 150, WATER_Y = 168;
 const HZ = 132;                                  // linha do horizonte: montanhas e mata acabam aqui; daqui até o cais é o lago distante
 const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
-// limite direito do pescador: ele anda até o fim do cais, na borda direita da tela (a câmera acompanha com CAM_K, então a conta fecha em px)
-const CAM_K = 0.12, EDGE_MARGIN = 18;                 // EDGE_MARGIN: folga (px) entre o pescador e a borda da tela
-const pxMax = () => Math.min(WORLD + EXT - 32, ((W + WORLD) / 2 - CAM_K * WORLD / 2 - EDGE_MARGIN) / (1 - CAM_K));
+// o cais ACABA em DECK_END (x do mundo); o pescador anda até PX_MAX, um pouco antes da ponta, e não passa dali
+const DECK_END = 496, PX_MAX = 480, CAM_K = 0.12;
+const pxMax = () => PX_MAX;
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
   x = Math.max(16, Math.min(pxMax() + 8, x));
@@ -1645,10 +1645,10 @@ function buildLayers(now) {
     let rr = 31; const rn = () => (rr = rr * 16807 % 2147483647) / 2147483647;
     const g = ctx.createLinearGradient(0, PIER_Y + 3, 0, PIER_Y + 8);   // frente (viga): de madeira morna para sombra roxa embaixo
     g.addColorStop(0, "#8f5d3c"); g.addColorStop(0.5, "#73482f"); g.addColorStop(1, "#47293a");
-    ctx.fillStyle = g; ctx.fillRect(-EXT, PIER_Y + 3, LW, 5);
+    ctx.fillStyle = g; ctx.fillRect(-EXT, PIER_Y + 3, DECK_END + EXT, 5);
     const TONES = ["#d29a64", "#c58b57", "#dca56e", "#b97f4f"];
-    for (let x = -EXT; x < WORLD + EXT;) {                               // tábuas do topo, cada uma com seu tom, veio e pregos
-      const w = 16 + rn() * 16, tone = TONES[rn() * 4 | 0];
+    for (let x = -EXT; x < DECK_END;) {                                  // tábuas do topo, cada uma com seu tom, veio e pregos
+      const w = Math.min(16 + rn() * 16, DECK_END - x), tone = TONES[rn() * 4 | 0];   // a última tábua é cortada na ponta do cais
       rect(tone, x, PIER_Y, w - 0.8, 3);
       rect("rgba(255,226,180,.3)", x + rn() * w * 0.4, PIER_Y + 0.9, w * (0.2 + rn() * 0.3), 0.6);
       rect("rgba(90,50,30,.35)", x + rn() * w * 0.5, PIER_Y + 2, w * (0.2 + rn() * 0.3), 0.6);
@@ -1656,14 +1656,16 @@ function buildLayers(now) {
       rect("rgba(60,34,22,.6)", x + 1.8, PIER_Y + 1.2, 0.8, 0.8); rect("rgba(60,34,22,.6)", x + w - 3, PIER_Y + 1.2, 0.8, 0.8);
       x += w;
     }
-    rect("rgba(255,214,160,.65)", -EXT, PIER_Y, LW, 0.8);               // fio de luz na quina de cima
-    rect("rgba(40,22,30,.5)", -EXT, PIER_Y + 3, LW, 0.8);               // sombra logo abaixo da quina
-    rect("rgba(255,200,150,.18)", -EXT, PIER_Y + 4.2, LW, 0.6);         // reflexo rosado do céu na viga
-    rect("rgba(20,10,36,.6)", -EXT, PIER_Y + 7, LW, 1);                 // sombra da borda de baixo
+    rect("rgba(255,214,160,.65)", -EXT, PIER_Y, DECK_END + EXT, 0.8);               // fio de luz na quina de cima
+    rect("rgba(40,22,30,.5)", -EXT, PIER_Y + 3, DECK_END + EXT, 0.8);               // sombra logo abaixo da quina
+    rect("rgba(255,200,150,.18)", -EXT, PIER_Y + 4.2, DECK_END + EXT, 0.6);         // reflexo rosado do céu na viga
+    rect("rgba(20,10,36,.6)", -EXT, PIER_Y + 7, DECK_END + EXT, 1);     // sombra da borda de baixo
+    rect("#3a2230", DECK_END - 1.8, PIER_Y + 3, 1.8, 5);                // ponta da viga (fim do cais)
+    rect("rgba(255,214,160,.5)", DECK_END - 1.8, PIER_Y, 1.8, 0.8);     // quina iluminada da última tábua
   });
   const posts = layer(() => {                                          // postes: sombra à esquerda, luz do sol à direita, faixas, e escurecem na água
     ctx.translate(EXT, 0);
-    for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {
+    for (let i = 6 - 48 * 4; i < DECK_END; i += 48) {
       rect("#3a2230", i, PIER_Y + 8, 3, 32); rect("#6b4329", i + 3, PIER_Y + 8, 3, 32); rect("#b8704c", i + 6, PIER_Y + 8, 2, 32);
       for (let y = PIER_Y + 14; y < PIER_Y + 38; y += 6.5) rect("rgba(20,10,30,.22)", i, y, 8, 0.8);
       rect("rgba(255,210,170,.25)", i + 6, PIER_Y + 8, 0.8, 32);
@@ -1762,7 +1764,7 @@ function pierShadow(now, wxp) {            // sombra do cais caindo na água log
   const t = now / 1000, g = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 34);   // começa na linha da água (não cobre o lago/céu atrás do cais)
   g.addColorStop(0, "rgba(22,10,44,.42)"); g.addColorStop(0.35, "rgba(22,10,44,.28)"); g.addColorStop(0.7, "rgba(22,10,44,.1)"); g.addColorStop(1, "rgba(22,10,44,0)");
   ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, 34);
-  for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {                   // sombra de cada poste, balançando de leve com a água
+  for (let i = 6 - 48 * 4; i < DECK_END; i += 48) {                   // sombra de cada poste, balançando de leve com a água
     const x = wxp + i; if (x < -20 || x > W + 20) continue;
     const sw = Math.sin(t * 1.4 + i * 0.37) * 1.2, pg = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 22);
     pg.addColorStop(0, "rgba(14,6,30,.38)"); pg.addColorStop(1, "rgba(14,6,30,0)");
@@ -1772,7 +1774,7 @@ function pierShadow(now, wxp) {            // sombra do cais caindo na água log
 }
 function postWaves(now, wxp) {
   const t = now / 1000, BOTTOM = PIER_Y + 8 + 32;                       // base dos postes (onde encostam na água)
-  for (let i = 6 - 48 * 4; i < WORLD + EXT; i += 48) {
+  for (let i = 6 - 48 * 4; i < DECK_END; i += 48) {
     const x0 = Math.max(0, wxp + i), x1 = Math.min(W, wxp + i + 8);
     if (x1 - x0 < 1) continue;
     const ph = i * 0.37;
@@ -1849,7 +1851,7 @@ function drawReelUI(now) {
 }
 
 // ---------- Postes de luz do cais: acendem à noite com luz amarela quente ----------
-const LAMPS = [-110, 30, 170, 310, 450, 590];            // x de cada poste no mundo (mude aqui para mover/adicionar)
+const LAMPS = [-110, 30, 170, 310, 450];            // x de cada poste no mundo (mude aqui para mover/adicionar)
 const LAMP_H = 80;                                       // altura do fuste; a lanterna fica no topo
 const LAMP_WARM = [255, 190, 70];                        // cor da luz (amarelo quente)
 const lampOn = x => DAY.lamp > 0.01 && x + ox0() > -100 && x + ox0() < W + 100;
