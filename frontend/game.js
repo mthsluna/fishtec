@@ -1406,7 +1406,10 @@ function draw(now) {
   Object.values(others).forEach(o => drawOther(o, now));
   const ip = INTRO.on ? introPose(now) : undefined;                     // abertura: null = ainda não apareceu, objeto = caindo, undefined = normal
   const fPose = ip !== undefined ? ip : state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose();
+  const sq = INTRO.on && ip !== null ? introSquash() : 0;
+  if (sq) { ctx.save(); ctx.translate(px, PIER_Y); ctx.scale(1 + sq * 0.5, 1 - sq); ctx.translate(-px, -PIER_Y); }   // amortece a queda: agacha ao pousar
   const tip = ip === null ? null : drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), fPose, { pants: me.pants, hs: hScale(me.h) });
+  if (sq) ctx.restore();
   ctx.restore();
 
   // 2) água com reflexo
@@ -1571,9 +1574,9 @@ function drawPreview(now) {
 // JOGAR -> personalizar o pescador -> a câmera desce e dá zoom no deck -> o pescador cai do céu em cima do cais -> o jogo começa.
 const INTRO = { on: true, active: true, phase: "title", t: 0, landed: false, fell: false, shake: 0 };   // on: câmera especial; active: controles travados; phase: title | custom | go
 const ZA = 0.6, INTRO_BOTTOM = 166;                  // tela inicial: zoom (menor = câmera mais longe) e a linha do quadro que fica na base da tela (a água começa em 168)
-const ZIN = 1.3, ZOOM_T = 1.9;                    // zoom no deck: quanto aproxima e quantos segundos leva
-const I_FALL0 = 1.45, I_FALL_T = 0.8, I_BOUNCE = 0.3, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
-const SETTLE0 = 2.75, SETTLE_T = 1.2, I_FREE = 3.3, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
+const ZIN = 1.3, ZOOM_T = 1.1;                    // zoom no deck: quanto aproxima e quantos segundos leva
+const I_FALL0 = 0.8, I_FALL_T = 0.8, I_BOUNCE = 0.5, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
+const SETTLE0 = 2.1, SETTLE_T = 1.0, I_FREE = 2.5, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
 const introEl = document.createElement("div"); introEl.id = "intro";
 introEl.innerHTML = `<h1>FISHTEC</h1><button id="intro-play" type="button">JOGAR</button>`;
 const introStyle = document.createElement("style");
@@ -1618,9 +1621,13 @@ function introPose(now) {                               // null = escondido; obj
   if (I.phase !== "go" || I.t < I_FALL0) return null;
   const k = (I.t - I_FALL0) / I_FALL_T;
   if (k < 1) return { ...cheerPose(now), hop: I_DROP * (1 - k * k) };                               // cai de braços abertos, acelerando
+  return undefined;                                                                                  // pousou: pose normal (o amortecimento vem do introSquash)
+}
+function introSquash() {                                // amassa/estica o corpo: estica de leve caindo, agacha ao pousar e volta com mola
+  const I = INTRO; if (I.phase !== "go") return 0;
+  if (!I.landed) return I.t >= I_FALL0 ? -0.07 * Math.min(1, (I.t - I_FALL0) / I_FALL_T) : 0;
   const u = (I.t - I_FALL0 - I_FALL_T) / I_BOUNCE;
-  if (u < 1) return { ...cheerPose(now), hop: 4 * Math.sin(Math.PI * u) };                          // quicadinha ao pousar
-  return undefined;
+  return u >= 1 ? 0 : 0.26 * Math.exp(-4.5 * u) * Math.cos(8 * u);
 }
 function introCam(now) {                                // câmera: A = longe e no alto (título), B = zoom no deck, C = enquadramento normal do jogo
   const I = INTRO, wx = (W - WORLD) / 2 + camX;
