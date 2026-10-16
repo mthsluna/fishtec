@@ -643,49 +643,71 @@ function reelPose(now, ang = reelAng, inside = fish && fp.y > bar.y && fp.y < ba
   const tipA = -1.0 + 0.2 * (pull - 0.5) + 0.03 * Math.sin(now / 130);   // ângulo da ponta: abaixa quando o peixe puxa forte
   return { rod: tipA + pull * 0.25, arm: -0.25, lean: -0.13 - 0.03 * Math.sin(now / 110), off: 0, flex: pull, crank: ang };
 }
-// ---------- Boia: uma bolinha vermelha e branca, meio mergulhada: a água (copiada do próprio lago, como nos postes) cobre a parte de baixo ----------
+// ---------- Boia: uma bolinha vermelha e branca flutuando de verdade: sobe e desce devagar com a água, balança de leve ----------
+// A água (copiada do próprio lago, como nos postes) cobre a parte de baixo. Quando o peixe morde, a boia é puxada para baixo em trancos.
 const BOB_R = 3.6;
-function drawBall(bx, cy) {                                                // a bolinha inteira: metade de cima vermelha, de baixo branca, com brilho e contorno
+const surfY = (now, bx) => BOB_Y + 1 + 0.45 * Math.sin(now / 820 + bx * 0.2) + 0.22 * Math.sin(now / 470 + 1.3);   // altura da água ali, ondulando devagar
+function bobPose(bx, now, st) {                                           // onde a boia está: cy = centro, wl = linha da água, ang = inclinação, pull = quanto está sendo puxada
+  const wl = surfY(now, bx);
+  let pull = 0;
+  if (st === "bite") {                                                    // peixe puxando: tranco rápido para baixo, volta mais devagar, e de novo
+    const a = (now / 1000 * 1.9) % 1, e = a < 0.22 ? 1 - Math.pow(1 - a / 0.22, 2) : Math.pow(1 - (a - 0.22) / 0.78, 2.2);
+    pull = 1.4 + 4.6 * e * (0.8 + 0.2 * Math.sin(now / 260));
+  } else if (st === "reel") pull = 1.2 + 0.9 * Math.abs(Math.sin(now / 150));   // peixe fisgado: a boia fica meio afundada, tremendo
+  const cy = wl - 0.7 + 0.28 * Math.sin(now / 1150 + 2) + pull;
+  const ang = 0.16 * Math.sin(now / 1350 + bx) + 0.07 * Math.sin(now / 610) + (pull ? 0.18 * Math.sin(now / 90) : 0);   // balança de leve na água
+  return { cy, wl, ang, pull, x: bx + 0.3 * Math.sin(now / 1500 + bx) + (pull ? 0.5 * Math.sin(now / 70) : 0) };
+}
+function drawBall(bx, cy, ang = 0) {                                       // a bolinha inteira: metade de cima vermelha, de baixo branca, com brilho (sem contorno)
   const R = BOB_R;
   ctx.save(); ctx.beginPath(); ctx.arc(bx, cy, R, 0, Math.PI * 2); ctx.clip();
-  rect("#e63946", bx - R, cy - R, 2 * R, R);                               // metade de cima
-  rect("#f4f1ea", bx - R, cy, 2 * R, R);                                   // metade de baixo
-  rect("#a82a36", bx - R, cy - 1.1, 2 * R, 1.1);                           // sombra da faixa vermelha, perto do meio
-  rect("rgba(30,10,30,.18)", bx + 1.3, cy - R, R, 2 * R);                  // lado direito um pouco mais escuro (volume)
+  ctx.translate(bx, cy); ctx.rotate(ang); ctx.translate(-bx, -cy);
+  rect("#e63946", bx - R - 1, cy - R - 1, 2 * R + 2, R + 1);                // metade de cima
+  rect("#f4f1ea", bx - R - 1, cy, 2 * R + 2, R + 1);                        // metade de baixo
+  rect("#a82a36", bx - R - 1, cy - 1.1, 2 * R + 2, 1.1);                    // sombra da faixa vermelha, perto do meio
   ctx.restore();
-  ctx.strokeStyle = "rgba(40,12,32,.6)"; ctx.lineWidth = 0.6;
-  ctx.beginPath(); ctx.arc(bx, cy, R, 0, Math.PI * 2); ctx.stroke();       // contorno
-  rect("rgba(255,255,255,.85)", bx - 1.9, cy - 2.2, 1.3, 0.9);             // brilho
+  ctx.save(); ctx.beginPath(); ctx.arc(bx, cy, R, 0, Math.PI * 2); ctx.clip();
+  rect("rgba(30,10,30,.2)", bx + 1.4, cy - R, R, 2 * R);                    // lado direito um pouco mais escuro (volume)
+  rect("rgba(255,255,255,.85)", bx - 1.9, cy - 2.2, 1.3, 0.9);              // brilho
+  ctx.restore();
 }
-function drawBobber(bx, cy, now) {                                         // boia na água: cy = centro da bolinha
-  const R = BOB_R, wl = BOB_Y + 1 + 0.3 * Math.sin(now / 260 + bx);        // linha da água
-  const wxp = (W - WORLD) / 2 + camX, x0 = bx - R - 1, x1 = bx + R + 1, hh = R + 3;
-  drawBall(bx, cy);
-  if (cy + R <= wl - 0.2) return;                                          // toda fora da água (dando o pulo ao fisgar)
-  ctx.save(); ctx.beginPath(); ctx.rect(x0, wl, x1 - x0, hh); ctx.clip();
-  ctx.fillStyle = "rgba(60,120,205,.8)";                                   // a parte debaixo d'água fica azulada
-  ctx.beginPath(); ctx.arc(bx, cy, R, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-  const sy = (wl + R + 4) * S;                                             // água de verdade, copiada de logo abaixo da boia (mesma cor, ondas e brilho)
-  for (let x = Math.floor(x0); x < x1; x++) {                              // colunas de 1px: o topo da água ondula
-    const top = wl + 0.55 * Math.sin(now / 170 + x * 1.35) + 0.25 * Math.sin(now / 90 + x * 2.3), h = Math.max(0.6, wl + hh - top);
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(buf, (x + wxp) * S, sy, S, h * S, x, top, 1, h);
-    ctx.globalAlpha = 1;
-    rect("rgba(225,240,250,.5)", x, top, 1, 0.8);                          // borda de cima mais clara (contraste)
+function drawBobber(bx, now, st) {                                         // boia na água
+  const P = bobPose(bx, now, st), R = BOB_R, cy = P.cy, wl = P.wl; bx = P.x;
+  const wxp = (W - WORLD) / 2 + camX, x0 = bx - R - 1, x1 = bx + R + 1;
+  drawBall(bx, cy, P.ang);
+  const under = Math.max(0, cy + R - wl);                                  // quanto da bolinha está debaixo d'água
+  if (under > 0) {
+    const hh = under + 3;
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, wl, x1 - x0, hh); ctx.clip();
+    ctx.fillStyle = "rgba(60,120,205,.8)";                                 // a parte debaixo d'água fica azulada
+    ctx.beginPath(); ctx.arc(bx, cy, R, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    const sy = (Math.max(cy + R, wl) + 3) * S;                             // água de verdade, copiada de logo abaixo da boia (mesma cor, ondas e brilho)
+    for (let x = Math.floor(x0); x < x1; x++) {                            // colunas de 1px: o topo da água ondula
+      const top = wl + 0.5 * Math.sin(now / 420 + x * 1.35) + 0.2 * Math.sin(now / 230 + x * 2.3), h = Math.max(0.6, wl + hh - top);
+      ctx.globalAlpha = 0.6;
+      ctx.drawImage(buf, (x + wxp) * S, sy, S, h * S, x, top, 1, h);
+      ctx.globalAlpha = 1;
+      rect("rgba(225,240,250,.5)", x, top, 1, 0.8);                        // borda de cima mais clara (contraste)
+    }
+    rect("rgba(40,90,170,.22)", x0, wl + 0.6, x1 - x0, hh - 0.6);          // um toque de azul sobre tudo que está debaixo da água
   }
-  rect("rgba(40,90,170,.22)", x0, wl + 0.6, x1 - x0, hh - 0.6);            // um toque de azul sobre tudo que está debaixo da água
-  const k = (now / 1400 + bx * 0.01) % 1;                                  // ondinhas saindo da boia
-  ctx.lineWidth = 0.6;
-  ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.beginPath(); ctx.ellipse(bx, wl + 0.4, R + 1.5 + Math.sin(now / 250), 1.4, 0, 0, 7); ctx.stroke();
-  ctx.strokeStyle = `rgba(255,255,255,${0.35 * (1 - k)})`; ctx.beginPath(); ctx.ellipse(bx, wl + 0.4, R + 2 + k * 9, 1.1 + k * 1.6, 0, 0, 7); ctx.stroke();
+  ctx.lineWidth = 0.6;                                                     // ondinhas bem lentas saindo da boia (mais fortes quando o peixe puxa)
+  const amp = 1 + P.pull * 0.35;
+  ctx.strokeStyle = "rgba(255,255,255,.38)"; ctx.beginPath(); ctx.ellipse(bx, wl + 0.4, R + 1.5 + 0.6 * Math.sin(now / 700), 1.4, 0, 0, 7); ctx.stroke();
+  for (let n = 0; n < 2; n++) {
+    const k = (now / (st === "bite" ? 900 : 2600) + n * 0.5) % 1;
+    ctx.strokeStyle = `rgba(255,255,255,${(0.3 + 0.08 * P.pull) * (1 - k)})`;
+    ctx.beginPath(); ctx.ellipse(bx, wl + 0.4, R + 2 + k * 9 * amp, 1.1 + k * 1.7 * amp, 0, 0, 7); ctx.stroke();
+  }
 }
 function drawLine(tx, ty, bx, now, st) {
-  const b = Math.sin(now / 200) * (st === "bite" ? 3 : 1), cy = BOB_Y - 0.4 + b;
+  const P = bobPose(bx, now, st);
   ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 0.7;
-  ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + bx) / 2, (ty + cy - BOB_R) / 2 + 12, bx, cy - BOB_R + 0.5); ctx.stroke();
-  drawBobber(bx, cy, now);
-  if (st === "bite") text("!", bx, cy - 22, "#ffd166", "center");
+  const top = P.cy - BOB_R + 0.5, slack = st === "bite" || st === "reel" ? 6 : 12;   // linha mais esticada quando o peixe puxa
+  ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + P.x) / 2, (ty + top) / 2 + slack, P.x, top); ctx.stroke();
+  drawBobber(bx, now, st);
+  if (st === "bite") text("!", bx, BOB_Y - 24, "#ffd166", "center");
 }
 function drawOther(p, now) {
   const dx = p.tx - p.x; p.x += dx * 0.25;
