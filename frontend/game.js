@@ -122,9 +122,12 @@ const API = window.API_URL;
 const PIER_Y = 150, WATER_Y = 168;
 const HZ = 132;                                  // linha do horizonte: montanhas e mata acabam aqui; daqui até o cais é o lago distante
 const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
+// limite direito do pescador: ele anda até o fim do cais, na borda direita da tela (a câmera acompanha com CAM_K, então a conta fecha em px)
+const CAM_K = 0.12, EDGE_MARGIN = 18;                 // EDGE_MARGIN: folga (px) entre o pescador e a borda da tela
+const pxMax = () => Math.min(WORLD + EXT - 32, ((W + WORLD) / 2 - CAM_K * WORLD / 2 - EDGE_MARGIN) / (1 - CAM_K));
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
-  x = Math.max(16, Math.min(WORLD - 16, x));
+  x = Math.max(16, Math.min(pxMax() + 8, x));
   const m = ((x - 6) % 48 + 48) % 48;
   return m < 14 ? x + 14 - m : m > 42 ? x + 48 - m + 14 : x;
 };
@@ -1342,7 +1345,7 @@ function update(dt) {
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt); tiaoUpdate(dt);
   GSHAKE *= Math.exp(-dt * 6);
-  camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
+  camX += (-(px - WORLD / 2) * CAM_K - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
   vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
@@ -1362,8 +1365,9 @@ function update(dt) {
     if (Math.abs(spd) <= WALK + 1 && Math.abs(aim) <= WALK) spd = aim;                       // andar normal: resposta imediata
     else { const r = Math.abs(aim) > Math.abs(spd) ? 700 : 430; spd += Math.max(-r * dt, Math.min(r * dt, aim - spd)); }   // correr: acelera e freia com inércia
     if (m) dir = m;
-    px = Math.max(16, Math.min(WORLD - 16, px + spd * dt));
-    if ((px <= 16 && spd < 0) || (px >= WORLD - 16 && spd > 0)) spd = 0;
+    const PXM = pxMax();
+    px = Math.max(16, Math.min(PXM, px + spd * dt));
+    if ((px <= 16 && spd < 0) || (px >= PXM && spd > 0)) spd = 0;
     moving = Math.abs(spd) > 1;
     gaitPh += Math.abs(px - ox) / (11 + 3 * (runK > 0.05 ? runK : 0) + (hScale(me.h) - 1) * FISHER_TOP * LEG_SHARE * 0.5);   // mesma conta do desenho das pernas
     const si = Math.floor((gaitPh - Math.PI / 2) / Math.PI);          // o pé toca o chão quando as pernas estão mais abertas (a cada meia volta da fase)
@@ -1679,6 +1683,7 @@ function buildLayers(now) {
     return { n, a: makeCloud(c.w, c.h, c.seed + n * 101, c.tone), b: makeCloud(c.w, c.h, c.seed + (n + 1) * 101, c.tone) };
   });
   layers = { sky, far, mid, near, hills, lake, deck, posts, water, clouds, fogs: FOGS.map(makeFog) };
+  lampSprite();                                                        // o sprite da luz dos postes nasce junto com o resto do cenário
 }
 
 // ---------- Parallax: cada camada acompanha a câmera numa fração diferente (0 = parada no fundo, 1 = mesma do cais) ----------
@@ -2523,6 +2528,7 @@ function introView(now) {                               // longe (zoom < 1): cen
   if (x1 > x0 && y1 > y0) ctx.drawImage(zb, x0 * S, y0 * S, (x1 - x0) * S, (y1 - y0) * S, (x0 - sx) * z, (y0 - sy) * z, (x1 - x0) * z, (y1 - y0) * z);
 }
 
+DAY.update(gameMinutes()); buildLayers(performance.now());     // pré-carrega o cenário inteiro antes do primeiro quadro
 let last = performance.now(), slow = 0;
 (function loop(now) {
   const raw = (now - last) / 1000;

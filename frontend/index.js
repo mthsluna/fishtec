@@ -71,10 +71,10 @@ io.on("connection", (socket) => {
   socket.on("move", (d = {}) => {
     const p = players[socket.id];
     if (!p) return;
-    p.x = num(d.x, 0, 480);
+    p.x = num(d.x, 0, 700);
     p.dir = d.dir === -1 ? -1 : 1;
     p.state = STATES.includes(d.state) ? d.state : "walk";
-    p.bx = num(d.bx, 0, 480);
+    p.bx = num(d.bx, 0, 700);
     p.rs = d.rs === true;                                   // vara guardada nas costas (correndo)
     socket.volatile.broadcast.emit("player:move", { id: p.id, x: p.x, dir: p.dir, state: p.state, bx: p.bx, rs: p.rs });
   });
