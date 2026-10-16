@@ -977,7 +977,7 @@ function zoomView(z, fx, fy, side = 0.5) {                       // side: onde o
   ctx.drawImage(zb, sx * S, sy * S, sw * S, sh * S, 0, 0, W, H);
 }
 // ---------- Puxando o peixe: inclina para trás, vara envergada pela força do peixe e manivela girando ----------
-let reelAng = 0, zs = 1, lastView = { z: 1, sx: 0, sy: 0 };           // ângulo da manivela; zs: escala do zoom atual (1 = sem zoom); lastView: recorte usado no quadro
+let reelAng = 0, zs = 1, zfy = 144, lastView = { z: 1, sx: 0, sy: 0 };           // ângulo da manivela; zs: escala do zoom atual (1 = sem zoom); lastView: recorte usado no quadro
 function reelPose(now, ang = reelAng, inside = fish && fp.y > bar.y && fp.y < bar.y + bar.h) {   // peixe dentro da barra = vara mais folgada; fora = peixe puxando forte
   const pull = (inside ? 0.55 : 0.95) + 0.2 * Math.sin(now / 95);
   const tipA = -1.0 + 0.2 * (pull - 0.5) + 0.03 * Math.sin(now / 130);   // ângulo da ponta: abaixa quando o peixe puxa forte
@@ -1134,12 +1134,14 @@ function drawFx(now) {                                                   // ané
 const FISH_SIZE = { "peixe-bandeira": [10, 20], "piranha-vermelha": [16, 30], "peixe-voador": [20, 34], "budiao-verde": [32, 52] };
 const sizeRange = f => (f && f.size) || FISH_SIZE[f && f.id] || (f ? [f.difficulty * 3 + 8, f.difficulty * 3 + 22] : [20, 30]);
 const rollSize = f => { const [lo, hi] = sizeRange(f), u = (Math.random() + Math.random()) / 2; return Math.round((lo + (hi - lo) * u) * 10) / 10; };   // média de dois sorteios: o comum é perto do meio, os extremos são raros
+const FISH_K = { "peixe-bandeira": 2.4e-5, "piranha-vermelha": 3.2e-5, "peixe-voador": 1.1e-5, "budiao-verde": 2.3e-5 };   // kg = K * cm^3 (cada espécie tem o corpo mais fino ou mais gordinho)
+const rollKg = (f, cm) => Math.round((FISH_K[f && f.id] || 2e-5) * Math.pow(cm, 3) * (0.9 + Math.random() * 0.2) * 100) / 100;   // peso pelo tamanho, com ±10% de variação entre peixes do mesmo tamanho
 const fmtCm = v => v.toFixed(1).replace(".", ",") + " cm";
+const fmtKg = v => v.toFixed(2).replace(".", ",") + " kg";
 const PX_PER_CM = 1.9;                                                         // tamanho do peixe na tela (px do jogo por cm)
 const ZOOM_SMALL = 2.05, ZOOM_BIG = 1.12, ZOOM_SMALL_CM = 12, ZOOM_BIG_CM = 50;   // zoom ao comemorar: 2,05x num peixe de 12 cm ... 1,12x num de 50 cm
 const catchZoom = cm => ZOOM_SMALL + (ZOOM_BIG - ZOOM_SMALL) * Math.pow(Math.max(0, Math.min(1, (cm - ZOOM_SMALL_CM) / (ZOOM_BIG_CM - ZOOM_SMALL_CM))), 0.85);
-let catchCm = 0, catchTag = "", catchRecord = false, recs = {};                // recs: maior tamanho já pescado de cada espécie
-try { const sv = JSON.parse(localStorage.getItem("recs") || "{}"); for (const k in sv) if (sv[k] > 0) recs[k] = +sv[k]; } catch (e) {}
+let catchCm = 0, catchKg = 0;                                                  // tamanho e peso do peixe que acabou de ser pescado
 
 // ---------- Dinheiro (F$), inventário de peixes e venda para o Malto ----------
 // O dinheiro é guardado em CENTAVOS (inteiro). O preço de cada peixe vem da dificuldade dele (PRICE_BY_DIFF), ou de um "price" (em centavos) na lista de peixes do servidor.
@@ -1149,7 +1151,7 @@ const priceOf = f => f ? (f.price != null ? f.price : PRICE_BY_DIFF[f.difficulty
 const fmtMoney = c => { c = Math.max(0, Math.round(c)); return "F$" + String(Math.floor(c / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + String(c % 100).padStart(2, "0"); };
 let money = 0, inv = {};
 try { money = Math.max(0, parseInt(localStorage.getItem("money"), 10) || 0); const sv = JSON.parse(localStorage.getItem("inv") || "{}"); for (const k in sv) if (sv[k] > 0) inv[k] = sv[k] | 0; } catch (e) {}
-const saveWallet = () => { try { localStorage.setItem("money", String(money)); localStorage.setItem("inv", JSON.stringify(inv)); localStorage.setItem("recs", JSON.stringify(recs)); } catch (e) {} };
+const saveWallet = () => { try { localStorage.setItem("money", String(money)); localStorage.setItem("inv", JSON.stringify(inv)); } catch (e) {} };
 const invCount = () => Object.values(inv).reduce((a, b) => a + b, 0);
 const fishById = id => fishList.find(f => f.id === id);
 const invValue = () => Object.keys(inv).reduce((a, id) => a + inv[id] * priceOf(fishById(id)), 0);
@@ -1409,8 +1411,7 @@ function startReel() {
 
 function finish(win) {
   if (win) { state = "show"; showT = 0; inv[fish.id] = (inv[fish.id] | 0) + 1;
-    catchCm = rollSize(fish); const [lo, hi] = sizeRange(fish), pos = (catchCm - lo) / Math.max(0.1, hi - lo);       // pos: onde caiu dentro da faixa da espécie (0 = o menor, 1 = o maior)
-    catchTag = pos < 0.2 ? "pequeno" : pos > 0.8 ? "grande" : ""; const prev = recs[fish.id] || 0; catchRecord = prev > 0 && catchCm > prev; if (catchCm > prev) recs[fish.id] = catchCm;   // "novo recorde" só vale a partir da 2ª captura da espécie
+    catchCm = rollSize(fish); catchKg = rollKg(fish, catchCm);
     saveWallet(); SND.win(); kick(0.9); post("/api/catch", { id: fish.id }).catch(() => {}); }
   else { state = "walk"; SND.lose(); kick(0.4); say("O peixe escapou..."); }
 }
@@ -1419,18 +1420,20 @@ let showT = 0;
 const cheerPose = now => { const s = Math.sin(now / 140); return { rod: REST, arm: -1.3 + 0.12 * s, lean: 0.04, off: Math.PI - 0.3 - 0.12 * s, flex: 0, cheer: 1, wv: s, hop: Math.abs(s) * 1.8 }; };
 const easeOutBack = k => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
 let CU = null;                                                                 // onde o texto da pescaria vai aparecer (calculado no mundo, desenhado na tela depois do zoom)
+function catchDims() {                                                         // tamanho do peixe na tela (proporcional aos cm) e altura da cabeça do pescador
+  const fi = img(fish.file), ok = fi.complete && fi.naturalWidth, iw = ok ? fi.naturalWidth : 4, ih = ok ? fi.naturalHeight : 3;
+  const above = FISHER_TOP * hScale(me.h) + 10;                                // cabeça (com chapéu) + folga: o peixe fica acima da cabeça e das mãos levantadas
+  let r = Math.max(14, catchCm * PX_PER_CM) / Math.max(iw, ih);
+  if (ih * r > PIER_Y - above - 30) r = (PIER_Y - above - 30) / ih;           // peixe enorme: nunca passa do topo da tela
+  return { fi, ok, w: iw * r, h: ih * r, above };
+}
+const catchFocusY = () => { const d = catchDims(); return (PIER_Y - d.above - d.h - 24 + PIER_Y + 8) / 2; };   // centro do zoom: enquadra o pescador, o peixe e o texto de cima
 function drawCatch(now, wx) {
   CU = null;
   if (state !== "show" || !fish) return;
-  const fi = img(fish.file), ok = fi.complete && fi.naturalWidth;
-  const iw = ok ? fi.naturalWidth : 4, ih = ok ? fi.naturalHeight : 3;
-  const len = Math.max(14, catchCm * PX_PER_CM);                                         // o peixe é desenhado no tamanho dele (cm): pequeno fica pequeno, grande fica grande
-  let r = len / Math.max(iw, ih);
-  const zz = Math.max(1, zs), syv = Math.max(0, Math.min(H - H / zz, PIER_Y - 6 - H / zz / 2)), hMax = ((PIER_Y - 40 - syv) * zz - 44) / zz;   // altura máxima para o peixe não encostar no texto no topo da tela
-  if (ih * r > hMax) r = Math.max(0.05, hMax) / ih;
-  const w = iw * r, h = ih * r;
+  const { fi, ok, w, h, above } = catchDims();
   const sc = easeOutBack(Math.min(1, showT / 0.45)), fade = Math.min(1, (3.2 - showT) / 0.4);
-  const cx = px, cy = PIER_Y - 40 - h / 2 + Math.sin(now / 260) * 3;
+  const cx = px, cy = PIER_Y - above - h / 2 - Math.abs(Math.sin(now / 140)) * 1.8 + Math.sin(now / 260) * 3;
   ctx.globalAlpha = Math.max(0, fade);
   const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, Math.max(w, h) * 0.85);       // brilho dourado atrás do peixe
   g.addColorStop(0, "rgba(255,232,150,.55)"); g.addColorStop(1, "rgba(255,232,150,0)");
@@ -1450,9 +1453,8 @@ function drawCatchUI() {                                                       /
   const v = lastView, X = (CU.x - v.sx) * v.z, Y = (CU.y - v.sy) * v.z;
   const y1 = Math.max(26, Math.min(H - 50, Y - 24));
   ctx.globalAlpha = CU.a;
-  text(fish.name + " · " + fmtCm(catchCm), X, y1, "#ffd166", "center");
-  const sub = (catchRecord ? "Novo recorde! " : catchTag ? "Peixe " + catchTag + "! " : "") + "Guardado · vale " + fmtMoney(priceOf(fish));
-  text(sub, X, y1 + 11, catchRecord || catchTag === "grande" ? "#8be28b" : "#fff", "center");
+  text(fish.name, X, y1, "#ffd166", "center");
+  text(fmtCm(catchCm) + " · " + fmtKg(catchKg), X, y1 + 11, "#fff", "center");
   ctx.globalAlpha = 1;
 }
 
@@ -1484,6 +1486,7 @@ function update(dt) {
   GSHAKE *= Math.exp(-dt * 6);
   const cu = Math.max(0, Math.min(1, (px - CAM_FAR) / (PX_MAX - CAM_FAR)));
   camX += (-(px - WORLD / 2) * CAM_K - CAM_EXTRA * cu * cu * (3 - 2 * cu) - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador   // câmera suave atrás do pescador
+  zfy += ((state === "show" && fish ? catchFocusY() : PIER_Y - 6) - zfy) * Math.min(1, dt * 4);   // o centro do zoom também desliza (sem tranco ao entrar e sair)
   zs += ((state === "reel" ? 1.45 : state === "show" ? catchZoom(catchCm) : 1) - zs) * Math.min(1, dt * 4);   // puxando: 1,45x; comemorando: depende do tamanho do peixe (pequeno = mais perto)
   vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
@@ -2179,7 +2182,7 @@ function draw(now) {
   ctx.restore();
 
   if (INTRO.on) introView(now);
-  else if (zs > 1.003) zoomView(zs, wx + px, PIER_Y - 6, 0.3);   // aproxima no pescador enquanto puxa/comemora o peixe (a interface abaixo não é ampliada)
+  else if (zs > 1.003) zoomView(zs, wx + px, zfy, 0.3);   // aproxima no pescador enquanto puxa/comemora o peixe (a interface abaixo não é ampliada)
   else lastView = { z: 1, sx: 0, sy: 0 };
 
   if (!INTRO.on) shakeView(now);                                       // tremor levinho (só o cenário; a interface abaixo não treme)
