@@ -630,10 +630,10 @@ function drawMaltoUI(now) {
   } else if (mNear()) text("[E] falar", MX, nameY - 12, "#ffd166", "center");
   drawTiaoUI(now);
 }
-// ---------- Tião: negro alto (a altura do Malto), dreads, sem camiseta, graveto na boca. Cara de mau, mas é muito gente boa ----------
+// ---------- Pedro: negro alto (a altura do Malto), cabelo curto, sem camiseta, graveto na boca. Cara de mau, mas é muito gente boa ----------
 // Chegue perto e aperte E (ou toque nele) para conversar. De vez em quando, do nada, ele tira a flauta e toca "Wonder" (assets/songs/wonder.wav).
 // Para mexer nas falas, edite TIAO_LINES; para mudar o nome, TIAO_NAME; a posição no cais é TX.
-const TIAO_NAME = "Tião", TX = 385;
+const TIAO_NAME = "Pedro", TX = 385;
 const TIAO_LINES = [
   "Opa, firmeza? Pode chegar, não mordo. Cara feia é de fábrica.",
   "Cara de bravo é só o rosto que Deus me deu. Por dentro sou manteiga.",
@@ -735,13 +735,6 @@ function drawTiao(now) {
   ctx.beginPath(); ctx.moveTo(-2.8, S - 0.6); ctx.quadraticCurveTo(0, S + 5.2, 2.8, S - 0.6); ctx.stroke();
   rect("#d9a441", -0.6, S + 3.1, 1.2, 1.6);
 
-  // dreads caindo dos lados (por baixo do rosto)
-  [-1, 1].forEach(sd => [22, 26, 19, 24, 20].forEach((len, i) => {
-    const x = sd * (4.7 + i * 0.95) - 0.55, sw = Math.sin(t * 1.1 + i * 1.3 + sd) * 0.45 + bob * 0.3, y0 = -47.2 + hy;
-    rect(C.hair, x + sw * 0.2, y0, 1.1, len + sw); rect(C.hair2, x + sw * 0.2, y0 + 2, 0.4, len - 2);
-    for (let q = 4; q < len; q += 3.2) rect("rgba(255,255,255,.07)", x + sw * 0.2, y0 + q, 1.1, 0.5);   // anelzinhos do dread
-    rect("#3a2517", x + sw * 0.2, y0 + len + sw - 0.8, 1.1, 0.8);                                      // ponta mais clara
-  }));
 
   // cabeça
   rect("#2c1a10", -5.1, -39 + hy, 1, 6); rect("#2c1a10", 4.1, -39 + hy, 1, 6);                      // costeletas
@@ -769,17 +762,15 @@ function drawTiao(now) {
     rect("#b58e55", 0, -0.45, 6.6, 0.9); rect("#8a6a38", 0, 0.1, 6.6, 0.35); rect("#e0c690", 6, -0.45, 0.6, 0.9);
     ctx.restore();
   }
-  // topo do cabelo (dreads): a cabeça chega na altura do Malto
-  ctx.fillStyle = C.hair; roundPath(-5.8, -45.2 + hy, 11.6, 5.9, 3); ctx.fill();
-  for (let i = 0; i < 7; i++) {
-    rect(C.hair2, -5 + i * 1.65, -44.2 + hy, 0.4, 4.4);                                                  // risquinhos dos dreads
-    rect(C.hair, -5.4 + i * 1.7, -39.8 + hy, 1.3, 0.8 + (i * 7 % 3) * 0.5);                          // franja em pontas
-    rect(C.hair, -5.4 + i * 1.7, -46.1 + hy + (i % 2) * 0.5, 1.3, 1.2);                              // pontas no topo
-  }
-  rect("rgba(255,255,255,.06)", -4.5, -44.7 + hy, 6, 1);
+  // cabelo curto e baixinho (a cabeça chega na altura do Malto)
+  ctx.fillStyle = C.hair; roundPath(-5.1, -46 + hy, 10.2, 6.4, 2.6); ctx.fill();
+  rect(C.hair, -5.1, -42 + hy, 1.1, 3.6); rect(C.hair, 4, -42 + hy, 1.1, 3.6);                       // laterais descendo até as costeletas
+  for (let i = 0; i < 6; i++) rect(C.hair2, -4.2 + i * 1.7, -45.3 + hy + (i % 2) * 0.6, 0.9, 0.9);   // cachinhos/textura
+  rect(C.hair, -4.6, -40.4 + hy, 9.2, 0.7);                                                          // linha da testa
+  rect("rgba(255,255,255,.07)", -3.5, -45.4 + hy, 5, 0.9);
 
   // braços: cruzados (cara de mau) -> soltos (conversando) -> segurando a flauta
-  const MSH = 7.75, SY = S + 2.5, MAL = 11;
+  const MSH = 7.2, SY = S + 2.5, MAL = 11;
   const POSE = {
     rel: [[[-MSH - 0.5, SY + 6.5], [-MSH - 0.3, SY + MAL + 1]], [[MSH + 0.5, SY + 6.5], [MSH + 0.3, SY + MAL + 1]]],
     crs: [[[-MSH - 0.6, SY + 11.6], [4.8, SY + 9.2]], [[MSH + 0.6, SY + 9], [-4.8, SY + 6.4]]],
@@ -799,12 +790,12 @@ function drawTiao(now) {
     const base = [0, 1].map(j => [L(POSE.crs[i][j][0], POSE.rel[i][j][0], fr), L(POSE.crs[i][j][1], POSE.rel[i][j][1], fr)]);
     const E = [L(base[0][0], POSE.flt[i][0][0], k), L(base[0][1], POSE.flt[i][0][1], k)], Hd = [L(base[1][0], POSE.flt[i][1][0], k), L(base[1][1], POSE.flt[i][1][1], k)];
     const sx = i ? MSH : -MSH;
-    shoulder(sx, SY, C.skin);
+    ctx.fillStyle = C.skin; roundPath(sx - 1.4, SY - 2.3, 2.8, 4.2, 1.3); ctx.fill();               // ombro
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    ctx.strokeStyle = C.dk; ctx.lineWidth = 4.1; ctx.beginPath(); ctx.moveTo(sx, SY); ctx.lineTo(E[0] + 0.3, E[1] + 0.4); ctx.lineTo(Hd[0] + 0.3, Hd[1] + 0.4); ctx.stroke();
-    ctx.strokeStyle = C.skin; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(sx, SY); ctx.lineTo(E[0], E[1]); ctx.lineTo(Hd[0], Hd[1]); ctx.stroke();
-    ctx.strokeStyle = "rgba(255,210,160,.16)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx - 0.5, SY - 0.4); ctx.lineTo(E[0] - 0.6, E[1] - 0.5); ctx.stroke();   // luz no bíceps
-    ctx.fillStyle = C.lt; ctx.beginPath(); ctx.arc(Hd[0], Hd[1], 1.8, 0, 7); ctx.fill();            // mão
+    ctx.strokeStyle = C.dk; ctx.lineWidth = 3.1; ctx.beginPath(); ctx.moveTo(sx, SY); ctx.lineTo(E[0] + 0.3, E[1] + 0.4); ctx.lineTo(Hd[0] + 0.3, Hd[1] + 0.4); ctx.stroke();
+    ctx.strokeStyle = C.skin; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(sx, SY); ctx.lineTo(E[0], E[1]); ctx.lineTo(Hd[0], Hd[1]); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,210,160,.16)"; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(sx - 0.5, SY - 0.4); ctx.lineTo(E[0] - 0.6, E[1] - 0.5); ctx.stroke();   // luz no bíceps
+    ctx.fillStyle = C.lt; ctx.beginPath(); ctx.arc(Hd[0], Hd[1], 1.35, 0, 7); ctx.fill();            // mão
     ctx.lineCap = "butt"; ctx.lineJoin = "miter";
   });
 
@@ -1998,7 +1989,7 @@ helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div cl
   <div class="hp-row"><div class="hp-keys">${KEY(ICO.shift, "w")}</div><span>correr (segure enquanto anda)</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("", "sp")}</div><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
   <div class="hp-row"><div class="hp-keys">${ICO.mouse}</div><span>clique ou toque: faz o mesmo que a barra de espaço</span></div>
-  <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>falar com o Malto e o Tião (perto deles)</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>falar com o Malto e o Pedro (perto deles)</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("F")}</div><span>abrir ou guardar o celular</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("M")}</div><span>ligar ou desligar o som</span></div>
   <div class="hp-btns"><button id="help-close" type="button">Voltar</button></div></div>`;
