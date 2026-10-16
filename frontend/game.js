@@ -1717,39 +1717,52 @@ try { RESUME_KEY = localStorage.getItem("resumeKey") || "Escape"; } catch (e) {}
 const keyLabel = c => c === "Escape" ? "ESC" : c === "Space" ? "ESPAÇO" : c.replace(/^(Key|Digit)/, "").replace(/^Arrow/, "SETA ").toUpperCase();
 const pzEl = document.createElement("div"); pzEl.id = "pz";
 const pzStyle = document.createElement("style");
-pzStyle.textContent = `#pz{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);
-  font-family:Tahoma,"Segoe UI",Verdana,sans-serif;color:#000}
+pzStyle.textContent = `#pz{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 30%,rgba(140,225,255,.30),rgba(10,60,110,.55));-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);
+  font-family:"Segoe UI","Frutiger","Myriad Pro",Calibri,"Trebuchet MS",sans-serif;color:#fff}
 #pz.on{display:flex}
-#pz .xp-win{width:min(380px,92vw);box-sizing:border-box;padding:0 3px 3px;background:#0054e3;border-radius:8px 8px 0 0;
-  box-shadow:inset 0 0 0 1px #0831d9,inset 0 1px 0 1px #3d95ff,2px 4px 14px rgba(0,0,0,.7)}
-#pz .xp-title{display:flex;align-items:center;gap:7px;height:30px;padding:0 5px 0 7px;margin:0 -3px;border-radius:8px 8px 0 0;
-  background:linear-gradient(#0997ff 0%,#0053ee 8%,#0050ee 40%,#0066ff 88%,#0066ff 93%,#005bff 95%,#003dd7 96%,#003dd7 100%);user-select:none}
-#pz .xp-title b{flex:1;font:700 15px "Trebuchet MS",Tahoma,sans-serif;color:#fff;text-shadow:1px 1px #0f1089;letter-spacing:.02em}
-#pz .xp-ctl{display:flex;gap:2px}
-#pz .xp-ctl button{all:unset;box-sizing:border-box;width:22px;height:22px;display:grid;place-items:center;cursor:pointer;border:1px solid #fff;border-radius:3px;
-  background:radial-gradient(circle at 90% 90%,#0054e9 0%,#2263d5 55%,#4479e4 85%,#3d8aff 100%);box-shadow:inset 0 0 1px 1px rgba(255,255,255,.25)}
-#pz .xp-ctl button:hover{filter:brightness(1.15)}
-#pz .xp-ctl button.x{background:radial-gradient(circle at 90% 90%,#cc4600 0%,#dc5c28 55%,#e68b6e 85%,#e9a58c 100%)}
-#pz .xp-ctl button.dis{cursor:default;filter:none}
-#pz .xp-body{margin:0;padding:14px 16px 16px;background:#ece9d8;border:1px solid #0831d9;border-top:0;display:flex;flex-direction:column;gap:10px}
-#pz .xp-msg{display:flex;align-items:center;gap:12px;padding:2px 2px 8px;font-size:14px}
-#pz .xp-info{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 22px/1 Georgia,serif;font-style:italic;
-  background:radial-gradient(circle at 35% 30%,#8cc0ff,#1c5fd6 70%);border:2px solid #fff;box-shadow:0 0 0 1px #1a4ab5,1px 2px 3px rgba(0,0,0,.4)}
-#pz .xp-btn{all:unset;box-sizing:border-box;display:block;width:100%;text-align:center;font:14px Tahoma,"Segoe UI",sans-serif;padding:8px 12px;cursor:pointer;color:#000;
-  border:1px solid #003c74;border-radius:3px;background:linear-gradient(#fff 0%,#f4f3ee 45%,#ecebe5 86%,#d6d0c5 100%)}
-#pz .xp-btn:hover{box-shadow:inset -1px 1px #fff0cf,inset 1px 2px #fdd889,inset -2px 2px #fbc761,inset 2px -2px #e5a01a}
-#pz .xp-btn:focus-visible,#pz .xp-btn.def{box-shadow:inset -1px 1px #c1d2ee,inset 1px 2px #98b8ea,inset -2px -2px #7b9ee1,inset 2px -2px #7b9ee1}
-#pz .xp-btn.def:hover{box-shadow:inset -1px 1px #fff0cf,inset 1px 2px #fdd889,inset -2px 2px #fbc761,inset 2px -2px #e5a01a}
-#pz .xp-btn:active{background:#cdcac3;box-shadow:inset 1px 1px #aaa69b}`;
+#pz.on .fa-win{animation:faPop .38s cubic-bezier(.2,1.3,.4,1)}
+@keyframes faPop{from{transform:scale(.86);opacity:0}to{transform:none;opacity:1}}
+#pz .fa-win{position:relative;overflow:hidden;width:min(400px,92vw);box-sizing:border-box;padding:26px 28px 30px;border-radius:26px;display:flex;flex-direction:column;gap:14px;align-items:stretch;
+  background:linear-gradient(160deg,rgba(130,222,255,.68),rgba(48,150,225,.55) 55%,rgba(100,225,165,.50));
+  -webkit-backdrop-filter:blur(14px) saturate(1.5);backdrop-filter:blur(14px) saturate(1.5);border:1px solid rgba(255,255,255,.85);
+  box-shadow:0 14px 50px rgba(0,50,110,.55),inset 0 1px 0 #fff,inset 0 0 28px rgba(255,255,255,.35),0 0 0 4px rgba(255,255,255,.22)}
+#pz .fa-win::before{content:"";position:absolute;left:0;right:0;top:0;height:42%;border-radius:26px 26px 55% 55%/26px 26px 26% 26%;pointer-events:none;
+  background:linear-gradient(rgba(255,255,255,.55),rgba(255,255,255,.06))}
+#pz .fa-win>*{position:relative}
+#pz .fa-orb{align-self:center;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;margin-bottom:-2px;
+  background:radial-gradient(circle at 35% 25%,#fff 0,#b6f0ff 22%,#27b0e8 62%,#0a78c2 100%);border:2px solid #fff;
+  box-shadow:0 4px 12px rgba(0,60,120,.5),inset 0 -6px 12px rgba(0,90,170,.45)}
+#pz h1{margin:0;text-align:center;font-weight:600;font-size:clamp(34px,9vw,46px);line-height:1;letter-spacing:.04em;color:#fff;
+  text-shadow:0 2px 3px rgba(0,70,140,.75),0 0 18px rgba(255,255,255,.65)}
+#pz .fa-sub{margin:-6px 0 4px;text-align:center;font-size:14px;letter-spacing:.3em;text-transform:uppercase;color:#e8fbff;text-shadow:0 1px 2px rgba(0,70,140,.7)}
+#pz .fa-x{all:unset;position:absolute!important;top:14px;right:16px;width:28px;height:28px;box-sizing:border-box;display:grid;place-items:center;cursor:pointer;border-radius:50%;
+  border:1px solid #fff;background:radial-gradient(circle at 35% 25%,#fff 0,#ffb7a8 25%,#ef4a2c 65%,#b81f0a 100%);box-shadow:0 2px 6px rgba(120,20,0,.5),inset 0 -3px 6px rgba(150,20,0,.4)}
+#pz .fa-x:hover{filter:brightness(1.12)}
+#pz .fa-btn{all:unset;position:relative;overflow:hidden;box-sizing:border-box;display:block;width:100%;text-align:center;cursor:pointer;
+  font:600 19px "Segoe UI","Frutiger",Calibri,sans-serif;color:#fff;text-shadow:0 1px 2px rgba(0,60,100,.75);padding:13px 18px;border-radius:999px;border:1px solid rgba(0,80,140,.7);
+  background:linear-gradient(#a7ecff 0%,#45c4f0 49%,#139bd9 51%,#63d6f5 100%);
+  box-shadow:0 4px 10px rgba(0,60,120,.45),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -3px 8px rgba(255,255,255,.3);transition:filter .15s,transform .1s}
+#pz .fa-btn::before{content:"";position:absolute;left:7%;right:7%;top:2px;height:46%;border-radius:999px;background:linear-gradient(rgba(255,255,255,.8),rgba(255,255,255,.12));pointer-events:none}
+#pz .fa-btn span{position:relative}
+#pz .fa-btn:hover,#pz .fa-btn:focus-visible{filter:brightness(1.1) saturate(1.1);box-shadow:0 4px 14px rgba(0,60,120,.45),0 0 16px rgba(255,255,255,.8),inset 0 1px 0 #fff,inset 0 -3px 8px rgba(255,255,255,.3)}
+#pz .fa-btn:active{transform:translateY(2px);filter:brightness(.95)}
+#pz .fa-btn.go{border-color:rgba(20,100,0,.7);background:linear-gradient(#d6ffa6 0%,#86e344 49%,#38b51a 51%,#92ea5c 100%);text-shadow:0 1px 2px rgba(20,80,0,.75)}
+#pz .fa-btn.glass{color:#0b5a82;text-shadow:0 1px 0 #fff;border-color:rgba(0,90,150,.55);background:linear-gradient(#fff 0%,#e4f6fd 49%,#bfe0f0 51%,#eaf8fd 100%)}
+#pz .bub{position:absolute!important;border-radius:50%;pointer-events:none;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.95) 0,rgba(255,255,255,.35) 25%,rgba(255,255,255,.08) 62%,rgba(255,255,255,.4) 100%);
+  border:1px solid rgba(255,255,255,.7);animation:faBub 6s ease-in-out infinite}
+@keyframes faBub{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@media (prefers-reduced-motion:reduce){#pz .bub,#pz.on .fa-win{animation:none}}`;
 document.head.appendChild(pzStyle);
-pzEl.innerHTML = `<div class="xp-win" role="dialog" aria-label="FISHTEC">
-  <div class="xp-title"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 9c3-5 8-5 11-1l3-3v8l-3-3c-3 4-8 4-11-1z" fill="#ffe0a8" stroke="#5e3274" stroke-width="1"/><circle cx="5.5" cy="8" r="1" fill="#241a45"/></svg>
-    <b>FISHTEC</b>
-    <div class="xp-ctl"><button class="dis" type="button" tabindex="-1" aria-hidden="true"><svg width="9" height="9"><rect x="0" y="6" width="7" height="3" fill="#fff"/></svg></button><button class="dis" type="button" tabindex="-1" aria-hidden="true"><svg width="9" height="9"><rect x="1" y="1" width="7" height="7" fill="none" stroke="#fff" stroke-width="1.5"/><rect x="1" y="1" width="7" height="2.5" fill="#fff"/></svg></button><button class="x" id="pz-x" type="button" aria-label="Fechar"><svg width="9" height="9"><path d="M1 1L8 8M8 1L1 8" stroke="#fff" stroke-width="2"/></svg></button></div></div>
-  <div class="xp-body"><div class="xp-msg"><span class="xp-info">i</span><span>O jogo está pausado.<br>O que você deseja fazer?</span></div>
-    <button class="xp-btn def" id="pz-back" type="button">Voltar ao jogo</button>
-    <button class="xp-btn" id="pz-cfg" type="button">Configurações</button>
-    <button class="xp-btn" id="pz-home" type="button">Tela inicial</button></div></div>`;
+pzEl.innerHTML = `<div class="fa-win" role="dialog" aria-label="FISHTEC">
+  <i class="bub" style="width:46px;height:46px;left:-12px;bottom:70px"></i><i class="bub" style="width:22px;height:22px;right:22px;bottom:150px;animation-delay:-2s"></i>
+  <i class="bub" style="width:34px;height:34px;right:-8px;bottom:24px;animation-delay:-4s"></i><i class="bub" style="width:14px;height:14px;left:30px;top:120px;animation-delay:-1s"></i>
+  <button class="fa-x" id="pz-x" type="button" aria-label="Fechar"><svg width="11" height="11"><path d="M1.5 1.5L9.5 9.5M9.5 1.5L1.5 9.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <div class="fa-orb"><svg width="38" height="38" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 9c3-5 8-5 11-1l3-3v8l-3-3c-3 4-8 4-11-1z" fill="#fff" stroke="#0a6aa8" stroke-width=".8"/><circle cx="5.5" cy="8" r="1" fill="#0a4f80"/></svg></div>
+  <h1>FISHTEC</h1><div class="fa-sub">pausado</div>
+  <button class="fa-btn go" id="pz-back" type="button"><span>Voltar ao jogo</span></button>
+  <button class="fa-btn" id="pz-cfg" type="button"><span>Configurações</span></button>
+  <button class="fa-btn glass" id="pz-home" type="button"><span>Tela inicial</span></button></div>`;
 document.body.appendChild(pzEl);
 const pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
 let rebinding = false;
