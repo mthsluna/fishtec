@@ -125,7 +125,9 @@ const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do c
 // o cais ACABA em DECK_END (x do mundo); o pescador anda até PX_MAX, um pouco antes da ponta, e não passa dali
 const DECK_END = 600, PX_MAX = 584, CAM_K = 0.12;   // o cais acaba em 600 e o pescador anda até 584; depois do x=440 a câmera acompanha de perto para a ponta do cais aparecer na tela
 const CAM_FAR = 380, CAM_EXTRA = 110;   // a partir de CAM_FAR a câmera vai abrindo em curva suave (até CAM_EXTRA px a mais na ponta do cais), sem tranco
-const pxMax = () => PX_MAX;
+const CITY = { on: false, MAX: 464 };                                  // cidade (cenário extra): MAX = até onde o pescador anda nela
+const TR = { ph: "none", t: 0, to: "city", lock: false, edge: 0 };      // transição: none | out (escurece) | hold (preto, troca o cenário) | in (clareia)
+const pxMax = () => CITY.on ? CITY.MAX : PX_MAX;
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
   x = Math.max(16, Math.min(pxMax() + 8, x));
@@ -242,7 +244,7 @@ if (socket) {
 }
 let lastNet = 0, lastSt = "";
 function net(now) {
-  if (!socket || !socket.connected) return;
+  if (!socket || !socket.connected || CITY.on) return;
   if (now - lastNet < 66 && state === lastSt) return;            // 15x por segundo, ou na hora se o estado mudou
   lastNet = now; lastSt = state;
   socket.volatile.emit("move", { x: px, dir, state, bx: bobber.x });
@@ -532,7 +534,7 @@ const MALTO_LINES = [
 ];
 const MX = 110, TYPE_CPS = 38;
 let mt = 0, mTalk = null, mLine = -1;
-const mNear = () => state === "walk" && Math.abs(px - MX) < 40;
+const mNear = () => !CITY.on && state === "walk" && Math.abs(px - MX) < 40;
 
 function maltoUpdate(dt) {
   mt += dt;
@@ -724,7 +726,7 @@ let tt = 0, tTalk = null, tLine = -1, tFr = 0;                          // tFr: 
 const FLUTE = { st: "idle", t: 0, k: 0, k0: 0, h: null, next: 14 + Math.random() * 16 };   // idle | up (tira a flauta) | play | down (guarda)
 const TWALK = 26, TW_MIN = 200, TW_MAX = 450;                          // TWALK: velocidade da caminhada (px/s); TW_MIN/TW_MAX: trecho do cais por onde ele passeia
 const TWK = { on: false, face: 1, ph: 0, amp: 0, wait: 6 + Math.random() * 8, goal: 385 };   // wait: segundos até o próximo passeio
-const tNear = () => state === "walk" && Math.abs(px - TX) < 40;
+const tNear = () => !CITY.on && state === "walk" && Math.abs(px - TX) < 40;
 const tVol = () => 0.9 * Math.max(0.12, 1 - Math.abs(px - TX) / 320);   // mais perto = mais alto
 const ease01 = k => k * k * (3 - 2 * k);
 function fluteStop() { if (FLUTE.h) FLUTE.h.stop(0.5); FLUTE.k0 = FLUTE.k; FLUTE.st = "down"; FLUTE.t = 0; }
@@ -1293,7 +1295,7 @@ function phoneSelect() {                                                // E: se
   PH.blink = 0.22; SND.play("step_wood_1", { vol: 0.12, rate: 2.2, jitter: 0.1 });
   setTimeout(() => { closePhone(); openCustomizer(false); }, 260);          // "Personalizar personagem"
 }
-const nearOther = () => Object.values(others).some(o => Math.abs(o.x - px) < 40);
+const nearOther = () => !CITY.on && Object.values(others).some(o => Math.abs(o.x - px) < 40);
 const interacting = () => !!mTalk || mNear() || !!tTalk || tNear() || nearOther();             // conversando/perto do Malto ou de outro jogador: fica de lado
 function updateIdle(dt) {
   const quiet = state === "walk" && !PH.open && !wantDraw && Math.abs(spd) < 1 && !(keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD);
@@ -1411,6 +1413,7 @@ addEventListener("pointerup", () => keys.Space = false);
 function say(m) { msg = m; msgT = 2.5; }
 
 function press() {
+  if (CITY.on || TR.lock) return;                                         // sem água na cidade (e sem lançar durante a transição)
   if (state === "walk") {
     closePhone();                                                       // vai lançar a vara: o celular desce
     if (Math.abs(spd) > WALK + 1) wantDraw = true;                     // correndo: freia primeiro (o arremesso começa ao frear)
@@ -1545,6 +1548,7 @@ function update(dt) {
     return;
   }
   msgT = Math.max(0, msgT - dt);
+  updateTrans(dt);
   if (INTRO.phase === "go") introUpdate(dt); else if (INTRO.phase === "up" || INTRO.phase === "down") introMove(dt);
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt); tiaoUpdate(dt);
@@ -1567,7 +1571,7 @@ function update(dt) {
     if (d.t > d.life) dust.splice(i, 1);
   }
   if (state === "walk") {
-    const m = wantDraw ? 0 : (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);   // sacando a vara: para de andar
+    const m = wantDraw || TR.lock ? 0 : (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);   // sacando a vara: para de andar
     const ox = px, run = keys.ShiftLeft || keys.ShiftRight;
     const aim = m ? (run ? RUN : WALK) * m : 0;                   // velocidade desejada
     if (Math.abs(spd) <= WALK + 1 && Math.abs(aim) <= WALK) spd = aim;                       // andar normal: resposta imediata
@@ -1576,6 +1580,11 @@ function update(dt) {
     const PXM = pxMax();
     px = Math.max(16, Math.min(PXM, px + spd * dt));
     if ((px <= 16 && spd < 0) || (px >= PXM && spd > 0)) spd = 0;
+    {                                                                            // empurrar a ponta do cais (esquerda) ou da cidade (direita) por um instante troca de cenário
+      const atEdge = !CITY.on ? px <= 16 && m < 0 : px >= CITY.MAX && m > 0;
+      TR.edge = atEdge && !INTRO.active && !INTRO.on && !BAG.open && TR.ph !== "out" && TR.ph !== "hold" ? TR.edge + dt : 0;
+      if (TR.edge > 0.3) { TR.edge = 0; startTrans(CITY.on ? "pier" : "city"); }
+    }
     moving = Math.abs(spd) > 1;
     gaitPh += Math.abs(px - ox) / (11 + 3 * (runK > 0.05 ? runK : 0) + (hScale(me.h) - 1) * FISHER_TOP * LEG_SHARE * 0.5);   // mesma conta do desenho das pernas
     const si = Math.floor((gaitPh - Math.PI / 2) / Math.PI);          // o pé toca o chão quando as pernas estão mais abertas (a cada meia volta da fase)
@@ -2211,6 +2220,7 @@ function drawSunFlare(now, X, Y) {
 function draw(now) {
   DAY.update(gameMinutes());
   if (!layers) buildLayers(now);
+  if (CITY.on) { drawCity(now); return; }
   DAY.repaintSky(now);
   const ox = (W - WORLD) / 2, wx = ox + camX;              // wx = deslocamento do mundo na tela
   const lx = f => ox + camX * f - EXT;                     // posição de uma camada com fator de parallax f
@@ -2313,9 +2323,121 @@ function draw(now) {
   drawCatchUI();
   drawBag(now);
   drawPhone();                                         // por último, antes do filtro: o celular também leva o dithering
+  drawTrans();
   present();
 }
 
+
+
+// ---------- Cidade (pequena, por enquanto) ----------
+// Ao empurrar a ponta ESQUERDA do cais por um instante: a tela escurece, troca o cenário e clareia na cidade.
+// Para voltar, empurre a ponta DIREITA da cidade (mesma transição). O pescador usa o mesmo px/dir/andar do cais; na cidade não se pesca.
+const TR_OUT = 0.7, TR_HOLD = 0.35, TR_IN = 0.9;                         // segundos: escurecendo, tela preta (troca o cenário), clareando
+function startTrans(to) {
+  if (TR.ph === "out" || TR.ph === "hold") return;
+  TR.ph = "out"; TR.t = 0; TR.to = to; TR.lock = true; spd = 0; keys.Space = false;
+}
+function swapScene() {
+  if (TR.to === "city") { CITY.on = true; px = CITY.MAX - 24; dir = -1; }
+  else {
+    CITY.on = false; px = 24; dir = 1;
+    const cu = Math.max(0, Math.min(1, (px - CAM_FAR) / (PX_MAX - CAM_FAR)));
+    camX = -(px - WORLD / 2) * CAM_K - CAM_EXTRA * cu * cu * (3 - 2 * cu);   // câmera já no lugar (sem deslizar durante o fade)
+  }
+  spd = 0; runK = 0; brake = 0; wasBraking = false; wantDraw = false; PH.open = false; mTalk = null; tTalk = null; stepIdx = Math.floor((gaitPh - Math.PI / 2) / Math.PI);
+}
+function updateTrans(dt) {
+  if (TR.ph === "none") return;
+  TR.t += dt;
+  if (TR.ph === "out" && TR.t >= TR_OUT) { TR.ph = "hold"; TR.t = 0; swapScene(); }
+  else if (TR.ph === "hold" && TR.t >= TR_HOLD) { TR.ph = "in"; TR.t = 0; TR.lock = false; if (CITY.on) say("Cidade"); }
+  else if (TR.ph === "in" && TR.t >= TR_IN) TR.ph = "none";
+}
+function trAlpha() {
+  const e = k => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
+  return TR.ph === "out" ? e(TR.t / TR_OUT) : TR.ph === "hold" ? 1 : TR.ph === "in" ? 1 - e(TR.t / TR_IN) : 0;
+}
+function drawTrans() {
+  const a = trAlpha(); if (a <= 0.002) return;
+  ctx.globalAlpha = 1; ctx.fillStyle = `rgba(4,6,14,${a.toFixed(3)})`; ctx.fillRect(0, 0, W, H);
+}
+
+let cityData = null;
+function cityInit() {                                                    // prédios sorteados uma vez (mesma cidade para todo mundo)
+  let s = 4242; const r = () => (s = s * 16807 % 2147483647) / 2147483647;
+  const COLS = [["#b5654a", "#8e4a37"], ["#d9b26a", "#b08a45"], ["#7f9fb5", "#5f7e93"], ["#a9b48c", "#85906a"], ["#c98f9a", "#a46b76"], ["#9a8fb8", "#766c94"]];
+  const far = [], near = [];
+  for (let x = -170; x < 660;) { const w = 24 + (r() * 20 | 0), h = 64 + (r() * 56 | 0); far.push({ x, w, h, ant: r() < 0.3 }); x += w + (r() * 3 | 0); }
+  for (let x = -160; x < 650;) {
+    const w = 46 + (r() * 26 | 0), h = 52 + (r() * 42 | 0), c = COLS[r() * COLS.length | 0], wins = [];
+    const cols = Math.max(1, ((w - 10) / 14) | 0), rows = Math.max(1, ((h - 26) / 16) | 0), gx = (w - cols * 14 + 4) / 2;
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) wins.push({ x: gx + i * 14, y: 8 + j * 16, lit: r() < 0.55 });
+    near.push({ x, w, h, c, wins, flat: r() < 0.5, door: 6 + (r() * (w - 20) | 0) });
+    x += w + 2 + (r() * 5 | 0);
+  }
+  cityData = { far, near, lamps: [58, 196, 334, 440] };
+}
+const CITY_B = PIER_Y - 8;                                               // chão dos prédios (a calçada vai de CITY_B até CITY_B + 18; o pescador anda no meio dela)
+
+function drawCityBack(ox) {                                              // tudo que recebe a lavagem de cor da hora
+  const D = cityData, B = CITY_B, fog = DAY.sky[3];
+  const fcol = [92, 106, 130].map((v, i) => Math.round(v + (fog[i] - v) * 0.5)), fc = "rgb(" + fcol + ")", fl = "rgb(" + fcol.map(v => Math.min(255, v + 14)) + ")";
+  ctx.save(); ctx.translate(ox, 0);
+  D.far.forEach(b => { rect(fc, b.x, B - b.h, b.w, b.h); rect(fl, b.x, B - b.h, b.w, 2); if (b.ant) rect(fc, b.x + (b.w >> 1), B - b.h - 8, 1, 8); });
+  D.near.forEach(b => {
+    const top = B - b.h;
+    rect(b.c[0], b.x, top, b.w, b.h); rect(b.c[1], b.x + b.w - 5, top, 5, b.h);
+    if (b.flat) rect("#4a4a55", b.x - 1, top - 3, b.w + 2, 3); else { rect(b.c[1], b.x - 1, top - 2, b.w + 2, 2); rect("#4a4a55", b.x + 4, top - 6, 5, 4); }   // laje ou cornija com chaminé
+    b.wins.forEach(w => { rect("#1d2a3a", b.x + w.x, top + w.y, 10, 11); rect("#5d7a96", b.x + w.x + 1, top + w.y + 1, 8, 9); });
+    rect("#4b3426", b.x + b.door, B - 14, 9, 14); rect("#d9b26a", b.x + b.door + 6, B - 7, 1, 1);
+  });
+  rect("#8d8f99", -150, B, W + 300, 18);                                  // calçada
+  for (let x = -150; x < W + 150; x += 24) rect("#7a7c86", x, B, 1, 18);
+  rect("#6a6c76", -150, B + 18, W + 300, 3);                             // meio-fio
+  rect("#3b3e48", -150, B + 21, W + 300, 67);                            // rua
+  for (let x = -150; x < W + 150; x += 30) rect("#d8c46c", x, B + 54, 16, 2);
+  rect("#868892", -150, B + 88, W + 300, 40); rect("#6a6c76", -150, B + 88, W + 300, 3);   // calçada da frente
+  D.lamps.forEach(x => { rect("#2a2d35", x, B - 26, 2, 34); rect("#2a2d35", x - 3, B - 28, 8, 3); });
+  rect("#2a2d35", CITY.MAX - 22, B - 24, 2, 32); rect("#2f6b4f", CITY.MAX - 42, B - 34, 42, 12); rect("#e8f0e0", CITY.MAX - 42, B - 34, 42, 1);
+  text("CAIS >", CITY.MAX - 21, B - 25, "#fff", "center");
+  ctx.restore();
+}
+
+function drawCity(now) {
+  if (!cityData) cityInit();
+  lastView = { z: 1, sx: 0, sy: 0 };
+  const ox = (W - WORLD) / 2;
+  ctx.save(); ctx.translate(ox - EXT, 0); DAY.paintSky(ctx, now); ctx.restore();       // o mesmo céu do cais (sol, lua, estrelas) na mesma hora
+  DAY.scene(() => drawCityBack(ox), [0, H]);
+  if (DAY.lamp > 0.01) {                                                                 // à noite: janelas acesas e luz dos postes (por cima da lavagem escura)
+    ctx.save(); ctx.translate(ox, 0); ctx.globalAlpha = DAY.lamp;
+    cityData.near.forEach(b => b.wins.forEach(w => { if (w.lit) { ctx.fillStyle = "#ffd98a"; ctx.fillRect(b.x + w.x + 1, CITY_B - b.h + w.y + 1, 8, 9); } }));
+    cityData.lamps.forEach(x => {
+      const g = ctx.createRadialGradient(x + 1, CITY_B - 26, 1, x + 1, CITY_B - 26, 34);
+      g.addColorStop(0, "rgba(255,225,150,.6)"); g.addColorStop(1, "rgba(255,225,150,0)");
+      ctx.fillStyle = g; ctx.fillRect(x - 36, CITY_B - 62, 74, 70);
+    });
+    ctx.restore();
+  }
+  DAY.scene(() => {                                                                      // o pescador (com a mesma lavagem da hora)
+    ctx.save(); ctx.translate(ox, 0);
+    ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(px, PIER_Y + 1, 9, 2.2, 0, 0, 7); ctx.fill();
+    drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
+    text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
+    ctx.restore();
+  }, [PIER_Y - 70, PIER_Y + 12]);
+
+  if (!INTRO.active) {
+    text(fmtMoney(money), 10, 16, "#8be28b");
+    if (invCount() > 0) text("Peixes: " + invCount(), 10, 28, "#ffd166");
+    if (!BAG.open) hintLine([PH.open ? "E selecionar   F ou ESC guardar o celular" : "I inventário"], 10, H - 10);
+    if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
+  }
+  drawBag(now);
+  drawPhone();
+  drawTrans();
+  present();
+}
 
 // ---------- Tela de entrada / personalizar personagem: apelido, altura (até a do Malto), cor da camiseta e da calça ----------
 // Abre sozinha ao entrar no jogo e depois pelo celular (F -> "Personalizar personagem" -> E). O boneco de prévia gira ao clicar.
