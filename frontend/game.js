@@ -827,36 +827,48 @@ function drawTiao(now) {
   ctx.restore();
 }
 function drawTiaoSide(now) {                                                            // Pedro andando: de perfil (parado ele fica de frente)
-  const t = now / 1000, K = TWK, C = TIAO_C, gs = Math.sin(K.ph), A = 0.55 * K.amp;
-  const hipY = -19 * Math.cos(A * gs), dy = hipY + 19;                                  // o quadril desce quando as pernas abrem (o pé fica no chão)
-  const by = Math.sin(t * 1.5 + 1) * 0.3 * (1 - K.amp), S = -35 + by + dy, hy = S + 30, mY = -31.2 + hy;
+  const t = now / 1000, K = TWK, C = TIAO_C, gs = Math.sin(K.ph), gc = Math.cos(K.ph);
+  const GA = 0.5 * K.amp, KB = 0.35 * K.amp, LT = 9.5;                                  // GA: abertura das coxas; KB: dobra do joelho; LT: coxa e canela (9,5 cada = 19)
+  const dy = 19 * (1 - Math.cos(GA * gs));                                              // o quadril desce quando as pernas abrem (o pé fica no chão)
+  const by = Math.sin(t * 1.5 + 1) * 0.3 * (1 - K.amp), S = -35 + by + dy, hy = S + 30, mY = -31.2 + hy, hipY = -19 + dy;
   ctx.save(); ctx.translate(TX, PIER_Y); ctx.scale(K.face, 1);
   softShadow(-7 * K.face, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);
-  const leg = (th, col) => { ctx.save(); ctx.translate(0, hipY); ctx.rotate(th); rect(col, -2, 0, 4, 17); rect(col, -1.6, 16.3, 6, 1.7); rect("#1a120c", -1.8, 17.8, 6.4, 1.2); ctx.restore(); };
-  leg(-gs * A, C.dk); leg(gs * A, C.skin);                                              // perna de trás (escura) e da frente
+  const leg = (th, kn, col) => {                                                        // mesma mecânica das pernas do pescador: coxa gira no quadril, canela no joelho
+    ctx.save(); ctx.translate(0, hipY); ctx.rotate(th);
+    rect(col, -2.3, 0, 4.6, LT + 0.4);
+    ctx.translate(0, LT); ctx.rotate(kn);
+    rect(col, -2.3, 0, 4.6, LT - 1); rect(col, -2.3, LT - 2.2, 6.6, 1.4); rect("#1a120c", -2.5, LT - 1, 7, 1);   // canela, pé apontando para a frente e sola do chinelo
+    ctx.restore();
+  };
+  leg(-GA * gs, KB * Math.max(0, gc), C.dk); leg(GA * gs, KB * Math.max(0, -gc), C.skin);   // perna de trás (escura) e da frente
   const sh = hipY + 10 - (S + 14);                                                      // bermuda
-  rect("#2f627d", -5.2, S + 14, 10.4, sh); rect("rgba(10,20,40,.3)", -5.2, S + 14, 3, sh); rect("#1f4559", -5.2, S + 14, 10.4, 1.4);
-  ctx.save(); ctx.translate(0, hipY); ctx.rotate(0.06 * K.amp); ctx.translate(0, -hipY);   // tronco inclina de leve para a frente
-  const arm = (th, col) => { ctx.save(); ctx.translate(0, S + 2.5); ctx.rotate(th); rect(col, -1.5, -1, 3, 11); rect(C.lt, -1.4, 9.6, 2.8, 2.4); ctx.restore(); };
-  arm(gs * A * 1.1 + 0.04, C.dk);                                                       // braço de trás (atrás do tronco)
-  rect(C.skin, -4.5, S, 9, 15.5); rect("rgba(0,0,0,.3)", -4.5, S, 2.6, 15.5); rect("rgba(255,210,160,.14)", 2.4, S, 2.1, 15.5);
-  rect("rgba(0,0,0,.25)", 0.8, S + 5.4, 3.6, 0.7); rect("rgba(0,0,0,.2)", -3, S + 9.2, 7, 0.5);
-  arm(-gs * A * 1.1 + 0.04, C.skin); rect("rgba(0,0,0,.18)", -1.5, S + 1.5, 1, 9);      // braço da frente (por cima)
-  rect(C.dk, -2.6, S - 3.5, 4.2, 4);                                                    // pescoço
-  rect(C.skin, -4, -38.5 + hy, 9, 9); rect(C.dk, -4, -38.5 + hy, 1.6, 9);               // cabeça de perfil, olhando para a frente
-  rect("rgba(0,0,0,.22)", -4, -32.4 + hy, 9, 3); rect(C.hair, 2.4, -29.9 + hy, 2, 1.4); // barba por fazer e cavanhaque
-  rect(C.dk, -1.2, -35.4 + hy, 1.5, 2.6);                                               // orelha
-  rect("#e9dfcf", 1.4, -36.2 + hy, 2.4, 1); rect(C.hair, 2.4, -36.2 + hy, 1.2, 1); rect("rgba(0,0,0,.55)", 1.2, -36.6 + hy, 2.8, 0.55);
+  rect("#2f627d", -5.4, S + 14, 10.8, sh); rect("rgba(10,20,40,.3)", -5.4, S + 14, 3, sh); rect("rgba(255,255,255,.1)", 2.6, S + 14, 2.4, sh); rect("#1f4559", -5.4, S + 14, 10.8, 1.4);
+  ctx.save(); ctx.translate(0, hipY); ctx.rotate(0.05 * K.amp); ctx.translate(0, -hipY);   // tronco inclina de leve para a frente
+  const arm = (th, col) => {                                                            // braço em duas partes, com o cotovelo dobrando de leve para a frente
+    ctx.save(); ctx.translate(0, S + 2.8); ctx.rotate(th);
+    rect(col, -1.6, -1, 3.2, 6); ctx.translate(0, 5); ctx.rotate(-0.08 - 0.3 * K.amp);
+    rect(col, -1.5, 0, 3, 5.6); rect(C.lt, -1.5, 5, 3, 2.6); ctx.restore();
+  };
+  arm(GA * gs * 0.8, C.dk);                                                             // braço de trás (atrás do tronco)
+  rect(C.skin, -5, S, 10, 15.5); rect("rgba(0,0,0,.3)", -5, S, 2.8, 15.5); rect("rgba(255,210,160,.14)", 2.8, S, 2.2, 15.5);
+  rect("rgba(0,0,0,.25)", 1.2, S + 5.4, 3.6, 0.7); rect("rgba(0,0,0,.2)", -3.2, S + 9.2, 7, 0.5);
+  arm(-GA * gs * 0.8, C.skin);                                                          // braço da frente (por cima do tronco)
+  ctx.fillStyle = C.skin; roundPath(-2.2, S - 0.6, 4.4, 5, 1.6); ctx.fill();            // ombro cobrindo a junta
+  rect(C.dk, -2.2, S - 3.5, 4.4, 4.2);                                                  // pescoço
+  rect(C.skin, -3.5, -38.5 + hy, 9, 9); rect(C.dk, -3.5, -38.5 + hy, 1.6, 9);           // cabeça de perfil (um pouco à frente do tronco, como a do pescador)
+  rect("rgba(0,0,0,.22)", -3.5, -32.4 + hy, 9, 3); rect(C.hair, 3.3, -29.9 + hy, 2.2, 1.4);   // barba por fazer e cavanhaque
+  rect(C.dk, -0.8, -35.4 + hy, 1.6, 2.6);                                               // orelha
+  rect("#e9dfcf", 2.2, -36.2 + hy, 2.6, 1); rect(C.hair, 3.4, -36.2 + hy, 1.2, 1); rect("rgba(0,0,0,.55)", 2, -36.6 + hy, 2.9, 0.55);
   ctx.strokeStyle = C.hair; ctx.lineWidth = 1.15; ctx.lineCap = "butt";
-  ctx.beginPath(); ctx.moveTo(0.2, -38.2 + hy); ctx.lineTo(4, -37.2 + hy); ctx.stroke();   // sobrancelha franzida
-  rect("#3a2214", 5, -34.8 + hy, 1.4, 2.4); rect("#6b4430", 5.2, -34.8 + hy, 0.5, 1.8);   // nariz
-  rect("#a05a48", 2.2, mY, 2.6, 0.7);                                                   // boca
-  ctx.save(); ctx.translate(3.4, mY + 0.3 + Math.sin(t * 2.6) * 0.2); ctx.rotate(-0.3 + Math.sin(t * 1.3) * 0.05);   // graveto
-  rect("#b58e55", 0, -0.45, 6.6, 0.9); rect("#8a6a38", 0, 0.1, 6.6, 0.35); rect("#e0c690", 6, -0.45, 0.6, 0.9);
+  ctx.beginPath(); ctx.moveTo(1.6, -38 + hy); ctx.lineTo(5, -37.2 + hy); ctx.stroke(); // sobrancelha franzida
+  rect("#3a2214", 5.5, -34.8 + hy, 1.4, 2.4); rect("#6b4430", 5.7, -34.8 + hy, 0.5, 1.8);   // nariz
+  rect("#a05a48", 3, mY, 2.6, 0.7);                                                     // boca
+  ctx.save(); ctx.translate(4.4, mY + 0.3 + Math.sin(t * 2.6) * 0.2); ctx.rotate(0.15 + Math.sin(t * 1.3) * 0.05);   // graveto no canto da boca
+  rect("#b58e55", 0, -0.45, 5, 0.9); rect("#8a6a38", 0, 0.1, 5, 0.35); rect("#e0c690", 4.5, -0.45, 0.5, 0.9);
   ctx.restore();
-  ctx.fillStyle = C.hair; roundPath(-4.8, -46 + hy, 10, 6.4, 2.6); ctx.fill();          // cabelo curto
-  rect(C.hair, -4.8, -42 + hy, 2, 5); rect(C.hair, -4, -40.4 + hy, 9, 0.7);
-  for (let i = 0; i < 5; i++) rect(C.hair2, -3.8 + i * 1.7, -45.3 + hy + (i % 2) * 0.6, 0.9, 0.9);
+  ctx.fillStyle = C.hair; roundPath(-4.4, -46 + hy, 10.4, 6.4, 2.6); ctx.fill();        // cabelo curto
+  rect(C.hair, -4.4, -42 + hy, 1.8, 4.5); rect(C.hair, -3.6, -40.4 + hy, 9, 0.7);
+  for (let i = 0; i < 5; i++) rect(C.hair2, -3.4 + i * 1.7, -45.3 + hy + (i % 2) * 0.6, 0.9, 0.9);
   ctx.restore(); ctx.restore();
 }
 function drawTiaoUI(now) {
