@@ -1193,7 +1193,7 @@ function bagPointer(lx, ly) {                                              // to
 function drawBag(now) {
   if (!BAG.open) return;
   const shop = BAG.mode === "shop", rows = bagRows(), RH = 24, pw = 248, top = 30;
-  const ph = top + Math.max(1, rows.length) * RH + (shop ? 44 : 30), x = Math.round(W - pw - 10), y = 58, acc = shop ? "#9fd3ff" : "#ffd166";
+  const ph = top + Math.max(1, rows.length) * RH + (shop ? 44 : 30), x = Math.round(shop ? W - pw - 10 : (W - pw) / 2), y = Math.round(shop ? 58 : (H - ph) / 2), acc = shop ? "#9fd3ff" : "#ffd166";
   BAG.geo = { x, y, w: pw, h: ph, rowY: y + top, rowH: RH };
   ctx.globalAlpha = 0.96; rect(acc, x - 1, y - 1, pw + 2, ph + 2); rect("#0f1624", x, y, pw, ph); ctx.globalAlpha = 1;
   text(shop ? "Malto compra peixe" : "Inventário", x + 8, y + 14, acc);
