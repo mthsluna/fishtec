@@ -1876,7 +1876,12 @@ function introBackdrop(now) {                           // com a câmera longe, 
   wide(layers.hills, lx(PAR.hills)); wide(layers.lake, lx(PAR.lake)); fog(2);
   drawLakeGlints(now, ox + camX * PAR.sky + 366);
   wide(layers.deck, lx(PAR.pier));
-  ctx.save(); ctx.translate(wx, 0); drawMalto(now); ctx.restore();
+  ctx.save(); ctx.translate(wx, 0); drawMalto(now);
+  if (INTRO.back) {                                      // voltou ao título pela pausa: o pescador (e os outros jogadores) continuam no cais, senão só o reflexo aparece na água
+    Object.values(others).forEach(o => drawOther(o, now));
+    drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
+  }
+  ctx.restore();
   wide(layers.posts, lx(PAR.pier));
   ctx.save(); ctx.translate(wx, 0); drawMaltoUI(now); ctx.restore();
 }
