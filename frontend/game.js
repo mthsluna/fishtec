@@ -1763,16 +1763,24 @@ function drawWaves(now, ox) {
 // ---------- Água batendo nos postes: no pé de cada poste a própria água sobe só um pouquinho e desce ----------
 // A faixa que cobre o poste é copiada da água logo abaixo dele (mesma cor, ondas e brilho), então a água "vai junto";
 // uma linha clara fina na borda de cima dá o contraste.
-function pierShadow(now, wxp) {            // sombra do cais caindo na água logo abaixo: forte junto do deck e sumindo para a frente
-  ctx.globalAlpha = 0.35 + 0.65 * DAY.lightA;                                  // sem sol forte, sombra mais fraca
-  const t = now / 1000, g = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 34);   // começa na linha da água (não cobre o lago/céu atrás do cais)
-  g.addColorStop(0, "rgba(22,10,44,.42)"); g.addColorStop(0.35, "rgba(22,10,44,.28)"); g.addColorStop(0.7, "rgba(22,10,44,.1)"); g.addColorStop(1, "rgba(22,10,44,0)");
-  ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, Math.max(0, Math.min(W, wxp + DECK_END)), 34);   // só até a ponta do cais
+function pierShadow(now, wxp) {            // sombra do cais caindo na água logo abaixo: forte junto do deck, some suave para a frente e na ponta
+  const base = 0.35 + 0.65 * DAY.lightA;                                       // sem sol forte, sombra mais fraca
+  ctx.globalAlpha = base;
+  const t = now / 1000, SH = 42, g = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + SH);   // começa na linha da água (não cobre o lago/céu atrás do cais)
+  for (let k = 0; k <= 12; k++) { const u = k / 12; g.addColorStop(u, `rgba(22,10,44,${(0.44 * Math.pow(1 - u, 2.4)).toFixed(3)})`); }   // queda suave (curva), sem degraus
+  ctx.fillStyle = g;
+  const FEATHER = 40, endX = Math.min(W, wxp + DECK_END + 6), solid = Math.floor(endX - FEATHER);   // na ponta do cais a sombra esmaece em ~40px em vez de cortar seco
+  if (solid > 0) ctx.fillRect(0, WATER_Y, Math.min(W, solid), SH);
+  for (let x = Math.max(0, solid); x < endX && x < W; x += 2) {
+    const u = Math.min(1, Math.max(0, (x - solid) / FEATHER)), f = 1 - u * u * (3 - 2 * u);   // smoothstep: 1 -> 0
+    ctx.globalAlpha = base * f; ctx.fillRect(x, WATER_Y, 2, SH);
+  }
+  ctx.globalAlpha = base;
   for (let i = 6 - 48 * 4; i < DECK_END; i += 48) {                   // sombra de cada poste, balançando de leve com a água
     const x = wxp + i; if (x < -20 || x > W + 20) continue;
-    const sw = Math.sin(t * 1.4 + i * 0.37) * 1.2, pg = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 22);
-    pg.addColorStop(0, "rgba(14,6,30,.38)"); pg.addColorStop(1, "rgba(14,6,30,0)");
-    ctx.fillStyle = pg; ctx.fillRect(x - 1 + sw, WATER_Y, 11, 22);
+    const sw = Math.sin(t * 1.4 + i * 0.37) * 1.2, pg = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 26);
+    for (let k = 0; k <= 6; k++) { const u = k / 6; pg.addColorStop(u, `rgba(14,6,30,${(0.36 * Math.pow(1 - u, 2)).toFixed(3)})`); }
+    ctx.fillStyle = pg; ctx.fillRect(x - 1 + sw, WATER_Y, 11, 26);
   }
   ctx.globalAlpha = 1;
 }
