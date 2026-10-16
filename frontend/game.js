@@ -731,13 +731,13 @@ function drawTiao(now) {
     rect(C.skin, lx, -19, 4, 17); rect("rgba(0,0,0,.22)", lx, -19, 1.2, 17); rect("rgba(255,210,160,.1)", lx + 3, -19, 1, 17);
     rect(C.skin, lx - 0.5, -2.6, 5, 1.7); rect("#1a120c", lx - 0.7, -1.1, 5.4, 1.1);   // pé com a sola do chinelo
   });
-  ctx.beginPath(); ctx.moveTo(-5.9, S + 14); ctx.lineTo(5.9, S + 14); ctx.lineTo(6.3, -9); ctx.lineTo(0.7, -9); ctx.lineTo(0, -13.5); ctx.lineTo(-0.7, -9); ctx.lineTo(-6.3, -9); ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(-5.3, S + 14); ctx.lineTo(5.3, S + 14); ctx.lineTo(5.9, -9.5); ctx.lineTo(0.7, -9.5); ctx.lineTo(0, -13.5); ctx.lineTo(-0.7, -9.5); ctx.lineTo(-5.9, -9.5); ctx.closePath();
   ctx.fillStyle = "#2f627d"; ctx.fill();
-  ctx.save(); ctx.clip(); rect("rgba(10,20,40,.3)", -7, S + 14, 3.4, 30); rect("rgba(255,255,255,.1)", 3.4, S + 14, 3, 30); rect("rgba(10,20,40,.35)", -7, -10.4, 14, 1.4); ctx.restore();
-  rect("#1f4559", -5.9, S + 14, 11.8, 1.4); rect("#e6d9b8", -0.4, S + 15.2, 0.8, 3.2); rect("#e6d9b8", -1.1, S + 15, 2.2, 0.8);   // cós e cordinha
+  ctx.save(); ctx.clip(); rect("rgba(10,20,40,.3)", -7, S + 14, 3.4, 30); rect("rgba(255,255,255,.1)", 3.4, S + 14, 3, 30); rect("rgba(10,20,40,.35)", -7, -10.9, 14, 1.4); ctx.restore();
+  rect("#1f4559", -5.3, S + 14, 10.6, 1.4); rect("#e6d9b8", -0.4, S + 15.2, 0.8, 3.2); rect("#e6d9b8", -1.1, S + 15, 2.2, 0.8);   // cós e cordinha
 
   // tronco sem camiseta
-  const torso = () => { ctx.beginPath(); ctx.moveTo(-6.3, S); ctx.lineTo(6.3, S); ctx.lineTo(5, S + 15); ctx.lineTo(-5, S + 15); ctx.closePath(); };
+  const torso = () => { ctx.beginPath(); ctx.moveTo(-6.3, S); ctx.lineTo(6.3, S); ctx.lineTo(5.5, S + 15); ctx.lineTo(-5.5, S + 15); ctx.closePath(); };
   torso(); ctx.fillStyle = C.skin; ctx.fill();
   ctx.save(); torso(); ctx.clip();
   rect("rgba(0,0,0,.3)", -7, S, 3.6, 16); rect("rgba(255,210,160,.14)", 3.3, S, 3.2, 16);          // luz do pôr do sol à direita
@@ -842,12 +842,12 @@ function drawTiaoSide(now) {                                                    
   };
   leg(-GA * gs, KB * Math.max(0, gc), C.dk); leg(GA * gs, KB * Math.max(0, -gc), C.skin);   // perna de trás (escura) e da frente
   const wt = S + 14, hb = hipY + 8.5, yF = hb - 0.9 * Math.abs(gs) * K.amp, yB = hb + 0.4;   // bermuda larga como a de frente: abre para baixo e a barra sobe do lado da perna que vai à frente
-  const shorts = () => { ctx.beginPath(); ctx.moveTo(-5.4, wt); ctx.lineTo(5.4, wt); ctx.lineTo(6.5, yF); ctx.lineTo(-6.5, yB); ctx.closePath(); };
+  const shorts = () => { ctx.beginPath(); ctx.moveTo(-5.2, wt); ctx.lineTo(5.2, wt); ctx.lineTo(6, yF); ctx.lineTo(-6, yB); ctx.closePath(); };
   shorts(); ctx.fillStyle = "#2f627d"; ctx.fill();
   ctx.save(); shorts(); ctx.clip();
   rect("rgba(10,20,40,.3)", -7, wt, 3.6, 20); rect("rgba(255,255,255,.1)", 3, wt, 4, 20); rect("rgba(10,20,40,.28)", 0.2, wt + 3, 0.8, 6);   // sombra à esquerda, luz à direita e uma dobra
-  rect("#1f4559", -5.4, wt, 10.8, 1.4); rect("#e6d9b8", 3.4, wt + 1.2, 0.8, 3.2);       // cós e cordinha
-  ctx.fillStyle = "#1f4559"; ctx.beginPath(); ctx.moveTo(-6.5, yB - 1.5); ctx.lineTo(6.5, yF - 1.5); ctx.lineTo(6.5, yF + 0.2); ctx.lineTo(-6.5, yB + 0.2); ctx.fill();   // barra
+  rect("#1f4559", -5.2, wt, 10.4, 1.4); rect("#e6d9b8", 3.4, wt + 1.2, 0.8, 3.2);       // cós e cordinha
+  ctx.fillStyle = "#1f4559"; ctx.beginPath(); ctx.moveTo(-6.2, yB - 1.5); ctx.lineTo(6.2, yF - 1.5); ctx.lineTo(6.2, yF + 0.2); ctx.lineTo(-6.2, yB + 0.2); ctx.fill();   // barra
   ctx.restore();
   ctx.save(); ctx.translate(0, hipY); ctx.rotate(0.05 * K.amp); ctx.translate(0, -hipY);   // tronco inclina de leve para a frente
   const arm = (th, col, hand) => {                                                            // braço em duas partes, com o cotovelo dobrando de leve para a frente
@@ -856,7 +856,7 @@ function drawTiaoSide(now) {                                                    
     rect(col, -1.5, 0, 3, 6.2); rect(hand, -1.5, 5.6, 3, 2.8); ctx.restore();
   };
   arm(GA * gs, C.dk, C.dk);                                                             // braço de trás (atrás do tronco)
-  const tor = () => { ctx.beginPath(); ctx.moveTo(-5.2, S); ctx.lineTo(5.8, S); ctx.lineTo(5.2, S + 6); ctx.lineTo(4.6, S + 15.5); ctx.lineTo(-4.6, S + 15.5); ctx.lineTo(-5.4, S + 6); ctx.closePath(); };
+  const tor = () => { ctx.beginPath(); ctx.moveTo(-5.2, S); ctx.lineTo(5.8, S); ctx.lineTo(5.2, S + 6); ctx.lineTo(5, S + 15.5); ctx.lineTo(-5, S + 15.5); ctx.lineTo(-5.4, S + 6); ctx.closePath(); };
   tor(); ctx.fillStyle = C.skin; ctx.fill(); ctx.save(); tor(); ctx.clip(); rect("rgba(0,0,0,.3)", -6, S, 3.2, 16); rect("rgba(255,210,160,.14)", 3, S, 3, 16); ctx.restore();   // tronco: ombros mais largos que a cintura
   rect("rgba(0,0,0,.25)", 1.2, S + 5.4, 3.6, 0.7); rect("rgba(0,0,0,.2)", -3.2, S + 9.2, 7, 0.5);
   arm(-GA * gs, C.lt, "#8a5a3c");                                                          // braço da frente (por cima do tronco)
