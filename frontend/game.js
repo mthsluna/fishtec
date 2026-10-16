@@ -830,6 +830,7 @@ function drawPhone() {
 
 addEventListener("keydown", e => {
   if (UI.open) return;                                  // digitando o apelido: as teclas não são do jogo
+  if (INTRO.active) return;                             // abertura (título / zoom / queda): ainda sem controles
   SND.unlock();                                         // o navegador só libera o som depois de uma tecla/toque
   keys[e.code] = true;
   if (e.code === "KeyM" && !e.repeat) say(SND.toggleMute() ? "Som desligado" : "Som ligado");
@@ -841,6 +842,7 @@ addEventListener("keydown", e => {
 addEventListener("keyup", e => keys[e.code] = false);
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });   // perdeu o foco: solta todas as teclas (evita ficar correndo sozinho)
 cv.addEventListener("pointerdown", e => {
+  if (INTRO.active) return;
   if (state === "walk" && e.clientX) { /* toque: metade esquerda/direita move, centro lança */ }
   SND.unlock();
   const r = cv.getBoundingClientRect(), wxp = (e.clientX - r.left) / r.width * W - ((W - WORLD) / 2 + camX);
@@ -927,6 +929,7 @@ function movePose() {                                                           
 }
 function update(dt) {
   msgT = Math.max(0, msgT - dt);
+  if (INTRO.phase === "go") introUpdate(dt);
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
@@ -1401,7 +1404,9 @@ function draw(now) {
   ctx.save(); ctx.translate(wx, 0);
   drawMalto(now);
   Object.values(others).forEach(o => drawOther(o, now));
-  const tip = drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose(), { pants: me.pants, hs: hScale(me.h) });
+  const ip = INTRO.on ? introPose(now) : undefined;                     // abertura: null = ainda não apareceu, objeto = caindo, undefined = normal
+  const fPose = ip !== undefined ? ip : state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose();
+  const tip = ip === null ? null : drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), fPose, { pants: me.pants, hs: hScale(me.h) });
   ctx.restore();
 
   // 2) água com reflexo
@@ -1416,7 +1421,7 @@ function draw(now) {
   // 3) linhas, boias e nomes por cima
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOtherLine(o, now));
-  if (state !== "show") text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
+  if (state !== "show" && (!INTRO.on || INTRO.landed)) text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
   drawMaltoUI(now);
   drawFx(now);
   drawCatch(now);
@@ -1425,7 +1430,8 @@ function draw(now) {
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
   ctx.restore();
 
-  if (zk > 0.003) zoomView(1 + 0.45 * zk, wx + px, PIER_Y - 6, 0.3);   // aproxima no pescador enquanto puxa o peixe (a interface abaixo não é ampliada)
+  if (INTRO.on) introView(now);
+  else if (zk > 0.003) zoomView(1 + 0.45 * zk, wx + px, PIER_Y - 6, 0.3);   // aproxima no pescador enquanto puxa o peixe (a interface abaixo não é ampliada)
 
   // minigame estilo Stardew
   if (state === "reel") {
@@ -1445,10 +1451,12 @@ function draw(now) {
   }
 
   // HUD
+  if (!INTRO.active) {
   text("Pontos: " + score, 10, 16);
   const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : "← → mover   SHIFT correr   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : "") + "   F celular", cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
   text(hint, 10, H - 10, "#fff");
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
+  }
   drawPhone();                                         // por último, antes do filtro: o celular também leva o dithering
   present();
 }
@@ -1530,6 +1538,7 @@ function closeCustomizer(save) {
     ready = true;
   } else if (UI.snap) { myName = UI.snap.name; me.shirt = UI.snap.shirt; me.pants = UI.snap.pants; me.h = UI.snap.h; }
   UI.open = false; cz.classList.remove("on"); cv.focus();
+  if (save && INTRO.phase === "custom") introGo();                    // veio da tela inicial: agora a câmera desce e o pescador cai
 }
 czOk.onclick = () => { SND.unlock(); closeCustomizer(true); };
 czCancel.onclick = () => closeCustomizer(false);
@@ -1558,6 +1567,99 @@ function drawPreview(now) {
   pvc.restore(); ctx = prev;
 }
 
+// ---------- Abertura: câmera lá no alto (céu, nuvens e montanhas) com o título FISHTEC e o botão JOGAR ----------
+// JOGAR -> personalizar o pescador -> a câmera desce e dá zoom no deck -> o pescador cai do céu em cima do cais -> o jogo começa.
+const INTRO = { on: true, active: true, phase: "title", t: 0, D: 100, landed: false, fell: false, shake: 0 };   // on: câmera especial; active: controles travados; phase: title | custom | go
+const ZIN = 1.75, ZOOM_T = 1.9;                    // zoom no deck: quanto aproxima e quantos segundos leva
+const I_FALL0 = 1.45, I_FALL_T = 0.8, I_BOUNCE = 0.3, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
+const SETTLE0 = 2.75, SETTLE_T = 1.2, I_FREE = 3.3, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
+const introEl = document.createElement("div"); introEl.id = "intro";
+introEl.innerHTML = `<h1>FISHTEC</h1><button id="intro-play" type="button">JOGAR</button>`;
+const introStyle = document.createElement("style");
+introStyle.textContent = `
+#intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
+  pointer-events:none;transition:opacity .55s ease;font-family:"Nokia Cellphone FC","VT323",ui-monospace,monospace;-webkit-font-smoothing:none}
+#intro.off{opacity:0}
+#intro h1{margin:0;font-weight:400;font-size:clamp(54px,12vw,140px);line-height:1;letter-spacing:.09em;color:#ffe0a8;padding-left:.09em;
+  text-shadow:0 .045em 0 #f4a261,0 .09em 0 #b83f6a,0 .135em 0 #5e3274,0 0 .6em rgba(255,200,120,.4)}
+#intro button{pointer-events:auto;font:inherit;font-size:clamp(24px,4vw,40px);letter-spacing:.14em;padding:.35em 1.7em .35em 1.84em;cursor:pointer;
+  color:#241a45;background:#ffe0a8;border:3px solid #241a45;box-shadow:0 .14em 0 #b83f6a,0 0 0 3px #ffe0a8;animation:introPulse 1.6s ease-in-out infinite}
+#intro button:hover,#intro button:focus-visible{background:#fff6dc;outline:none}
+#intro button:active{transform:translateY(.1em);box-shadow:0 .04em 0 #b83f6a,0 0 0 3px #ffe0a8}
+@keyframes introPulse{50%{transform:translateY(-.06em)}}
+@media (prefers-reduced-motion:reduce){#intro button{animation:none}}`;
+document.head.appendChild(introStyle); document.body.appendChild(introEl);
+const introBtn = introEl.querySelector("#intro-play");
+function introPlay() {
+  if (INTRO.phase !== "title") return;
+  SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
+  INTRO.phase = "custom"; introEl.classList.add("off");
+  setTimeout(() => introEl.remove(), 700);
+  openCustomizer(true);
+}
+function introGo() { INTRO.phase = "go"; INTRO.t = 0; }
+introBtn.onclick = introPlay;
+setTimeout(() => introBtn.focus(), 50);
+
+function introUpdate(dt) {
+  const I = INTRO; I.t += dt;
+  if (!I.fell && I.t >= I_FALL0) { I.fell = true; SND.play("cast_whoosh", { vol: 0.35, rate: 1.5 }); }
+  if (!I.landed && I.t >= I_FALL0 + I_FALL_T) {         // pousou no deck: poeira, barulho de madeira e um tranco na câmera
+    I.landed = true; I.shake = 1; spawnDust(10, 1); spawnDust(10, -1);
+    SND.play("step_wood_1", { vol: 0.9, rate: 0.75 }); SND.play("pier_creak_2", { vol: 0.35, rate: 0.9, delay: 0.05 });
+  }
+  I.shake *= Math.exp(-dt * 7);
+  if (I.active && I.t >= I_FREE) I.active = false;
+  if (I.t >= I_END) I.on = false;
+}
+function introPose(now) {                               // null = escondido; objeto = caindo/quicando; undefined = pose normal
+  const I = INTRO;
+  if (I.phase !== "go" || I.t < I_FALL0) return null;
+  const k = (I.t - I_FALL0) / I_FALL_T;
+  if (k < 1) return { ...cheerPose(now), hop: I_DROP * (1 - k * k) };                               // cai de braços abertos, acelerando
+  const u = (I.t - I_FALL0 - I_FALL_T) / I_BOUNCE;
+  if (u < 1) return { ...cheerPose(now), hop: 4 * Math.sin(Math.PI * u) };                          // quicadinha ao pousar
+  return undefined;
+}
+function introCam(now) {                                // câmera: A = no alto (título), B = zoom no deck, C = enquadramento normal do jogo
+  const I = INTRO, wx = (W - WORLD) / 2 + camX;
+  const A = { z: 1, x: W / 2, y: H / 2 - I.D + Math.sin(now / 2600) * 2 };
+  const B = { z: ZIN, x: wx + px, y: PIER_Y - 26 };
+  const C = { z: 1, x: W / 2, y: H / 2 };
+  const mix = (a, b, k) => ({ z: a.z * Math.pow(b.z / a.z, k), x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
+  if (I.phase !== "go") return A;
+  if (I.t < ZOOM_T) return mix(A, B, ease3(I.t / ZOOM_T));
+  if (I.t < SETTLE0) return B;
+  return mix(B, C, ease3(Math.min(1, (I.t - SETTLE0) / SETTLE_T)));
+}
+let introStars = null, introClouds = null;
+function introView(now) {                               // reaproveita o quadro pronto, deslocado/ampliado; o que sobra acima do céu é completado com estrelas e nuvens
+  const c = introCam(now), z = c.z, sw = W / z, sh = H / z;
+  const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? INTRO.shake * Math.sin(now / 18) * 3 : 0);
+  if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
+  zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
+  ctx.fillStyle = "#241a45"; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
+  if (sy < 0) {
+    if (!introStars) {
+      let r = 4242; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
+      introStars = Array.from({ length: 110 }, () => ({ x: rnd() * (WORLD + 280), y: -2 - rnd() * (INTRO.D + 40), big: rnd() < 0.18 }));
+      introClouds = [[260, 84, -96, 40, 3.2, 0, 311], [200, 62, -62, 250, 2.2, 1, 517], [150, 46, -46, 440, 2.8, 0, 733]]
+        .map(([w, h, y, x0, v, tone, seed]) => ({ w, h, y, x0, v, img: makeCloud(w, h, seed, tone) }));
+    }
+    ctx.save(); ctx.translate(-sx * z, -sy * z); ctx.scale(z, z);
+    introStars.forEach((st, i) => {
+      ctx.globalAlpha = (0.35 + 0.65 * Math.abs(Math.sin(now / 700 + i * 1.7))) * Math.min(1, -st.y / 36);   // pisca e some perto do horizonte
+      rect("#fff6d8", st.x | 0, st.y | 0, st.big ? 2 : 1, st.big ? 2 : 1);
+    });
+    ctx.globalAlpha = 0.92;
+    introClouds.forEach(cl => ctx.drawImage(cl.img, (cl.x0 + now / 1000 * cl.v) % (W + cl.w) - cl.w, cl.y, cl.w, cl.h));
+    ctx.globalAlpha = 1; ctx.restore();
+  }
+  const x0 = Math.max(0, sx), y0 = Math.max(0, sy), x1 = Math.min(W, sx + sw), y1 = Math.min(H, sy + sh);
+  ctx.imageSmoothingEnabled = true;
+  if (x1 > x0 && y1 > y0) ctx.drawImage(zb, x0 * S, y0 * S, (x1 - x0) * S, (y1 - y0) * S, (x0 - sx) * z, (y0 - sy) * z, (x1 - x0) * z, (y1 - y0) * z);
+}
+
 let last = performance.now(), slow = 0;
 (function loop(now) {
   const raw = (now - last) / 1000;
@@ -1566,4 +1668,4 @@ let last = performance.now(), slow = 0;
   if (slow > 60 && S > 1) { setScale(S > 1.5 ? 1.5 : 1); slow = 0; }
   net(now); draw(now); if (UI.open) drawPreview(now); requestAnimationFrame(loop);
 })(last);
-openCustomizer(true);
+// (o personalizar agora abre pelo botão JOGAR, ver introPlay)
