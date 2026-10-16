@@ -12,10 +12,20 @@ app.use(express.json());
 
 // difficulty: 1 (fácil) a 5 (difícil) | rarity: peso do sorteio
 const FISH = [
-  { id: "piranha-vermelha", name: "Piranha-vermelha", file: "piranha-vermelha.png", difficulty: 3, rarity: 30, points: 40 },
-  { id: "budiao-verde",     name: "Budião-verde",     file: "budiao-verde.png",     difficulty: 2, rarity: 45, points: 20 },
-  { id: "peixe-voador",     name: "Peixe-voador",     file: "peixe-voador.png",     difficulty: 4, rarity: 18, points: 70 },
-  { id: "peixe-bandeira",   name: "Peixe-bandeira",   file: "peixe-bandeira.png",   difficulty: 5, rarity: 7,  points: 120 },
+  { id: "piranha-vermelha", name: "Piranha vermelha", file: "piranha-vermelha.png", difficulty: 3, rarity: 30, points: 40 },
+  { id: "budiao-verde",     name: "Budião verde",     file: "budiao-verde.png",     difficulty: 2, rarity: 45, points: 20 },
+  { id: "peixe-voador",     name: "Peixe voador",     file: "peixe-voador.png",     difficulty: 4, rarity: 18, points: 70 },
+  { id: "peixe-bandeira",   name: "Peixe bandeira",   file: "peixe-bandeira.png",   difficulty: 5, rarity: 7,  points: 120 },
+  { id: "peixe-cofre", name: "Peixe cofre", file: "peixe-cofre.png", difficulty: 2, rarity: 30, points: 25 },
+  { id: "peixe-listrado", name: "Peixe listrado", file: "peixe-listrado.png", difficulty: 2, rarity: 35, points: 25 },
+  { id: "budiao-listrado", name: "Budião listrado", file: "budiao-listrado.png", difficulty: 2, rarity: 35, points: 22 },
+  { id: "peixe-zebra", name: "Peixe zebra", file: "peixe-zebra.png", difficulty: 3, rarity: 22, points: 45 },
+  { id: "garoupa-pintada", name: "Garoupa pintada", file: "garoupa-pintada.png", difficulty: 3, rarity: 22, points: 50 },
+  { id: "salmao", name: "Salmão", file: "salmao.png", difficulty: 3, rarity: 20, points: 55 },
+  { id: "peixe-tigre", name: "Peixe tigre", file: "peixe-tigre.png", difficulty: 4, rarity: 12, points: 75 },
+  { id: "garoupa-azul", name: "Garoupa azul", file: "garoupa-azul.png", difficulty: 4, rarity: 12, points: 80 },
+  { id: "peixe-dourado-dentuco", name: "Peixe dourado dentuço", file: "peixe-dourado-dentuco.png", difficulty: 4, rarity: 14, points: 65 },
+  { id: "lagosta", name: "Lagosta", file: "lagosta.png", difficulty: 5, rarity: 5, points: 140 },
 ];
 
 const pick = () => {
@@ -35,29 +45,48 @@ app.post("/api/catch", (req, res) => {
 // ---------- Multiplayer ----------
 const COLORS = ["#c0392b", "#2980b9", "#8e44ad", "#16a085", "#d35400", "#7f8c8d"];
 const players = {};
-const STATES = ["walk", "wait", "bite", "reel"];
+const STATES = ["walk", "cast", "wait", "bite", "reel"];
 const num = (v, min, max) => Math.max(min, Math.min(max, Number(v) || 0));
+// aparência do jogador: apelido, cor da camiseta, cor da calça e altura (0 = normal ... 1 = altura do Malto)
+const HEX = /^#[0-9a-f]{6}$/i;
+const lookOf = (d = {}, shirtDef = "#c0392b") => ({
+  name: String(d.name || "Pescador").trim().slice(0, 14) || "Pescador",
+  shirt: HEX.test(d.shirt) ? d.shirt : shirtDef,
+  pants: HEX.test(d.pants) ? d.pants : "#26384a",
+  h: num(d.h, 0, 1),
+});
 
 io.on("connection", (socket) => {
-  socket.on("join", ({ name } = {}) => {
+  socket.on("join", (d = {}) => {
+    const color = COLORS[Object.keys(players).length % COLORS.length];
     players[socket.id] = {
       id: socket.id,
-      name: String(name || "Pescador").slice(0, 14),
-      color: COLORS[Object.keys(players).length % COLORS.length],
-      x: 240, dir: 1, state: "walk", bx: 270,
+      color,
+      ...lookOf(d, color),
+      x: 240, dir: 1, state: "walk", bx: 270, rs: false,
     };
     socket.emit("players", Object.values(players));
     socket.broadcast.emit("player:join", players[socket.id]);
   });
 
+  socket.on("time:sync", (ack) => { if (typeof ack === "function") ack(Date.now()); });   // relógio do jogo: o cliente mede a diferença para o horário do servidor
+
+  socket.on("look", (d = {}) => {                           // mudou apelido/roupa/altura depois de entrar
+    const p = players[socket.id];
+    if (!p) return;
+    Object.assign(p, lookOf(d, p.shirt));
+    socket.broadcast.emit("player:look", { id: p.id, name: p.name, shirt: p.shirt, pants: p.pants, h: p.h });
+  });
+
   socket.on("move", (d = {}) => {
     const p = players[socket.id];
     if (!p) return;
-    p.x = num(d.x, 0, 480);
+    p.x = num(d.x, 0, 700);
     p.dir = d.dir === -1 ? -1 : 1;
     p.state = STATES.includes(d.state) ? d.state : "walk";
-    p.bx = num(d.bx, 0, 480);
-    socket.volatile.broadcast.emit("player:move", { id: p.id, x: p.x, dir: p.dir, state: p.state, bx: p.bx });
+    p.bx = num(d.bx, 0, 700);
+    p.rs = d.rs === true;                                   // vara guardada nas costas (correndo)
+    socket.volatile.broadcast.emit("player:move", { id: p.id, x: p.x, dir: p.dir, state: p.state, bx: p.bx, rs: p.rs });
   });
 
   socket.on("disconnect", () => {
