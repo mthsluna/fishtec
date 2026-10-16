@@ -1419,6 +1419,22 @@ function finish(win) {
 let showT = 0;
 const cheerPose = now => { const s = Math.sin(now / 140); return { rod: REST, arm: -1.3 + 0.12 * s, lean: 0.04, off: Math.PI - 0.3 - 0.12 * s, flex: 0, cheer: 1, wv: s, hop: Math.abs(s) * 1.8 }; };
 const easeOutBack = k => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
+const fishCache = new Map();
+function scaledFish(fi, tw, th) {                                              // reduz a imagem aos poucos (metade por vez) até o tamanho da tela: sem serrilhado nem "pixels comidos" quando o PNG é bem maior que o peixe
+  tw = Math.max(2, Math.round(tw / 4) * 4); th = Math.max(2, Math.round(th / 4) * 4);
+  if (fi.naturalWidth <= tw * 1.25) return fi;                                 // PNG pequeno: só amplia (suave) direto na tela
+  const key = fi.src + "|" + tw; let c = fishCache.get(key); if (c) return c;
+  let cur = fi, cw = fi.naturalWidth, ch = fi.naturalHeight;
+  while (cw / 2 > tw) {
+    const n = document.createElement("canvas"); n.width = Math.ceil(cw / 2); n.height = Math.ceil(ch / 2);
+    const x = n.getContext("2d"); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, n.width, n.height);
+    cur = n; cw = n.width; ch = n.height;
+  }
+  c = document.createElement("canvas"); c.width = tw; c.height = Math.max(2, Math.round(tw * fi.naturalHeight / fi.naturalWidth));
+  const x = c.getContext("2d"); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high"; x.drawImage(cur, 0, 0, c.width, c.height);
+  if (fishCache.size > 40) fishCache.clear();
+  fishCache.set(key, c); return c;
+}
 let CU = null;                                                                 // onde o texto da pescaria vai aparecer (calculado no mundo, desenhado na tela depois do zoom)
 function catchDims() {                                                         // tamanho do peixe na tela (proporcional aos cm) e altura da cabeça do pescador
   const fi = img(fish.file), ok = fi.complete && fi.naturalWidth, iw = ok ? fi.naturalWidth : 4, ih = ok ? fi.naturalHeight : 3;
@@ -1438,14 +1454,11 @@ function drawCatch(now, wx) {
   const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, Math.max(w, h) * 0.85);       // brilho dourado atrás do peixe
   g.addColorStop(0, "rgba(255,232,150,.55)"); g.addColorStop(1, "rgba(255,232,150,0)");
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, Math.max(w, h) * 0.85 * sc, 0, 7); ctx.fill();
-  ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.sin(now / 340) * 0.06); ctx.scale(sc, sc);
-  if (ok) ctx.drawImage(fi, -w / 2, -h / 2, w, h); else rect("#ffd166", -w / 2, -h / 2, w, h);
-  ctx.restore();
   for (let i = 0; i < 6; i++) {                                                       // brilhinhos girando em volta
     const a = now / 700 + i * 1.047, s = 1 + (Math.sin(now / 120 + i * 2) > 0.3 ? 1 : 0);
     rect("#fff6c2", cx + Math.cos(a) * (w * 0.62) * sc - s / 2, cy + Math.sin(a) * (h * 0.62) * sc - s / 2, s + 1, s + 1);
   }
-  CU = { x: wx + cx, y: cy - Math.max(h, 16) / 2 * sc, a: Math.max(0, fade) };
+  CU = { x: wx + cx, cy, y: cy - Math.max(h, 16) / 2 * sc, a: Math.max(0, fade), fi, ok, w, h, sc, rot: Math.sin(now / 340) * 0.06 };   // o desenho do peixe em si é feito depois do zoom (nítido)
   ctx.globalAlpha = 1;
 }
 function drawCatchUI() {                                                       // nome, tamanho e valor: na tela, por cima do zoom (sem ampliar nem borrar o texto)
@@ -1453,6 +1466,13 @@ function drawCatchUI() {                                                       /
   const v = lastView, X = (CU.x - v.sx) * v.z, Y = (CU.y - v.sy) * v.z;
   const y1 = Math.max(26, Math.min(H - 50, Y - 24));
   ctx.globalAlpha = CU.a;
+  {                                                                              // o peixe é desenhado AQUI, já no tamanho final da tela (antes ele era ampliado do quadro pronto e ficava borrado)
+    const w = CU.w * CU.sc * v.z, h = CU.h * CU.sc * v.z;
+    ctx.save(); ctx.translate(X, (CU.cy - v.sy) * v.z); ctx.rotate(CU.rot);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    if (CU.ok) ctx.drawImage(scaledFish(CU.fi, w * S, h * S), -w / 2, -h / 2, w, h); else rect("#ffd166", -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
   text(fish.name, X, y1, "#ffd166", "center");
   text(fmtCm(catchCm) + " · " + fmtKg(catchKg), X, y1 + 11, "#fff", "center");
   ctx.globalAlpha = 1;
