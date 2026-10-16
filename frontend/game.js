@@ -2440,12 +2440,12 @@ introStyle.textContent = `
 #help{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.6);
   font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none;--u:3px;--acc:#ffd166}
 #help.on{display:flex}
-#help .hp-box{width:min(calc(320 * var(--u)),96vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:calc(8 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u));
+#help .hp-box{width:min(calc(280 * var(--u)),96vw);box-sizing:border-box;padding:calc(8 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u));
   background:rgba(15,22,36,.96);color:#fff;box-shadow:0 0 0 var(--u) var(--acc),0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0,0,0,.6);animation:pzPop .18s ease-out}
 #help .hp-title{font-size:calc(11 * var(--u));line-height:1;text-align:center;color:var(--acc);text-shadow:var(--u) var(--u) 0 #000}
 #help .hp-line{height:var(--u);margin:calc(6 * var(--u)) calc(2 * var(--u)) calc(4 * var(--u));background:rgba(255,255,255,.18)}
-#help .hp-row{display:flex;gap:calc(8 * var(--u));align-items:center;padding:calc(3 * var(--u)) calc(6 * var(--u));font-size:calc(11 * var(--u));line-height:1.25;text-shadow:var(--u) var(--u) 0 #000}
-#help .hp-keys{flex:none;width:calc(86 * var(--u));display:flex;align-items:center;justify-content:center;gap:calc(2 * var(--u));color:#1b2230;text-shadow:none}
+#help .hp-row{display:flex;gap:calc(8 * var(--u));align-items:center;min-height:calc(18 * var(--u));padding:calc(2 * var(--u)) calc(6 * var(--u));font-size:calc(11 * var(--u));line-height:1;text-shadow:var(--u) var(--u) 0 #000}
+#help .hp-keys{flex:none;width:calc(84 * var(--u));display:flex;align-items:center;justify-content:center;gap:calc(2 * var(--u));color:#1b2230;text-shadow:none}
 #help .key{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:calc(14 * var(--u));height:calc(14 * var(--u));padding-bottom:var(--u);
   background:#fff;color:#1b2230;border-bottom:calc(2 * var(--u)) solid #9aa6b8;font-size:calc(11 * var(--u));line-height:1}
 #help .key.w{width:calc(26 * var(--u))}
@@ -2470,7 +2470,7 @@ sizeIntroBtns(); addEventListener("resize", sizeIntroBtns);
 if (document.fonts) document.fonts.ready.then(sizeIntroBtns);
 const introBtn = introEl.querySelector("#intro-play"), helpBtn = introEl.querySelector("#intro-help");
 const helpEl = document.createElement("div"); helpEl.id = "help";
-const PIX = rows => `<svg style="width:calc(var(--u) * ${rows[0].length * 0.8});height:calc(var(--u) * ${rows.length * 0.8})" viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor">` +
+const PIX = rows => `<svg style="width:calc(var(--u) * ${rows[0].length * (rows.length > 9 ? 0.75 : 1)});height:calc(var(--u) * ${rows.length * (rows.length > 9 ? 0.75 : 1)})" viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor">` +
   rows.map((r, y) => [...r].map((c, x) => c === "#" ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : "").join("")).join("") + `</svg>`;   // desenho em pixels (cada # = 1 quadradinho)
 const ICO = {
   left:  PIX(["...#.....", "..##.....", ".########", "..##.....", "...#....."]),
@@ -2480,13 +2480,13 @@ const ICO = {
 };
 const KEY = (c, cls = "") => `<span class="key ${cls}">${c}</span>`;
 helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div class="hp-title">Ajuda</div><div class="hp-line"></div>
-  <div class="hp-row"><div class="hp-keys">${KEY(ICO.left)}${KEY(ICO.right)}<span class="or">/</span>${KEY("A")}${KEY("D")}</div><span>andar pelo cais</span></div>
-  <div class="hp-row"><div class="hp-keys">${KEY(ICO.shift, "w")}</div><span>correr (segure enquanto anda)</span></div>
-  <div class="hp-row"><div class="hp-keys">${KEY("", "sp")}</div><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
-  <div class="hp-row"><div class="hp-keys">${ICO.mouse}</div><span>clique ou toque: faz o mesmo que a barra de espaço</span></div>
-  <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>falar com o Malto e o Pedro (perto deles)</span></div>
-  <div class="hp-row"><div class="hp-keys">${KEY("F")}</div><span>abrir ou guardar o celular</span></div>
-  <div class="hp-row"><div class="hp-keys">${KEY("M")}</div><span>ligar ou desligar o som</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY(ICO.left)}${KEY(ICO.right)}<span class="or">/</span>${KEY("A")}${KEY("D")}</div><span>Andar pelo cais</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY(ICO.shift, "w")}</div><span>Correr (segure)</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("", "sp")}</div><span>Lançar, fisgar e puxar</span></div>
+  <div class="hp-row"><div class="hp-keys">${ICO.mouse}</div><span>Clique/toque = espaço</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>Falar com Malto e Pedro</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("F")}</div><span>Abrir ou guardar o celular</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("M")}</div><span>Ligar ou desligar o som</span></div>
   <div class="hp-line"></div><div class="hp-btns"><button id="help-close" type="button">Voltar</button></div></div>`;
 document.body.appendChild(helpEl);
 const helpClose = helpEl.querySelector("#help-close");
