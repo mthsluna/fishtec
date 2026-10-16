@@ -1,3 +1,12 @@
+// ---------- Fonte do jogo: DigitalDisco (assets/fonts/DigitalDisco.ttf). Só o celular continua com a fonte do Nokia ----------
+const UI_FONT = '"DigitalDisco", ui-monospace, monospace', UI_PX = 11;     // UI_PX: tamanho do texto no canvas (a fonte é de pixel: 1/16 do tamanho = 1 "pixel" da letra)
+const UI_CH = Math.ceil(UI_PX * 576 / 1024 * 10) / 10;                    // largura de uma letra larga (usada para dimensionar a caixa de fala)
+(() => {
+  const st = document.createElement("style");
+  st.textContent = '@font-face{font-family:"DigitalDisco";src:url("assets/fonts/DigitalDisco.ttf") format("truetype");font-display:block}';
+  document.head.appendChild(st);
+  if (document.fonts) document.fonts.load("16px DigitalDisco").catch(() => {});
+})();
 const cv = document.getElementById("g");
 const WORLD = 480, H = 270;              // WORLD = área jogável (igual ao servidor); a tela pode ser mais larga
 const EXT = 160, LW = WORLD + EXT * 2;   // margem extra das camadas de fundo (para o parallax e telas largas)
@@ -603,7 +612,7 @@ function drawMaltoUI(now) {
   text("Malto", MX, nameY, "#9fd3ff", "center");
   if (mTalk) {
     const full = MALTO_LINES[mLine], shown = Math.min(full.length, Math.floor(mTalk.t * TYPE_CPS));
-    const lines = wrapLines(full, 24), lh = 11, w = 24 * 6 + 14, hgt = lines.length * lh + 9;
+    const lines = wrapLines(full, 24), lh = 11, w = Math.ceil(24 * UI_CH) + 14, hgt = lines.length * lh + 9;
     const bx = Math.round(MX - w / 2), byy = Math.round(nameY - 14 - hgt);
     rect("#9fd3ff", bx - 1, byy - 1, w + 2, hgt + 2); rect("#0f1624", bx, byy, w, hgt);
     ctx.fillStyle = "#9fd3ff"; ctx.beginPath(); ctx.moveTo(MX - 5, byy + hgt + 1); ctx.lineTo(MX + 5, byy + hgt + 1); ctx.lineTo(MX, byy + hgt + 7); ctx.fill();
@@ -992,7 +1001,7 @@ function update(dt) {
 }
 
 const rect = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
-const text = (s, x, y, c = "#fff", a = "left") => { ctx.font = "bold 10px monospace"; ctx.textAlign = a; ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(s, x, y); };
+const text = (s, x, y, c = "#fff", a = "left") => { ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = a; ctx.fillStyle = "#000"; ctx.fillText(s, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(s, x, y); };
 
 function layer(fn, w = LW, h = H) {        // desenha uma vez num canvas separado (cache)
   const c = document.createElement("canvas"); c.width = w * S; c.height = h * S;
@@ -1485,11 +1494,11 @@ cz.innerHTML = `<div class="cz-box" role="dialog" aria-label="Personalizar perso
 const czStyle = document.createElement("style");
 czStyle.textContent = `
 #cz{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
-  font:18px/1.15 "Nokia Cellphone FC","VT323",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
+  font:16px/1.2 "DigitalDisco",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
 #cz.on{display:flex}
 #cz .cz-box{width:min(360px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 16px 16px;background:#97a888;
   border:4px solid #1b2619;border-radius:10px;box-shadow:0 0 0 3px #7d8f71,0 14px 50px #000}
-#cz .cz-title{font-size:26px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:10px}
+#cz .cz-title{font-size:32px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:10px}
 #cz .cz-row{display:flex;align-items:center;gap:10px;margin:8px 0}
 #cz .cz-row>span{width:78px;flex:none}
 #cz #cz-name{flex:1;min-width:0;font:inherit;color:#1b2619;background:#a9b99b;border:2px solid #1b2619;padding:4px 6px;outline:none}
@@ -1497,7 +1506,7 @@ czStyle.textContent = `
 #cz input[type=range]{flex:1;accent-color:#1b2619}
 #cz .cz-prevwrap{display:flex;justify-content:center;margin:6px 0 2px}
 #cz canvas{width:192px;height:198px;image-rendering:pixelated;border:2px solid #1b2619;cursor:pointer;touch-action:manipulation}
-#cz .cz-hint{font-size:14px;text-align:center;opacity:.75;margin:0 0 4px}
+#cz .cz-hint{font-size:16px;text-align:center;opacity:.75;margin:0 0 4px}
 #cz .cz-sw{display:flex;flex-wrap:wrap;gap:5px;flex:1}
 #cz .cz-sw button,#cz .cz-sw label{width:22px;height:22px;box-sizing:border-box;border:2px solid #1b2619;padding:0;cursor:pointer;display:block;position:relative}
 #cz .cz-sw button.sel{outline:3px solid #1b2619;outline-offset:1px}
@@ -1582,7 +1591,7 @@ introEl.innerHTML = `<h1>FISHTEC</h1><button id="intro-play" type="button">JOGAR
 const introStyle = document.createElement("style");
 introStyle.textContent = `
 #intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
-  pointer-events:none;transition:opacity .55s ease;font-family:"Nokia Cellphone FC","VT323",ui-monospace,monospace;-webkit-font-smoothing:none}
+  pointer-events:none;transition:opacity .55s ease;font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none}
 #intro.off{opacity:0}
 #intro h1{margin:0;font-weight:400;font-size:clamp(54px,12vw,140px);line-height:1;letter-spacing:.09em;color:#ffe0a8;padding-left:.09em;
   text-shadow:0 .045em 0 #f4a261,0 .09em 0 #b83f6a,0 .135em 0 #5e3274,0 0 .6em rgba(255,200,120,.4)}
@@ -1594,14 +1603,14 @@ introStyle.textContent = `
 #intro button.sec:hover,#intro button.sec:focus-visible{background:#3a2a66}
 #intro button.sec:active{box-shadow:0 .04em 0 #5e3274}
 #help{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
-  font:20px/1.15 "Nokia Cellphone FC","VT323",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
+  font:16px/1.2 "DigitalDisco",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
 #help.on{display:flex}
-#help .hp-box{width:min(420px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 18px 16px;background:#97a888;
+#help .hp-box{width:min(460px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 18px 16px;background:#97a888;
   border:4px solid #1b2619;border-radius:10px;box-shadow:0 0 0 3px #7d8f71,0 14px 50px #000}
-#help .hp-title{font-size:28px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:8px}
+#help .hp-title{font-size:32px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:8px}
 #help .hp-row{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed rgba(27,38,25,.35)}
 #help .hp-row:last-of-type{border-bottom:0}
-#help .hp-row b{flex:none;width:128px;font-weight:400;background:#1b2619;color:#97a888;padding:2px 6px;text-align:center}
+#help .hp-row b{flex:none;width:150px;font-weight:400;background:#1b2619;color:#97a888;padding:2px 6px;text-align:center}
 #help .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}
 #help .hp-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 18px;cursor:pointer}
 #help .hp-btns button:hover,#help .hp-btns button:focus-visible{background:#2f4029;outline:none}`;
@@ -1609,7 +1618,7 @@ document.head.appendChild(introStyle); document.body.appendChild(introEl);
 const introBtn = introEl.querySelector("#intro-play"), helpBtn = introEl.querySelector("#intro-help");
 const helpEl = document.createElement("div"); helpEl.id = "help";
 helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div class="hp-title">Ajuda</div>
-  <div class="hp-row"><b>← → &nbsp;A D</b><span>andar pelo cais</span></div>
+  <div class="hp-row"><b>SETAS &nbsp;A D</b><span>andar pelo cais</span></div>
   <div class="hp-row"><b>SHIFT</b><span>correr (segure enquanto anda)</span></div>
   <div class="hp-row"><b>ESPAÇO</b><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
   <div class="hp-row"><b>CLIQUE / TOQUE</b><span>faz o mesmo que o ESPAÇO</span></div>
