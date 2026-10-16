@@ -1569,7 +1569,8 @@ function drawPreview(now) {
 
 // ---------- Abertura: câmera lá no alto (céu, nuvens e montanhas) com o título FISHTEC e o botão JOGAR ----------
 // JOGAR -> personalizar o pescador -> a câmera desce e dá zoom no deck -> o pescador cai do céu em cima do cais -> o jogo começa.
-const INTRO = { on: true, active: true, phase: "title", t: 0, D: 100, landed: false, fell: false, shake: 0 };   // on: câmera especial; active: controles travados; phase: title | custom | go
+const INTRO = { on: true, active: true, phase: "title", t: 0, landed: false, fell: false, shake: 0 };   // on: câmera especial; active: controles travados; phase: title | custom | go
+const ZA = 0.6, INTRO_BOTTOM = 166;                  // tela inicial: zoom (menor = câmera mais longe) e a linha do quadro que fica na base da tela (a água começa em 168)
 const ZIN = 1.75, ZOOM_T = 1.9;                    // zoom no deck: quanto aproxima e quantos segundos leva
 const I_FALL0 = 1.45, I_FALL_T = 0.8, I_BOUNCE = 0.3, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
 const SETTLE0 = 2.75, SETTLE_T = 1.2, I_FREE = 3.3, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
@@ -1621,9 +1622,9 @@ function introPose(now) {                               // null = escondido; obj
   if (u < 1) return { ...cheerPose(now), hop: 4 * Math.sin(Math.PI * u) };                          // quicadinha ao pousar
   return undefined;
 }
-function introCam(now) {                                // câmera: A = no alto (título), B = zoom no deck, C = enquadramento normal do jogo
+function introCam(now) {                                // câmera: A = longe e no alto (título), B = zoom no deck, C = enquadramento normal do jogo
   const I = INTRO, wx = (W - WORLD) / 2 + camX;
-  const A = { z: 1, x: W / 2, y: H / 2 - I.D + Math.sin(now / 2600) * 2 };
+  const A = { z: ZA, x: W / 2, y: INTRO_BOTTOM - H / ZA / 2 + Math.sin(now / 2600) * 2 };   // a base da tela fica na linha da água: só o deck aparece lá embaixo
   const B = { z: ZIN, x: wx + px, y: PIER_Y - 26 };
   const C = { z: 1, x: W / 2, y: H / 2 };
   const mix = (a, b, k) => ({ z: a.z * Math.pow(b.z / a.z, k), x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
@@ -1633,28 +1634,71 @@ function introCam(now) {                                // câmera: A = no alto 
   return mix(B, C, ease3(Math.min(1, (I.t - SETTLE0) / SETTLE_T)));
 }
 let introStars = null, introClouds = null;
-function introView(now) {                               // reaproveita o quadro pronto, deslocado/ampliado; o que sobra acima do céu é completado com estrelas e nuvens
-  const c = introCam(now), z = c.z, sw = W / z, sh = H / z;
-  const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? INTRO.shake * Math.sin(now / 18) * 3 : 0);
-  if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
-  zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
-  ctx.fillStyle = "#241a45"; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
-  if (sy < 0) {
-    if (!introStars) {
-      let r = 4242; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
-      introStars = Array.from({ length: 110 }, () => ({ x: rnd() * (WORLD + 280), y: -2 - rnd() * (INTRO.D + 40), big: rnd() < 0.18 }));
-      introClouds = [[260, 84, -96, 40, 3.2, 0, 311], [200, 62, -62, 250, 2.2, 1, 517], [150, 46, -46, 440, 2.8, 0, 733]]
-        .map(([w, h, y, x0, v, tone, seed]) => ({ w, h, y, x0, v, img: makeCloud(w, h, seed, tone) }));
-    }
-    ctx.save(); ctx.translate(-sx * z, -sy * z); ctx.scale(z, z);
-    introStars.forEach((st, i) => {
-      ctx.globalAlpha = (0.35 + 0.65 * Math.abs(Math.sin(now / 700 + i * 1.7))) * Math.min(1, -st.y / 36);   // pisca e some perto do horizonte
-      rect("#fff6d8", st.x | 0, st.y | 0, st.big ? 2 : 1, st.big ? 2 : 1);
-    });
-    ctx.globalAlpha = 0.92;
-    introClouds.forEach(cl => ctx.drawImage(cl.img, (cl.x0 + now / 1000 * cl.v) % (W + cl.w) - cl.w, cl.y, cl.w, cl.h));
-    ctx.globalAlpha = 1; ctx.restore();
+function introExtra(now) {                              // (em coordenadas do quadro) o que fica acima do céu do jogo: brilho do sol que continua, estrelas e nuvens
+  if (!introStars) {
+    let r = 4242; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647;
+    introStars = Array.from({ length: 320 }, () => ({ x: -320 + rnd() * 1500, y: -2 - rnd() * 380, big: rnd() < 0.16 }));
+    introClouds = [[260, 84, -96, 40, 3.2, 0, 311], [200, 62, -62, 300, 2.2, 1, 517], [150, 46, -46, 600, 2.8, 0, 733], [300, 96, -190, 150, 2.0, 1, 911],
+      [220, 70, -150, 700, 3.4, 0, 1013], [180, 56, -250, 500, 2.6, 1, 1117], [260, 80, -300, 900, 2.2, 0, 1223], [190, 60, -120, 1000, 2.9, 1, 1319]]
+      .map(([w, h, y, x0, v, tone, seed]) => ({ w, h, y, x0, v, img: makeCloud(w, h, seed, tone) }));
   }
+  const sxn = (W - WORLD) / 2 + camX * PAR.sky + 370;                         // o mesmo brilho do sol do céu, continuando acima da borda (antes ele aparecia cortado)
+  const g = ctx.createRadialGradient(sxn, 62, 4, sxn, 62, 80);
+  g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
+  ctx.fillStyle = g; ctx.fillRect(sxn - 80, -20, 160, 20);
+  introStars.forEach((st, i) => {
+    ctx.globalAlpha = (0.35 + 0.65 * Math.abs(Math.sin(now / 700 + i * 1.7))) * Math.min(1, -st.y / 36);   // pisca e some perto do horizonte
+    rect("#fff6d8", st.x | 0, st.y | 0, st.big ? 2 : 1, st.big ? 2 : 1);
+  });
+  introClouds.forEach(cl => {
+    ctx.globalAlpha = Math.max(0.4, 0.92 + Math.min(0, (cl.y + 40) / 700));                                    // as mais altas ficam mais apagadas
+    ctx.drawImage(cl.img, (cl.x0 + now / 1000 * cl.v) % 1200 - 280, cl.y, cl.w, cl.h);
+  });
+  ctx.globalAlpha = 1;
+}
+function introBackdrop(now) {                           // com a câmera longe, redesenha o cenário direto das camadas (assim dá para mostrar mais largura que a tela do jogo)
+  const ox = (W - WORLD) / 2, wx = ox + camX, lx = f => ox + camX * f - EXT;
+  ctx.imageSmoothingEnabled = true;
+  const wide = (im, x) => {                              // camada + cópias espelhadas dos lados (quando a câmera abre mais que a camada)
+    ctx.drawImage(im, x, 0, LW, H);
+    ctx.save(); ctx.translate(x, 0); ctx.scale(-1, 1); ctx.drawImage(im, 0, 0, LW, H); ctx.restore();
+    ctx.save(); ctx.translate(x + 2 * LW, 0); ctx.scale(-1, 1); ctx.drawImage(im, 0, 0, LW, H); ctx.restore();
+  };
+  const fog = i => { const f = FOGS[i], x0 = ox + camX * f.par - EXT, d = ((now / 1000 * f.sp) % LW + LW) % LW; for (let n = -2; n <= 1; n++) ctx.drawImage(layers.fogs[i], x0 + d + n * LW, f.y0, LW, f.bh); };
+  const sk = layers.sky, x = lx(PAR.sky);                // céu: as pontas esticam (o sol fica só no meio)
+  ctx.drawImage(sk, x, 0, LW, H);
+  ctx.drawImage(sk, 0, 0, 1, sk.height, x - LW, 0, LW, H); ctx.drawImage(sk, sk.width - 1, 0, 1, sk.height, x + LW, 0, LW, H);
+  CLOUDS.forEach((c, i) => {
+    const cl = layers.clouds[i], u = (now / 1000 + c.seed * 3.7) / c.m, f = u - Math.floor(u), e = f * f * (3 - 2 * f), k = c.back ? 0.8 : 1;
+    const cx = (c.x + now / 1000 * c.v) % (LW + c.w) - c.w + lx(c.back ? PAR.sky + 0.03 : PAR.cloud);
+    for (let n = -1; n <= 1; n++) {
+      ctx.globalAlpha = (1 - e) * k; ctx.drawImage(cl.a, cx + n * (LW + c.w), c.y, c.w, c.h);
+      ctx.globalAlpha = e * k;       ctx.drawImage(cl.b, cx + n * (LW + c.w), c.y, c.w, c.h);
+    }
+    ctx.globalAlpha = 1;
+  });
+  drawGulls(now);
+  wide(layers.far, lx(PAR.far)); fog(0); wide(layers.mid, lx(PAR.mid)); fog(1); wide(layers.near, lx(PAR.near));
+  wide(layers.hills, lx(PAR.hills)); wide(layers.lake, lx(PAR.lake)); fog(2);
+  drawLakeGlints(now, ox + camX * PAR.sky + 366);
+  wide(layers.deck, lx(PAR.pier));
+  ctx.save(); ctx.translate(wx, 0); drawMalto(now); ctx.restore();
+  wide(layers.posts, lx(PAR.pier));
+  ctx.save(); ctx.translate(wx, 0); drawMaltoUI(now); ctx.restore();
+}
+function introView(now) {                               // longe (zoom < 1): cenário redesenhado; perto (zoom >= 1): reaproveita o quadro pronto (com água e reflexo)
+  const c = introCam(now), z = c.z, sw = W / z, sh = H / z, direct = z < 1;
+  const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? INTRO.shake * Math.sin(now / 18) * 3 : 0);
+  if (!direct) {
+    if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
+    zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
+  }
+  ctx.fillStyle = "#241a45"; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
+  ctx.save(); ctx.translate(-sx * z, -sy * z); ctx.scale(z, z);
+  if (sy < 0) introExtra(now);
+  if (direct) introBackdrop(now);
+  ctx.restore();
+  if (direct) return;
   const x0 = Math.max(0, sx), y0 = Math.max(0, sy), x1 = Math.min(W, sx + sw), y1 = Math.min(H, sy + sh);
   ctx.imageSmoothingEnabled = true;
   if (x1 > x0 && y1 > y0) ctx.drawImage(zb, x0 * S, y0 * S, (x1 - x0) * S, (y1 - y0) * S, (x0 - sx) * z, (y0 - sy) * z, (x1 - x0) * z, (y1 - y0) * z);
