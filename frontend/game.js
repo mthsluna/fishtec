@@ -944,7 +944,7 @@ function movePose() {                                                           
 function update(dt) {
   if (PAUSED) return;
   msgT = Math.max(0, msgT - dt);
-  if (INTRO.phase === "go") introUpdate(dt);
+  if (INTRO.phase === "go") introUpdate(dt); else if (INTRO.phase === "up" || INTRO.phase === "down") introMove(dt);
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt);
   GSHAKE *= Math.exp(-dt * 6);
@@ -1591,7 +1591,7 @@ function drawPreview(now) {
 
 // ---------- Abertura: câmera lá no alto (céu, nuvens e montanhas) com o título FISHTEC e o botão JOGAR ----------
 // JOGAR -> personalizar o pescador -> a câmera desce e dá zoom no deck -> o pescador cai do céu em cima do cais -> o jogo começa.
-const INTRO = { on: true, active: true, phase: "title", t: 0, landed: false, fell: false, shake: 0 };   // on: câmera especial; active: controles travados; phase: title | custom | go
+const INTRO = { on: true, active: true, phase: "title", t: 0, landed: false, fell: false, shake: 0, back: false };   // back: voltou do jogo para a tela inicial (o pescador já existe)   // on: câmera especial; active: controles travados; phase: title | custom | go
 const ZA = 0.6, INTRO_BOTTOM = 166;                  // tela inicial: zoom (menor = câmera mais longe) e a linha do quadro que fica na base da tela (a água começa em 168)
 const ZIN = 1.3, ZOOM_T = 1.1;                    // zoom no deck: quanto aproxima e quantos segundos leva
 const I_FALL0 = 0.8, I_FALL_T = 0.8, I_BOUNCE = 0.5, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
@@ -1717,50 +1717,32 @@ try { RESUME_KEY = localStorage.getItem("resumeKey") || "Escape"; } catch (e) {}
 const keyLabel = c => c === "Escape" ? "ESC" : c === "Space" ? "ESPAÇO" : c.replace(/^(Key|Digit)/, "").replace(/^Arrow/, "SETA ").toUpperCase();
 const pzEl = document.createElement("div"); pzEl.id = "pz";
 const pzStyle = document.createElement("style");
-pzStyle.textContent = `#pz{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse at 50% 20%,rgba(150,225,255,.22),rgba(8,40,70,.50));-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
-  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;color:#0b4a6f}
-#pz.on{display:flex}
-#pz.on .fa-win{animation:faIn .28s ease-out}
-@keyframes faIn{from{transform:translateY(8px) scale(.97);opacity:0}to{transform:none;opacity:1}}
-#pz .fa-win{position:relative;width:min(340px,90vw);box-sizing:border-box;padding:30px 26px 26px;border-radius:26px;display:flex;flex-direction:column;gap:10px;align-items:stretch;
-  background:radial-gradient(circle at 15% 0%,rgba(130,225,255,.50),transparent 62%),radial-gradient(circle at 100% 100%,rgba(140,235,200,.32),transparent 55%),linear-gradient(rgba(255,255,255,.62),rgba(255,255,255,.34));
-  -webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);border:1px solid rgba(255,255,255,.75);
-  box-shadow:0 22px 55px rgba(8,50,90,.38),inset 0 1px 0 rgba(255,255,255,.95)}
-#pz h1{margin:0;text-align:center;font-weight:600;font-size:21px;letter-spacing:.34em;padding-left:.34em;color:#0b4a6f}
-#pz .fa-sub{margin:0 0 14px;text-align:center;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#4a86a6}
-#pz .fa-x{all:unset;position:absolute;top:14px;right:14px;width:26px;height:26px;box-sizing:border-box;display:grid;place-items:center;cursor:pointer;border-radius:50%;
-  background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.85);color:#2d6a8c;transition:background .15s,color .15s}
-#pz .fa-x:hover,#pz .fa-x:focus-visible{background:#ff7a6b;color:#fff;outline:none}
-#pz .fa-btn{all:unset;box-sizing:border-box;display:block;width:100%;text-align:center;cursor:pointer;
-  font:600 15px "Segoe UI Variable","Segoe UI",system-ui,sans-serif;letter-spacing:.02em;color:#0b4a6f;padding:13px 18px;border-radius:999px;
-  background:linear-gradient(rgba(255,255,255,.80),rgba(255,255,255,.45));border:1px solid rgba(255,255,255,.9);
-  box-shadow:0 2px 8px rgba(8,60,100,.14),inset 0 1px 0 #fff;transition:transform .12s,box-shadow .15s,background .15s}
-#pz .fa-btn:hover,#pz .fa-btn:focus-visible{background:linear-gradient(#fff,rgba(255,255,255,.65));box-shadow:0 4px 14px rgba(8,60,100,.22),inset 0 1px 0 #fff;outline:none}
-#pz .fa-btn:active{transform:translateY(1px);box-shadow:0 1px 4px rgba(8,60,100,.2),inset 0 1px 0 #fff}
-#pz .fa-btn.go{color:#fff;text-shadow:0 1px 2px rgba(0,80,110,.35);border-color:rgba(255,255,255,.55);
-  background:linear-gradient(#8ceaf5,#2fb9d9);box-shadow:0 6px 16px rgba(20,140,180,.40),inset 0 1px 0 rgba(255,255,255,.75)}
-#pz .fa-btn.go:hover,#pz .fa-btn.go:focus-visible{background:linear-gradient(#a2f0f9,#3cc6e6);box-shadow:0 8px 20px rgba(20,140,180,.45),inset 0 1px 0 rgba(255,255,255,.85)}
-@media (prefers-reduced-motion:reduce){#pz.on .fa-win{animation:none}}`;
+pzStyle.textContent = introStyle.textContent.replaceAll("#intro", "#pz") + `
+#pz{display:none;z-index:45;background:rgba(10,7,26,.62);pointer-events:auto}
+#pz.on{display:flex}`;                                  // mesmo título e botões da tela inicial (o CSS é o da abertura, trocando o id)
 document.head.appendChild(pzStyle);
-pzEl.innerHTML = `<div class="fa-win" role="dialog" aria-label="FISHTEC">
-  <button class="fa-x" id="pz-x" type="button" aria-label="Fechar"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
-  <h1>FISHTEC</h1><div class="fa-sub">pausado</div>
-  <button class="fa-btn go" id="pz-back" type="button">Voltar ao jogo</button>
-  <button class="fa-btn" id="pz-cfg" type="button">Configurações</button>
-  <button class="fa-btn" id="pz-home" type="button">Tela inicial</button></div>`;
+pzEl.innerHTML = `<h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="pz-back" type="button">VOLTAR AO JOGO</button><button id="pz-cfg" type="button" class="sec">CONFIGURAÇÕES</button><button id="pz-home" type="button" class="sec">TELA INICIAL</button>`;
 document.body.appendChild(pzEl);
-const pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
+const pzBtns = [...pzEl.querySelectorAll("button")], pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
 let rebinding = false;
 function pauseGame() {
   PAUSED = true; rebinding = false;
   for (const k in keys) keys[k] = false; SND.reel(false);
-  pzEl.classList.add("on"); pzBack.focus();
+  pzEl.classList.add("on");
+  pzBtns.forEach(b => { b.style.width = ""; }); const w = Math.max(...pzBtns.map(b => b.offsetWidth)); if (w) pzBtns.forEach(b => { b.style.width = w + "px"; });   // três botões do mesmo tamanho
+  pzBack.focus();
 }
 function resumeGame() { PAUSED = false; rebinding = false; pzEl.classList.remove("on"); cv.focus(); }
-pzBack.onclick = resumeGame; pzEl.querySelector("#pz-x").onclick = resumeGame;
+pzBack.onclick = resumeGame;
 pzCfg.onclick = openCfg;
-pzHome.onclick = () => location.reload();               // recomeça do título (a aparência fica salva)
+const UP_T = 1.7;                                      // segundos que a câmera leva para subir (e para descer de volta)
+function goTitle() {                                    // câmera sobe até o céu e o painel FISHTEC (JOGAR / AJUDA / CONFIGURAÇÕES) aparece
+  PAUSED = false; rebinding = false; pzEl.classList.remove("on");
+  for (const k in keys) keys[k] = false; SND.reel(false); closePhone();
+  state = "walk"; wantDraw = false; GSHAKE = 0;
+  Object.assign(INTRO, { on: true, active: true, phase: "up", t: 0, back: true });
+}
+pzHome.onclick = goTitle;
 pzEl.addEventListener("pointerdown", e => { if (e.target === pzEl) resumeGame(); });
 addEventListener("keydown", e => {                      // captura antes do resto do jogo (assim o ESC que guarda o celular não abre a pausa junto)
   if (rebinding) {                                      // escolhendo a tecla de voltar (em Configurações)
@@ -1780,6 +1762,10 @@ addEventListener("keydown", e => {                      // captura antes do rest
 function introPlay() {
   if (INTRO.phase !== "title") return;
   SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
+  if (INTRO.back) {                                   // veio da pausa: a câmera só desce de volta e o jogo continua
+    introEl.classList.add("off"); setTimeout(() => introEl.remove(), 700); helpEl.remove();
+    INTRO.phase = "down"; INTRO.t = 0; return;
+  }
   INTRO.phase = "custom"; introEl.classList.add("off");
   setTimeout(() => introEl.remove(), 700); helpEl.remove();
   openCustomizer(true);
@@ -1799,8 +1785,21 @@ function introUpdate(dt) {
   if (I.active && I.t >= I_FREE) I.active = false;
   if (I.t >= I_END) I.on = false;
 }
+function introMove(dt) {                                // câmera subindo para o título / descendo de volta ao jogo
+  const I = INTRO; I.t += dt;
+  if (I.t < UP_T) return;
+  if (I.phase === "up") {                               // chegou lá em cima: mostra o painel do título de novo
+    I.phase = "title";
+    introEl.classList.add("off"); document.body.appendChild(introEl); document.body.appendChild(helpEl);
+    sizeIntroBtns(); void introEl.offsetWidth; introEl.classList.remove("off"); introBtn.focus();
+  } else {                                              // desceu: o jogo continua de onde parou
+    Object.assign(I, { phase: "go", t: I_END + 1, on: false, active: false, back: false, landed: true, fell: true });
+    cv.focus();
+  }
+}
 function introPose(now) {                               // null = escondido; objeto = caindo/quicando; undefined = pose normal
   const I = INTRO;
+  if (I.back) return undefined;                          // voltando ao título: o pescador já está no cais
   if (I.phase !== "go" || I.t < I_FALL0) return null;
   const k = (I.t - I_FALL0) / I_FALL_T;
   if (k < 1) return { ...cheerPose(now), hop: I_DROP * (1 - k * k) };                               // cai de braços abertos, acelerando
@@ -1821,6 +1820,8 @@ function introCam(now) {                                // câmera: A = longe e 
     const z = a.z * Math.pow(b.z / a.z, p), q = (1 / z - 1 / a.z) / (1 / b.z - 1 / a.z);
     return { z, x: a.x + (b.x - a.x) * q, y: a.y + (b.y - a.y) * q };
   };
+  if (I.phase === "up") return mix(C, A, ease3(Math.min(1, I.t / UP_T)));
+  if (I.phase === "down") return mix(A, C, ease3(Math.min(1, I.t / UP_T)));
   if (I.phase !== "go") return A;
   if (I.t < ZOOM_T) return mix(A, B, ease3(I.t / ZOOM_T));
   if (I.t < SETTLE0) return B;
