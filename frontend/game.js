@@ -1614,21 +1614,38 @@ introStyle.textContent = `
 #help .hp-title{font-size:32px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:8px}
 #help .hp-row{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed rgba(27,38,25,.35)}
 #help .hp-row:last-of-type{border-bottom:0}
-#help .hp-row b{flex:none;width:150px;font-weight:400;background:#1b2619;color:#97a888;padding:2px 6px;text-align:center}
+#help .hp-row{align-items:center}
+#help .hp-keys{flex:none;width:158px;display:flex;align-items:center;color:#1b2619}
+#help .key{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:28px;height:24px;margin:3px 4px 8px;padding-top:1px;
+  background:#bccdac;color:#1b2619;font-size:16px;line-height:1;
+  box-shadow:0 2px 0 0 #7d8f71,0 -2px 0 0 #1b2619,-2px 0 0 0 #1b2619,2px 0 0 0 #1b2619,-2px 2px 0 0 #1b2619,2px 2px 0 0 #1b2619,0 4px 0 0 #1b2619}
+#help .key.w{width:50px}
+#help .key.sp{width:112px}
+#help .key svg,#help .hp-keys>svg{display:block}
+#help .or{margin:0 2px 5px;opacity:.7}
 #help .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}
 #help .hp-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 18px;cursor:pointer}
 #help .hp-btns button:hover,#help .hp-btns button:focus-visible{background:#2f4029;outline:none}`;
 document.head.appendChild(introStyle); document.body.appendChild(introEl);
 const introBtn = introEl.querySelector("#intro-play"), helpBtn = introEl.querySelector("#intro-help");
 const helpEl = document.createElement("div"); helpEl.id = "help";
+const PIX = rows => `<svg width="${rows[0].length * 2}" height="${rows.length * 2}" viewBox="0 0 ${rows[0].length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor">` +
+  rows.map((r, y) => [...r].map((c, x) => c === "#" ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : "").join("")).join("") + `</svg>`;   // desenho em pixels (cada # = 1 quadradinho)
+const ICO = {
+  left:  PIX(["...#.....", "..##.....", ".########", "..##.....", "...#....."]),
+  right: PIX([".....#...", ".....##..", "########.", ".....##..", ".....#..."]),
+  shift: PIX(["....#....", "...###...", "..#####..", ".#######.", "...###...", "...###...", "...###..."]),
+  mouse: PIX([".#######.", "#####...#", "#####...#", "#####...#", "#####...#", "#########", "#.......#", "#.......#", "#.......#", "#.......#", "#.......#", "#.......#", ".#######."]),
+};
+const KEY = (c, cls = "") => `<span class="key ${cls}">${c}</span>`;
 helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div class="hp-title">Ajuda</div>
-  <div class="hp-row"><b>SETAS &nbsp;A D</b><span>andar pelo cais</span></div>
-  <div class="hp-row"><b>SHIFT</b><span>correr (segure enquanto anda)</span></div>
-  <div class="hp-row"><b>ESPAÇO</b><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
-  <div class="hp-row"><b>CLIQUE / TOQUE</b><span>faz o mesmo que o ESPAÇO</span></div>
-  <div class="hp-row"><b>E</b><span>falar com o Malto (perto dele)</span></div>
-  <div class="hp-row"><b>F</b><span>abrir ou guardar o celular</span></div>
-  <div class="hp-row"><b>M</b><span>ligar ou desligar o som</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY(ICO.left)}${KEY(ICO.right)}<span class="or">/</span>${KEY("A")}${KEY("D")}</div><span>andar pelo cais</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY(ICO.shift, "w")}</div><span>correr (segure enquanto anda)</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("", "sp")}</div><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
+  <div class="hp-row"><div class="hp-keys">${ICO.mouse}</div><span>clique ou toque: faz o mesmo que a barra de espaço</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>falar com o Malto (perto dele)</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("F")}</div><span>abrir ou guardar o celular</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("M")}</div><span>ligar ou desligar o som</span></div>
   <div class="hp-btns"><button id="help-close" type="button">Voltar</button></div></div>`;
 document.body.appendChild(helpEl);
 const helpClose = helpEl.querySelector("#help-close");
