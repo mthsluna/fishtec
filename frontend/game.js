@@ -1161,7 +1161,7 @@ const SHOP_EMPTY = ["Sem peixe, sem F$. Volta quando pescar alguma coisa.", "Eu 
 const SHOP_SOLD = ["Negócio fechado. Peixe bom, esse.", "Fresco mesmo. Aceito.", "Paguei justo, pescador. Cada escama conta.", "Boa pesca. Esse some rapidinho."];
 const SHOP_BYE = ["Volte quando o mar render mais.", "Até a próxima maré, pescador."];
 const BAG = { open: false, mode: "inv", sel: 0, geo: null };              // mode: "inv" (só ver) ou "shop" (vender ao Malto)
-const bagRows = () => (BAG.mode === "shop" ? fishList.filter(f => inv[f.id] > 0) : fishList);
+const bagRows = () => fishList.filter(f => inv[f.id] > 0);                 // inventário e venda: só os peixes que você tem
 function openBag(mode) {
   if (BAG.open && BAG.mode === mode) return;
   BAG.open = true; BAG.mode = mode; BAG.sel = 0; BAG.geo = null;
@@ -1207,7 +1207,7 @@ function bagPointer(lx, ly) {                                              // to
 }
 function drawBag(now) {
   if (!BAG.open) return;
-  const shop = BAG.mode === "shop", rows = bagRows(), RH = 24, pw = 248, top = 30;
+  const shop = BAG.mode === "shop", rows = bagRows(), RH = 32, pw = 256, top = 30;
   const ph = top + Math.max(1, rows.length) * RH + (shop ? 44 : 30), x = Math.round(shop ? W - pw - 10 : (W - pw) / 2), y = Math.round(shop ? 58 : (H - ph) / 2), acc = shop ? "#9fd3ff" : "#ffd166";
   BAG.geo = { x, y, w: pw, h: ph, rowY: y + top, rowH: RH };
   ctx.globalAlpha = 0.96; rect(acc, x - 1, y - 1, pw + 2, ph + 2); rect("#0f1624", x, y, pw, ph); ctx.globalAlpha = 1;
@@ -1219,14 +1219,15 @@ function drawBag(now) {
     const ry = y + top + i * RH, n = inv[f.id] | 0, sel = i === BAG.sel, dim = n <= 0;
     if (sel) rect(shop ? "rgba(159,211,255,.22)" : "rgba(255,209,102,.16)", x + 4, ry, pw - 8, RH - 2);
     const fi = img(f.file);
-    if (fi.complete && fi.naturalWidth) {                                                     // miniatura do peixe
-      const r = Math.min(30 / fi.naturalWidth, 18 / fi.naturalHeight), w = fi.naturalWidth * r, h = fi.naturalHeight * r;
-      ctx.globalAlpha = dim ? 0.3 : 1; ctx.drawImage(fi, x + 8 + (30 - w) / 2, ry + (RH - 2 - h) / 2, w, h); ctx.globalAlpha = 1;
+    if (fi.complete && fi.naturalWidth) {                                                     // miniatura do peixe: recortada e reduzida em etapas (nítida, sem serrilhado)
+      const cr = fishCrop(fi, f.file), cw = cr.naturalWidth || cr.width, ch = cr.naturalHeight || cr.height;
+      const r = Math.min(44 / cw, 26 / ch), w = cw * r, h = ch * r;
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+      ctx.globalAlpha = dim ? 0.3 : 1; ctx.drawImage(scaledFish(cr, w * S, h * S, f.file), x + 8 + (44 - w) / 2, ry + (RH - 2 - h) / 2, w, h); ctx.globalAlpha = 1;
     }
-    text(f.name, x + 44, ry + 10, dim ? "#6d7889" : "#fff");
-    for (let d = 0; d < 5; d++) rect(d < f.difficulty ? (dim ? "#5a6475" : "#ff9f43") : "rgba(255,255,255,.14)", x + 44 + d * 5, ry + 14, 3, 3);   // dificuldade (quanto mais, mais caro)
-    text("x" + n, x + pw - 80, ry + 15, dim ? "#6d7889" : "#ffd166", "right");
-    text(fmtMoney(priceOf(f)), x + pw - 8, ry + 15, dim ? "#6d7889" : "#8be28b", "right");
+    text(f.name, x + 60, ry + 19, dim ? "#6d7889" : "#fff");
+    text("x" + n, x + pw - 80, ry + 19, dim ? "#6d7889" : "#ffd166", "right");
+    text(fmtMoney(priceOf(f)), x + pw - 8, ry + 19, dim ? "#6d7889" : "#8be28b", "right");
   });
   const by = y + top + Math.max(1, rows.length) * RH;
   rect("rgba(255,255,255,.18)", x + 6, by + 1, pw - 12, 1);
