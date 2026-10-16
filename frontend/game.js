@@ -944,7 +944,7 @@ function movePose() {                                                           
 function update(dt) {
   if (PAUSED) return;
   msgT = Math.max(0, msgT - dt);
-  if (INTRO.phase === "go") introUpdate(dt); else if (INTRO.phase === "up" || INTRO.phase === "down") introMove(dt);
+  if (INTRO.phase === "go") introUpdate(dt); else if (INTRO.phase === "up") introMove(dt);
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt);
   GSHAKE *= Math.exp(-dt * 6);
@@ -1424,7 +1424,10 @@ function draw(now) {
   const fPose = ip !== undefined ? ip : state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose();
   const sq = INTRO.on && ip !== null ? introSquash() : 0;
   if (sq) { ctx.save(); ctx.translate(px, PIER_Y); ctx.scale(1 + sq * 0.5, 1 - sq); ctx.translate(-px, -PIER_Y); }   // amortece a queda: agacha ao pousar
+  const fk = INTRO.on && INTRO.back && INTRO.phase === "up" ? Math.max(0, 1 - INTRO.t / FADE_T) : 1;
+  if (fk < 1) { ctx.save(); ctx.globalAlpha = fk; }
   const tip = ip === null ? null : drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), fPose, { pants: me.pants, hs: hScale(me.h) });
+  if (fk < 1) ctx.restore();
   if (sq) ctx.restore();
   ctx.restore();
 
@@ -1440,7 +1443,7 @@ function draw(now) {
   // 3) linhas, boias e nomes por cima
   ctx.save(); ctx.translate(wx, 0);
   Object.values(others).forEach(o => drawOtherLine(o, now));
-  if (state !== "show" && (!INTRO.on || INTRO.landed)) text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
+  if (state !== "show" && !INTRO.back && (!INTRO.on || INTRO.landed)) text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
   drawMaltoUI(now);
   drawFx(now);
   drawCatch(now);
@@ -1735,6 +1738,7 @@ function pauseGame() {
 function resumeGame() { PAUSED = false; rebinding = false; pzEl.classList.remove("on"); cv.focus(); }
 pzBack.onclick = resumeGame;
 pzCfg.onclick = openCfg;
+const FADE_T = 0.5;                                    // tempo que o pescador leva para sumir quando a câmera começa a subir
 const UP_T = 1.7;                                      // segundos que a câmera leva para subir (e para descer de volta)
 function goTitle() {                                    // câmera sobe até o céu e o painel FISHTEC (JOGAR / AJUDA / CONFIGURAÇÕES) aparece
   PAUSED = false; rebinding = false; pzEl.classList.remove("on");
@@ -1764,7 +1768,7 @@ function introPlay() {
   SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
   if (INTRO.back) {                                   // veio da pausa: a câmera só desce de volta e o jogo continua
     introEl.classList.add("off"); setTimeout(() => introEl.remove(), 700); helpEl.remove();
-    INTRO.phase = "down"; INTRO.t = 0; return;
+    Object.assign(INTRO, { back: false, landed: false, fell: false, shake: 0 }); introGo(); return;   // câmera desce e o pescador cai do céu, como no começo
   }
   INTRO.phase = "custom"; introEl.classList.add("off");
   setTimeout(() => introEl.remove(), 700); helpEl.remove();
@@ -1785,21 +1789,18 @@ function introUpdate(dt) {
   if (I.active && I.t >= I_FREE) I.active = false;
   if (I.t >= I_END) I.on = false;
 }
-function introMove(dt) {                                // câmera subindo para o título / descendo de volta ao jogo
+function introMove(dt) {                                // câmera subindo para o título
   const I = INTRO; I.t += dt;
   if (I.t < UP_T) return;
   if (I.phase === "up") {                               // chegou lá em cima: mostra o painel do título de novo
     I.phase = "title";
     introEl.classList.add("off"); document.body.appendChild(introEl); document.body.appendChild(helpEl);
     sizeIntroBtns(); void introEl.offsetWidth; introEl.classList.remove("off"); introBtn.focus();
-  } else {                                              // desceu: o jogo continua de onde parou
-    Object.assign(I, { phase: "go", t: I_END + 1, on: false, active: false, back: false, landed: true, fell: true });
-    cv.focus();
   }
 }
 function introPose(now) {                               // null = escondido; objeto = caindo/quicando; undefined = pose normal
   const I = INTRO;
-  if (I.back) return undefined;                          // voltando ao título: o pescador já está no cais
+  if (I.back) return I.phase === "up" && I.t < FADE_T ? undefined : null;   // indo para o título: some enquanto a câmera sobe; no título ele não aparece
   if (I.phase !== "go" || I.t < I_FALL0) return null;
   const k = (I.t - I_FALL0) / I_FALL_T;
   if (k < 1) return { ...cheerPose(now), hop: I_DROP * (1 - k * k) };                               // cai de braços abertos, acelerando
@@ -1821,7 +1822,6 @@ function introCam(now) {                                // câmera: A = longe e 
     return { z, x: a.x + (b.x - a.x) * q, y: a.y + (b.y - a.y) * q };
   };
   if (I.phase === "up") return mix(C, A, ease3(Math.min(1, I.t / UP_T)));
-  if (I.phase === "down") return mix(A, C, ease3(Math.min(1, I.t / UP_T)));
   if (I.phase !== "go") return A;
   if (I.t < ZOOM_T) return mix(A, B, ease3(I.t / ZOOM_T));
   if (I.t < SETTLE0) return B;
