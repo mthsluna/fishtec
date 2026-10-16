@@ -1525,12 +1525,13 @@ function pineHills(seed) {                  // mata da frente: copas arredondada
   });
 }
 // ---------- Gaivotas ao longe: só de vez em quando passa um bando pequeno (1 a 3), pequenas, de asas quase retas ----------
-function drawLakeGlints(now, sx) {          // brilho do sol cintilando no lago distante (some e volta devagar)
-  const t = now / 1000;
+function drawLakeGlints(now, sx) {          // brilho do sol (ou da lua) cintilando no lago distante (some e volta devagar)
+  if (DAY.lightA < 0.02) return;
+  const t = now / 1000, gc = DAY.lc.map(v => Math.round(v + (255 - v) * 0.45)).join(",");
   for (let i = 0; i < 14; i++) {
-    const y = HZ + 1 + i * 1.6, w = 5 + i * 3.2, a = Math.max(0, (0.45 + 0.3 * Math.sin(t * 1.3 + i * 1.7)) * (1 - i * 0.04)), j = Math.sin(t * 0.7 + i) * 2;
-    rect(`rgba(255,232,178,${a})`, sx - w / 2 + j, y, w * 0.42, 0.9);
-    rect(`rgba(255,232,178,${a})`, sx + w * 0.08 + j, y, w * 0.42, 0.9);
+    const y = HZ + 1 + i * 1.6, w = 5 + i * 3.2, a = Math.max(0, (0.45 + 0.3 * Math.sin(t * 1.3 + i * 1.7)) * (1 - i * 0.04)) * DAY.lightA, j = Math.sin(t * 0.7 + i) * 2;
+    rect(`rgba(${gc},${a})`, sx - w / 2 + j, y, w * 0.42, 0.9);
+    rect(`rgba(${gc},${a})`, sx + w * 0.08 + j, y, w * 0.42, 0.9);
   }
 }
 function drawGulls(now) {
@@ -1539,7 +1540,9 @@ function drawGulls(now) {
   let r = k * 7919 + 13; const rnd = () => (r = r * 16807 % 2147483647) / 2147483647; rnd(); rnd();
   if (rnd() > 0.6) return;                                                   // ~40% das vezes não passa ninguém
   const n = 1 + (rnd() * 3 | 0), dir = rnd() < 0.5 ? -1 : 1, y0 = 40 + rnd() * 55, off = camX * 0.08;
-  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const sleepA = Math.max(0, 1 - DAY.starA * 1.6);                           // à noite as gaivotas somem aos poucos
+  if (sleepA < 0.02) return;
+  ctx.globalAlpha = sleepA; ctx.lineCap = "round"; ctx.lineJoin = "round";
   for (let i = 0; i < n; i++) {
     const ph = rnd() * 6.28, fr = 4.2 + rnd() * 1.4, s = 2 + rnd() * 0.7, dy = (rnd() - 0.5) * 12, u = u0 - i * 0.03;
     if (u < 0 || u > 1) continue;
@@ -1550,6 +1553,7 @@ function drawGulls(now) {
     ctx.strokeStyle = "rgba(58,30,84,.8)"; ctx.lineWidth = 0.9;
     ctx.beginPath(); ctx.moveTo(x - tx, ty); ctx.lineTo(x - ex, ey); ctx.lineTo(x, y); ctx.lineTo(x + ex, ey); ctx.lineTo(x + tx, ty); ctx.stroke();
   }
+  ctx.globalAlpha = 1;
 }
 // ---------- Neblina: faixas baixas e irregulares (nada de manchas redondas), na cor do pôr do sol, que derivam bem devagar ----------
 function periodicNoise(seed, period) {                                  // ruído que "fecha" nas pontas, para a faixa poder emendar ao derivar
@@ -1582,15 +1586,8 @@ function drawFog(i, now, ox) {
 }
 function buildLayers(now) {
   // todas as camadas usam coordenadas do mundo (0..480) e têm EXT px de sobra de cada lado
-  const sky = layer(() => {
-    ctx.translate(EXT, 0);
-    let g = ctx.createLinearGradient(0, 0, 0, PIER_Y + 8);
-    g.addColorStop(0, "#241a45"); g.addColorStop(0.45, "#b83f6a"); g.addColorStop(0.8, "#f4a261"); g.addColorStop(1, "#ffe0a8");
-    ctx.fillStyle = g; ctx.fillRect(-EXT, 0, LW, PIER_Y + 8);
-    g = ctx.createRadialGradient(370, 62, 4, 370, 62, 80);
-    g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
-    ctx.fillStyle = g; ctx.fillRect(270, 0, 210, PIER_Y);
-  });
+  const sky = layer(() => { DAY.update(gameMinutes()); DAY.paintSky(ctx, now); });   // céu do ciclo de dia (daycycle.js); depois é repintado por DAY.repaintSky
+  DAY.lastSky = now;
   const far = mountains({ seed: 5, base: 120, amp: 64, f: 0.011, sharp: 1.0, skew: 0.55, k: 0.16, fd: 55, shA: 0.75, ltA: 0.55,
     top: "#8a4684", bot: "#d27088", shadow: "#5e3274", lit: "#ffb88a", mist: 0.5, mistH: 62 });
   const mid = mountains({ seed: 23, base: 125, amp: 46, f: 0.017, sharp: 1.0, skew: 0.5, k: 0.18, fd: 45, shA: 0.8, ltA: 0.55,
@@ -1693,7 +1690,7 @@ function waveSetup() {
 }
 function drawWaves(now, ox) {
   if (WV.cols !== Math.ceil(W / WV.cw) + 1) waveSetup();
-  const t = now / 1000, sunX = ox + camX * PAR.sky + 366, d = WV.im.data, cols = WV.cols, rows = WV.rows, HT = rows * WV.ch;
+  const t = now / 1000, sunX = ox + camX * PAR.sky + DAY.lightX, LA = DAY.lightA, lc = DAY.lc, d = WV.im.data, cols = WV.cols, rows = WV.rows, HT = rows * WV.ch;
   const cl = (v, a, b) => v < a ? a : v > b ? b : v;
   const bob = [0.35 * Math.sin(t * 0.8), 0.4 * Math.sin(t * 1.1), 0.5 * Math.sin(t * 1.5 + 1)];
   for (let i = 0; i < cols; i++) {                                         // partes que dependem só da coluna (uma vez por quadro)
@@ -1715,12 +1712,12 @@ function drawWaves(now, ox) {
       }
       const shade = cl(-sy * 0.3 + h * 0.06, -0.5, 0.5);                    // faces viradas ao sol clareiam, as outras escurecem
       const dx = (i * WV.cw - sunX) / width, mask = Math.exp(-dx * dx);     // trilha do sol
-      const g = Math.pow(cl((-sy + 0.25 * sx - 0.5) * 1.8, 0, 1), 1.4) * mask * (1 - 0.4 * s);   // só as ondas inclinadas para o sol cintilam
-      const aL = Math.min(1, Math.max(shade, 0) * 0.5 + mask * 0.08 * (1 - 0.5 * s) + g);
+      const g = Math.pow(cl((-sy + 0.25 * sx - 0.5) * 1.8, 0, 1), 1.4) * mask * (1 - 0.4 * s) * LA;   // só as ondas inclinadas para o sol cintilam
+      const aL = Math.min(1, Math.max(shade, 0) * 0.5 * (0.3 + 0.7 * LA) + mask * 0.08 * (1 - 0.5 * s) * LA + g);
       const aD = Math.max(-shade, 0) * 0.7 * (1 - aL);
       const kk = g / (aL + 1e-3), a = aL + aD, o = (j * cols + i) * 4;
-      const Lg = 205 + 33 * kk, Lb = 150 + 40 * kk;                        // luz quente -> branco-dourado nos pontos fortes
-      d[o] = a > 0 ? (255 * aL + 6 * aD) / a : 0; d[o + 1] = a > 0 ? (Lg * aL + 24 * aD) / a : 0; d[o + 2] = a > 0 ? (Lb * aL + 44 * aD) / a : 0;
+      const Lg = lc[1] + 33 * kk, Lb = lc[2] + 40 * kk;                        // luz quente -> branco-dourado nos pontos fortes
+      d[o] = a > 0 ? (lc[0] * aL + 6 * aD) / a : 0; d[o + 1] = a > 0 ? (Lg * aL + 24 * aD) / a : 0; d[o + 2] = a > 0 ? (Lb * aL + 44 * aD) / a : 0;
       d[o + 3] = a * 255;
     }
   }
@@ -1733,6 +1730,7 @@ function drawWaves(now, ox) {
 // A faixa que cobre o poste é copiada da água logo abaixo dele (mesma cor, ondas e brilho), então a água "vai junto";
 // uma linha clara fina na borda de cima dá o contraste.
 function pierShadow(now, wxp) {            // sombra do cais caindo na água logo abaixo: forte junto do deck e sumindo para a frente
+  ctx.globalAlpha = 0.35 + 0.65 * DAY.lightA;                                  // sem sol forte, sombra mais fraca
   const t = now / 1000, g = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + 34);   // começa na linha da água (não cobre o lago/céu atrás do cais)
   g.addColorStop(0, "rgba(22,10,44,.42)"); g.addColorStop(0.35, "rgba(22,10,44,.28)"); g.addColorStop(0.7, "rgba(22,10,44,.1)"); g.addColorStop(1, "rgba(22,10,44,0)");
   ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, 34);
@@ -1742,6 +1740,7 @@ function pierShadow(now, wxp) {            // sombra do cais caindo na água log
     pg.addColorStop(0, "rgba(14,6,30,.38)"); pg.addColorStop(1, "rgba(14,6,30,0)");
     ctx.fillStyle = pg; ctx.fillRect(x - 1 + sw, WATER_Y, 11, 22);
   }
+  ctx.globalAlpha = 1;
 }
 function postWaves(now, wxp) {
   const t = now / 1000, BOTTOM = PIER_Y + 8 + 32;                       // base dos postes (onde encostam na água)
@@ -1822,12 +1821,16 @@ function drawReelUI(now) {
 }
 
 function draw(now) {
+  DAY.update(gameMinutes());
   if (!layers) buildLayers(now);
+  DAY.repaintSky(now);
   const ox = (W - WORLD) / 2, wx = ox + camX;              // wx = deslocamento do mundo na tela
   const lx = f => ox + camX * f - EXT;                     // posição de uma camada com fator de parallax f
 
   // 1) acima da água: céu, nuvens, montanhas, cais e pescadores
   ctx.drawImage(layers.sky, lx(PAR.sky), 0, LW, H);
+  let tip = null;
+  DAY.scene(() => {                                        // cenário (nuvens até os pescadores): desenhado à parte e recebe a lavagem de cor da hora
   CLOUDS.forEach((c, i) => {
     const cl = layers.clouds[i], u = (now / 1000 + c.seed * 3.7) / c.m, n = Math.floor(u), f = u - n;
     if (n !== cl.n) {                                                       // chegou a hora: a "próxima forma" vira a atual e sorteia outra
@@ -1849,7 +1852,7 @@ function draw(now) {
   ctx.drawImage(layers.hills, lx(PAR.hills), 0, LW, H);
   ctx.drawImage(layers.lake, lx(PAR.lake), 0, LW, H);
   drawFog(2, now, ox);
-  drawLakeGlints(now, ox + camX * PAR.sky + 366);
+  drawLakeGlints(now, ox + camX * PAR.sky + DAY.lightX);
   ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
   ctx.save(); ctx.translate(wx, 0);
   drawMalto(now);
@@ -1858,17 +1861,19 @@ function draw(now) {
   const fPose = ip !== undefined ? ip : state === "cast" ? castPose(cs.t, cs.k0) : state === "reel" ? reelPose(now) : state === "show" ? cheerPose(now) : movePose();
   const sq = INTRO.on && ip !== null ? introSquash() : 0;
   if (sq) { ctx.save(); ctx.translate(px, PIER_Y); ctx.scale(1 + sq * 0.5, 1 - sq); ctx.translate(-px, -PIER_Y); }   // amortece a queda: agacha ao pousar
-  const tip = ip === null ? null : drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), fPose, { pants: me.pants, hs: hScale(me.h) });
+  tip = ip === null ? null : drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), fPose, { pants: me.pants, hs: hScale(me.h) });
   if (sq) ctx.restore();
   ctx.restore();
+  }, [0, WATER_Y]);
 
   // 2) água com reflexo
   reflect();
   ctx.drawImage(layers.water, 0, 0, W, H);
+  DAY.washWater();                                         // cor da hora no fundo d'água (o reflexo já vem do cenário lavado)
   drawReflection(now);
   drawWaves(now, ox);                                      // ondas, sombras e o brilho do sol na água
   pierShadow(now, ox + camX);
-  ctx.drawImage(layers.posts, lx(PAR.pier), 0, LW, H);
+  DAY.scene(() => ctx.drawImage(layers.posts, lx(PAR.pier), 0, LW, H), [PIER_Y + 8, PIER_Y + 42]);
   postWaves(now, ox + camX);
 
   // 3) linhas, boias e nomes por cima
@@ -2286,18 +2291,20 @@ function introExtra(now) {                              // (em coordenadas do qu
       [220, 70, -150, 700, 3.4, 0, 1013], [180, 56, -250, 500, 2.6, 1, 1117], [260, 80, -300, 900, 2.2, 0, 1223], [190, 60, -120, 1000, 2.9, 1, 1319]]
       .map(([w, h, y, x0, v, tone, seed]) => ({ w, h, y, x0, v, img: makeCloud(w, h, seed, tone) }));
   }
-  const sxn = (W - WORLD) / 2 + camX * PAR.sky + 370;                         // o mesmo brilho do sol do céu, continuando acima da borda (antes ele aparecia cortado)
-  const g = ctx.createRadialGradient(sxn, 62, 4, sxn, 62, 80);
-  g.addColorStop(0, "#fffbe6"); g.addColorStop(0.2, "#ffe9a8"); g.addColorStop(1, "rgba(255,200,120,0)");
-  ctx.fillStyle = g; ctx.fillRect(sxn - 80, -20, 160, 20);
-  introStars.forEach((st, i) => {
-    ctx.globalAlpha = (0.35 + 0.65 * Math.abs(Math.sin(now / 700 + i * 1.7))) * Math.min(1, -st.y / 36);   // pisca e some perto do horizonte
+  const sxn = (W - WORLD) / 2 + camX * PAR.sky + DAY.sunX, syn = DAY.sunY;   // o mesmo brilho do sol do céu, continuando acima da borda (antes ele aparecia cortado)
+  if (DAY.sunA > 0.01 && syn < 80) {
+    const g = ctx.createRadialGradient(sxn, syn, 4, sxn, syn, 80);
+    g.addColorStop(0, DAY.glow[0]); g.addColorStop(0.2, DAY.glow[1]); g.addColorStop(1, DAY.glow[2]);
+    ctx.globalAlpha = DAY.sunA; ctx.fillStyle = g; ctx.fillRect(sxn - 80, syn - 80, 160, 80 - syn); ctx.globalAlpha = 1;
+  }
+  if (DAY.starA > 0.01) introStars.forEach((st, i) => {
+    ctx.globalAlpha = DAY.starA * (0.35 + 0.65 * Math.abs(Math.sin(now / 700 + i * 1.7))) * Math.min(1, -st.y / 36);   // pisca e some perto do horizonte
     rect("#fff6d8", st.x | 0, st.y | 0, st.big ? 2 : 1, st.big ? 2 : 1);
   });
-  introClouds.forEach(cl => {
+  DAY.scene(() => introClouds.forEach(cl => {
     ctx.globalAlpha = Math.max(0.4, 0.92 + Math.min(0, (cl.y + 40) / 700));                                    // as mais altas ficam mais apagadas
     ctx.drawImage(cl.img, (cl.x0 + now / 1000 * cl.v * 1.15) % 1200 - 280, cl.y, cl.w, cl.h);
-  });
+  }));
   ctx.globalAlpha = 1;
 }
 function introBackdrop(now) {                           // com a câmera longe, redesenha o cenário direto das camadas (assim dá para mostrar mais largura que a tela do jogo)
@@ -2312,6 +2319,7 @@ function introBackdrop(now) {                           // com a câmera longe, 
   const sk = layers.sky, x = lx(PAR.sky);                // céu: as pontas esticam (o sol fica só no meio)
   ctx.drawImage(sk, x, 0, LW, H);
   ctx.drawImage(sk, 0, 0, 1, sk.height, x - LW, 0, LW, H); ctx.drawImage(sk, sk.width - 1, 0, 1, sk.height, x + LW, 0, LW, H);
+  DAY.scene(() => {
   CLOUDS.forEach((c, i) => {
     const cl = layers.clouds[i], u = (now / 1000 + c.seed * 3.7) / c.m, f = u - Math.floor(u), e = f * f * (3 - 2 * f), k = c.back ? 0.8 : 1;
     const cx = (c.x + now / 1000 * c.v) % (LW + c.w) - c.w + lx(c.back ? PAR.sky + 0.03 : PAR.cloud);
@@ -2324,7 +2332,7 @@ function introBackdrop(now) {                           // com a câmera longe, 
   drawGulls(now);
   wide(layers.far, lx(PAR.far)); fog(0); wide(layers.mid, lx(PAR.mid)); fog(1); wide(layers.near, lx(PAR.near));
   wide(layers.hills, lx(PAR.hills)); wide(layers.lake, lx(PAR.lake)); fog(2);
-  drawLakeGlints(now, ox + camX * PAR.sky + 366);
+  drawLakeGlints(now, ox + camX * PAR.sky + DAY.lightX);
   wide(layers.deck, lx(PAR.pier));
   ctx.save(); ctx.translate(wx, 0); drawMalto(now);
   if (INTRO.back) {                                      // voltou ao título pela pausa: o pescador (e os outros jogadores) continuam no cais, senão só o reflexo aparece na água
@@ -2332,7 +2340,8 @@ function introBackdrop(now) {                           // com a câmera longe, 
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
   }
   ctx.restore();
-  wide(layers.posts, lx(PAR.pier));
+  });
+  DAY.scene(() => wide(layers.posts, lx(PAR.pier)));
   ctx.save(); ctx.translate(wx, 0); drawMaltoUI(now); ctx.restore();
 }
 // tecla ESPAÇO desenhada em pixels (mesmo visual da Ajuda); quando o jogador segura, a tecla aparece apertada (desce 2px, sem a "espessura")
@@ -2364,7 +2373,7 @@ function introView(now) {                               // longe (zoom < 1): cen
   const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? (SHAKE_ON ? INTRO.shake : 0) * Math.sin(now / 18) * 5.5 : 0);
   if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
   zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
-  ctx.fillStyle = "#241a45"; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
+  ctx.fillStyle = DAY.topCss; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
   ctx.save(); ctx.translate(-sx * z, -sy * z); ctx.scale(z, z);
   if (sy < 0) introExtra(now);
   if (direct) {

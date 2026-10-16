@@ -38,6 +38,12 @@ const DAY = (() => {
   const mix = (a, b, f) => a.map((v, i) => lerp(v, b[i], f));
   const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
   const rgb = c => c.map(v => Math.round(v)).join(",");
+  // mistura [r,g,b,força]; se um dos lados tem força 0 (sem lavagem), a cor vem do outro lado: evita escurecer à toa na transição
+  const mixW = (a, b, f) => {
+    const o = mix(a, b, f);
+    if (a[3] <= 0) { o[0] = b[0]; o[1] = b[1]; o[2] = b[2]; } else if (b[3] <= 0) { o[0] = a[0]; o[1] = a[1]; o[2] = a[2]; }
+    return o;
+  };
 
   // estrelas fixas (mesmas para todos os jogadores)
   let seed = 90210; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
@@ -60,7 +66,7 @@ const DAY = (() => {
       const a = KEYS[i], b = KEYS[i + 1], f = sm(0, 1, (m - a.t) / (b.t - a.t));
       this.sky = a.sky.map((c, j) => mix(c, b.sky[j], f));
       this.topCss = "rgb(" + rgb(this.sky[0]) + ")";
-      const w = mix(a.wash, b.wash, f), v = mix(a.water, b.water, f);
+      const w = mixW(a.wash, b.wash, f), v = mixW(a.water, b.water, f);
       this.washA = w[3]; this.washCss = `rgba(${rgb(w.slice(0, 3))},${w[3].toFixed(3)})`;
       this.waterA = v[3]; this.waterCss = `rgba(${rgb(v.slice(0, 3))},${v[3].toFixed(3)})`;
       this.starA = lerp(a.stars, b.stars, f);
@@ -138,6 +144,7 @@ const DAY = (() => {
     // band = [y0, y1] (opcional): só essa faixa (em coordenadas do jogo, sem zoom) é limpa, lavada e copiada
     _sc: null, _scx: null,
     scene(fn, band) {
+      if (this.washA <= 0.004) { fn(); return; }              // sem lavagem (visual original): desenha direto, sem custo extra
       const main = ctx, w = buf.width, h = buf.height;
       if (!this._sc || this._sc.width !== w || this._sc.height !== h) {
         this._sc = document.createElement("canvas"); this._sc.width = w; this._sc.height = h; this._scx = this._sc.getContext("2d");
@@ -161,8 +168,12 @@ const DAY = (() => {
     },
 
     washWater() {                                           // lavagem só no fundo d'água (antes do reflexo, que já vem lavado)
-      if (this.waterA < 0.004) return;
-      ctx.fillStyle = this.waterCss; ctx.fillRect(0, WATER_Y, W, H - WATER_Y);
+      if (this.waterA < 0.004 && this.washA < 0.004) return;
+      // no topo a água usa a mesma lavagem do lago distante (sem emenda na linha da água) e vai passando para a cor própria da água
+      const FADE = 22, g = ctx.createLinearGradient(0, WATER_Y, 0, WATER_Y + FADE);
+      g.addColorStop(0, this.washCss); g.addColorStop(1, this.waterCss);
+      ctx.fillStyle = g; ctx.fillRect(0, WATER_Y, W, FADE);
+      ctx.fillStyle = this.waterCss; ctx.fillRect(0, WATER_Y + FADE, W, H - WATER_Y - FADE);
     },
   };
   return D;
