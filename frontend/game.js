@@ -2362,44 +2362,350 @@ function drawTrans() {
   ctx.globalAlpha = 1; ctx.fillStyle = `rgba(4,6,14,${a.toFixed(3)})`; ctx.fillRect(0, 0, W, H);
 }
 
-let cityData = null;
-function cityInit() {                                                    // prédios sorteados uma vez (mesma cidade para todo mundo)
-  let s = 4242; const r = () => (s = s * 16807 % 2147483647) / 2147483647;
-  const COLS = [["#b5654a", "#8e4a37"], ["#d9b26a", "#b08a45"], ["#7f9fb5", "#5f7e93"], ["#a9b48c", "#85906a"], ["#c98f9a", "#a46b76"], ["#9a8fb8", "#766c94"]];
-  const far = [], near = [];
-  for (let x = -170; x < 660;) { const w = 24 + (r() * 20 | 0), h = 64 + (r() * 56 | 0); far.push({ x, w, h, ant: r() < 0.3 }); x += w + (r() * 3 | 0); }
-  for (let x = -160; x < 650;) {
-    const w = 46 + (r() * 26 | 0), h = 52 + (r() * 42 | 0), c = COLS[r() * COLS.length | 0], wins = [];
-    const cols = Math.max(1, ((w - 10) / 14) | 0), rows = Math.max(1, ((h - 26) / 16) | 0), gx = (w - cols * 14 + 4) / 2;
-    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) wins.push({ x: gx + i * 14, y: 8 + j * 16, lit: r() < 0.55 });
-    near.push({ x, w, h, c, wins, flat: r() < 0.5, door: 6 + (r() * (w - 20) | 0) });
-    x += w + 2 + (r() * 5 | 0);
-  }
-  cityData = { far, near, lamps: [58, 196, 334, 440] };
-}
-const CITY_B = PIER_Y - 8;                                               // chão dos prédios (a calçada vai de CITY_B até CITY_B + 18; o pescador anda no meio dela)
+// ---------- Cidade: vielas italianas (vicoli) ----------
+// Fachadas altas e estreitas de reboco colorido, persianas, sacadas, roupas no varal, arcos, escadinhas, luzes de festa e trattorias.
+// O trecho de fachadas e chão é pintado UMA vez num canvas (cityCache) e só é copiado a cada quadro; o que se mexe (varais, gato, luzes à noite) é desenhado por cima.
+// Para mudar o desenho das ruas é só mexer em CITY_SEQ (largura, andares e tipo do térreo de cada prédio) e nas paletas logo abaixo.
+let cityData = null, cityCache = null;
+const CITY_B = PIER_Y - 8;                                               // chão das fachadas (o pescador anda logo na frente, em PIER_Y)
+const CITY_FW = -200, CITY_FX1 = 860;                                    // trecho do mundo que é desenhado (telas largas enxergam de ~ -120 até ~ 600)
+const CITY_GF = 54, CITY_FH = 28;                                        // altura do térreo e de cada andar de cima
+// [tipo, largura, andares, térreo]  térreo: door | shop | cafe | arch (túnel) | shrine (nicho de santa) | sign (placa do cais)
+const CITY_SEQ = [
+  ["b", 86, 3, "shop"], ["b", 64, 2, "door"], ["gap", 26], ["b", 88, 3, "arch"], ["b", 58, 2, "shrine"], ["b", 78, 3, "cafe"], ["gap", 24],
+  ["b", 64, 1, "door"], ["b", 72, 2, "shop"], ["gap", 22],
+  ["b", 100, 2, "sign"], ["b", 70, 3, "shop"], ["b", 84, 2, "door"], ["b", 84, 3, "door"], ["b", 70, 2, "shop"], ["b", 80, 3, "door"],
+];
+const CITY_WALLS = [                                                     // [parede, sombra, destaque]
+  ["#e0a85a", "#b9843f", "#efc27c"], ["#d2704a", "#a9502f", "#e48a62"], ["#ecd9a4", "#c4ad78", "#f6e8c0"], ["#dd8f7a", "#b66a58", "#eba48f"],
+  ["#efcf6e", "#c8a447", "#f8e08f"], ["#c97b86", "#a05963", "#dd949d"], ["#9cb7a3", "#76927f", "#b4cdb9"], ["#8fb0c4", "#6c8ea4", "#a9c6d8"],
+];
+const CITY_SHUT = ["#4e7d5b", "#3c6a4c", "#4a6e96", "#7a4a2e", "#8e3b2e", "#5a7a8a", "#6b5a3a"];   // persianas
+const CITY_DOOR = ["#6b4426", "#3f5a48", "#7a3b2e", "#2f4a6a", "#5a4a3a", "#8a6a3a"];
+const CITY_SHOPS = ["TRATTORIA", "PESCE FRESCO", "GELATERIA", "PANETTERIA", "OSTERIA", "ENOTECA"];
+const CITY_FLOWER = ["#d6334a", "#e86aa0", "#f2c94c", "#f08a3c", "#f4efe0"];
+const CITY_STONES = ["#9a8f84", "#8c8177", "#a39889", "#85796f", "#978b7c", "#a08c78"];
+const CITY_GREENS = ["#5fa04a", "#468a3c", "#2f6a34"];
+const CITY_FARC = [[222, 170, 120], [214, 130, 98], [232, 206, 160], [210, 150, 140], [190, 160, 150], [225, 190, 110]];   // prédios lá longe (recebem névoa da hora)
+const cityFontOK = () => !document.fonts || document.fonts.check(UI_PX + "px DigitalDisco");
 
-function drawCityBack(ox) {                                              // tudo que recebe a lavagem de cor da hora
-  const D = cityData, B = CITY_B, fog = DAY.sky[3];
-  const fcol = [92, 106, 130].map((v, i) => Math.round(v + (fog[i] - v) * 0.5)), fc = "rgb(" + fcol + ")", fl = "rgb(" + fcol.map(v => Math.min(255, v + 14)) + ")";
-  ctx.save(); ctx.translate(ox, 0);
-  D.far.forEach(b => { rect(fc, b.x, B - b.h, b.w, b.h); rect(fl, b.x, B - b.h, b.w, 2); if (b.ant) rect(fc, b.x + (b.w >> 1), B - b.h - 8, 1, 8); });
-  D.near.forEach(b => {
-    const top = B - b.h;
-    rect(b.c[0], b.x, top, b.w, b.h); rect(b.c[1], b.x + b.w - 5, top, 5, b.h);
-    if (b.flat) rect("#4a4a55", b.x - 1, top - 3, b.w + 2, 3); else { rect(b.c[1], b.x - 1, top - 2, b.w + 2, 2); rect("#4a4a55", b.x + 4, top - 6, 5, 4); }   // laje ou cornija com chaminé
-    b.wins.forEach(w => { rect("#1d2a3a", b.x + w.x, top + w.y, 10, 11); rect("#5d7a96", b.x + w.x + 1, top + w.y + 1, 8, 9); });
-    rect("#4b3426", b.x + b.door, B - 14, 9, 14); rect("#d9b26a", b.x + b.door + 6, B - 7, 1, 1);
+function cityArch(c, x, y, w, h) {                                       // retângulo com topo em arco (x, y = canto de cima à esquerda)
+  const rr = w / 2, R = Math.ceil(rr);
+  for (let i = 0; i < R; i++) {
+    const d = rr - i - 0.5, hf = Math.sqrt(Math.max(0, rr * rr - d * d)), x0 = Math.round(x + rr - hf), x1 = Math.round(x + rr + hf);
+    rect(c, x0, y + i, x1 - x0, 1);
+  }
+  rect(c, x, y + R, w, h - R);
+}
+function cityBlob(cx, cy, rr, cols) {                                    // folhagem redondinha com 3 tons
+  for (let dy = -rr; dy <= rr; dy++) { const hf = Math.round(Math.sqrt(rr * rr - dy * dy)); rect(cols[dy < -rr / 3 ? 0 : dy < rr / 3 ? 1 : 2], cx - hf, cy + dy, hf * 2, 1); }
+}
+const cityWireY = (x1, y1, x2, y2, sag, x) => { const u = (x - x1) / (x2 - x1); return Math.round(y1 + (y2 - y1) * u + sag * 4 * u * (1 - u)); };
+
+function cityInit() {
+  const B = CITY_B;
+  let s = 4242; const r = () => (s = s * 16807 % 2147483647) / 2147483647, ri = (a, b) => a + (r() * (b - a + 1) | 0);
+  const blds = [], gaps = []; let x = CITY_FW, p = 0;
+  CITY_SEQ.forEach(it => {
+    if (it[0] === "gap") { gaps.push({ x, w: it[1], p: ri(0, CITY_WALLS.length - 1), hh: ri(60, 80) }); x += it[1]; return; }
+    p = (p + ri(2, 4)) % CITY_WALLS.length;                              // nunca repete a cor do vizinho
+    blds.push({ x, w: it[1], n: it[2], g: it[3], p, top: B - CITY_GF - it[2] * CITY_FH });
+    x += it[1];
   });
-  rect("#8d8f99", -150, B, W + 300, 18);                                  // calçada
-  for (let x = -150; x < W + 150; x += 24) rect("#7a7c86", x, B, 1, 18);
-  rect("#6a6c76", -150, B + 18, W + 300, 3);                             // meio-fio
-  rect("#3b3e48", -150, B + 21, W + 300, 67);                            // rua
-  for (let x = -150; x < W + 150; x += 30) rect("#d8c46c", x, B + 54, 16, 2);
-  rect("#868892", -150, B + 88, W + 300, 40); rect("#6a6c76", -150, B + 88, W + 300, 3);   // calçada da frente
-  D.lamps.forEach(x => { rect("#2a2d35", x, B - 26, 2, 34); rect("#2a2d35", x - 3, B - 28, 8, 3); });
-  rect("#2a2d35", CITY.MAX - 22, B - 24, 2, 32); rect("#2f6b4f", CITY.MAX - 42, B - 34, 42, 12); rect("#e8f0e0", CITY.MAX - 42, B - 34, 42, 1);
-  text("CAIS >", CITY.MAX - 21, B - 25, "#fff", "center");
+  const far = [];
+  for (let fx = -150; fx < 660;) { const w = ri(20, 36), h = ri(44, 100); far.push({ x: fx, w, h, c: ri(0, CITY_FARC.length - 1) }); fx += w + ri(0, 2); }
+  cityData = { blds, gaps, far, wins: [], lamps: [], bulbs: [], lines: [] };
+}
+
+function cityBuild() {                                                   // pinta tudo que não se mexe, uma vez só (refeito se a resolução mudar)
+  const D = cityData, B = CITY_B, FW = CITY_FW, CWD = CITY_FX1 - CITY_FW, GF = CITY_GF, FH = CITY_FH;
+  let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647, ri = (a, b) => a + (r() * (b - a + 1) | 0), pk = a => a[r() * a.length | 0];
+  D.wins = []; D.lamps = []; D.bulbs = []; D.lines = [];
+  const cv2 = document.createElement("canvas"); cv2.width = Math.ceil(CWD * S); cv2.height = Math.ceil(H * S);
+  const c2 = cv2.getContext("2d"); c2.setTransform(S, 0, 0, S, -FW * S, 0);
+  const main = ctx; ctx = c2;
+  try {
+    // ---- chão de pedra (paralelepípedos que vão crescendo para a frente)
+    rect("#6d6259", FW, B, CWD, H - B);
+    for (let y = B; y < H;) {
+      const h = 3 + ((y - B) / 24 | 0);
+      for (let sx = FW - r() * 10; sx < CITY_FX1;) {
+        const sw = 7 + h * 1.5 + r() * 5 | 0;
+        rect(pk(CITY_STONES), sx | 0, y, sw - 1, h - 1); rect("rgba(255,240,210,.13)", sx | 0, y, sw - 1, 1);
+        sx += sw;
+      }
+      y += h;
+    }
+    rect("#5b5149", FW, B + 48, CWD, 3); rect("rgba(255,240,210,.16)", FW, B + 51, CWD, 1); rect("rgba(0,0,0,.25)", FW, B + 48, CWD, 1);   // sarjeta
+    for (let gx0 = FW + 40; gx0 < CITY_FX1; gx0 += 130 + ri(0, 60)) { rect("#2f2a26", gx0, B + 47, 16, 5); for (let q = 1; q < 16; q += 3) rect("#6b6058", gx0 + q, B + 47, 1, 5); }   // bueiros
+    let g = c2.createLinearGradient(0, B, 0, B + 22); g.addColorStop(0, "rgba(28,16,40,.55)"); g.addColorStop(1, "rgba(28,16,40,0)");
+    ctx.fillStyle = g; ctx.fillRect(FW, B, CWD, 22);                      // sombra das paredes no chão
+
+    // ---- vielas que cortam a rua (ao fundo: escadinha, parede, portinha, lanterna)
+    D.gaps.forEach(gp => {
+      const wc = CITY_WALLS[gp.p], x = gp.x, w = gp.w, top = B - 12 - gp.hh;
+      ctx.fillStyle = "rgba(255,226,160,.07)"; ctx.beginPath();           // poça de luz no chão
+      ctx.moveTo(x, B); ctx.lineTo(x + w, B); ctx.lineTo(x + w + 36, B + 86); ctx.lineTo(x + 24, B + 86); ctx.closePath(); ctx.fill();
+      rect(wc[1], x, top, w, gp.hh); rect("rgba(40,20,60,.30)", x, top, w, gp.hh);
+      rect("#5a2f20", x - 1, top - 3, w + 2, 3); rect("#b4532f", x - 1, top - 6, w + 2, 3); rect("rgba(255,200,150,.25)", x - 1, top - 6, w + 2, 1);
+      const dw = 8, dx = x + (w - dw >> 1);
+      cityArch("#d8ccb0", dx - 1, B - 12 - 22, dw + 2, 22); cityArch("#2a1c22", dx, B - 12 - 21, dw, 21); cityArch("#e8b868", dx + 2, B - 12 - 12, dw - 4, 12);
+      for (let q = 0; q < 2; q++) { const wx = x + 2 + q * (w - 10), wy = top + 8; rect("#3a4f66", wx, wy, 6, 9); rect("#5d85a6", wx + 1, wy + 1, 4, 7); rect(CITY_SHUT[(gp.p + q) % 7], wx - 2, wy, 2, 9); rect(CITY_SHUT[(gp.p + q) % 7], wx + 6, wy, 2, 9); }
+      rect("#7a6c60", x, B - 12, w, 12);                                  // degraus
+      for (let q = 0; q < 4; q++) { rect("#b8aa98", x, B - 12 + q * 3, w, 1); rect("#5a4e46", x, B - 11 + q * 3, w, 1); }
+      rect("#2a2d35", x + (w >> 1) - 1, top + 2, 2, 1); D.lamps.push({ x: x + (w >> 1), y: B - 44, r: 26 });
+      rect("#2a2d35", x + (w >> 1), top + 3, 1, B - 44 - top - 3 - 3); rect("#2a2d35", x + (w >> 1) - 2, B - 47 - 1, 5, 1); rect("#e8c070", x + (w >> 1) - 1, B - 46, 3, 4); rect("#2a2d35", x + (w >> 1) - 2, B - 42, 5, 1);
+    });
+
+    // ---- prédios
+    D.blds.forEach((b, bi) => {
+      const wc = CITY_WALLS[b.p], x = b.x, w = b.w, top = b.top, ht = B - top, shc = CITY_SHUT[(b.p * 3 + bi) % CITY_SHUT.length];
+      rect(wc[0], x, top, w, ht);
+      for (let i = 0, nn = w * ht / 60 | 0; i < nn; i++) rect(r() < .5 ? "rgba(90,40,20,.10)" : "rgba(255,245,220,.16)", x + ri(0, w - 3), top + ri(0, ht - 3), ri(1, 3), 1);   // reboco manchado
+      for (let q = 0, np = ri(1, 2); q < np; q++) {                       // reboco caído, aparecendo o tijolo
+        const bw = ri(6, 11), bh = ri(5, 9), bx = x + ri(3, w - 15), by = top + ri(8, ht - 34);
+        rect("#a8583a", bx, by, bw, bh); for (let yy = 1; yy < bh; yy += 2) rect("#8c4630", bx, by + yy, bw, 1);
+        rect(wc[0], bx, by, 1, 1); rect(wc[0], bx + bw - 1, by + bh - 1, 1, 1);
+      }
+      rect(wc[1], x + w - 4, top, 4, ht); rect("rgba(30,14,44,.35)", x, top, 1, ht); rect(wc[2], x + 1, top, 1, ht);
+      if (bi % 3 === 1) { rect("#6a5a4a", x + w - 5, top, 2, ht - 4); for (let yy = top + 6; yy < B - 6; yy += 14) rect("#9a8a78", x + w - 6, yy, 4, 1); rect("#6a5a4a", x + w - 7, B - 5, 4, 2); }   // calha
+      if (bi % 4 === 2) {                                                  // trepadeira com flores
+        const vx = x + w - 28, vh = ri(46, 66);
+        for (let i = 0; i < 80; i++) { const vy = B - 4 - vh * Math.pow(r(), 1.5), vxx = vx + ri(0, 22); rect(pk(CITY_GREENS), vxx, vy | 0, 3, 2); if (r() < .4) rect(pk(["#d6477f", "#e868a0", "#b8326a"]), vxx + 1, vy | 0, 1, 1); }
+      }
+      for (let k = 0; k <= b.n; k++) { const ly = B - GF - k * FH; rect(wc[2], x, ly - 1, w, 1); rect(wc[1], x, ly, w, 1); }   // frisos entre os andares
+      rect(wc[2], x - 1, top - 1, w + 2, 1); rect(wc[1], x - 1, top, w + 2, 1);
+
+      // janelas dos andares de cima
+      const nc = Math.max(1, w / 24 | 0), gx = (w - nc * 18) / (nc + 1);
+      const wxAt = i => Math.round(x + gx * (i + 1) + 18 * i + 4);
+      const shut = (sx, sy, hh) => { rect(shc, sx, sy, 4, hh); for (let q = 1; q < hh; q += 2) rect("rgba(0,0,0,.28)", sx, sy + q, 4, 1); rect("rgba(255,255,255,.2)", sx, sy, 1, hh); };
+      for (let k = 0; k < b.n; k++) {
+        const ty = B - GF - (k + 1) * FH;
+        for (let i = 0; i < nc; i++) {
+          const wx = wxAt(i), ww = 10;
+          let st = pk([0, 0, 1, 1, 2, 3]); if (st === 3 && !(k === 0 || (k === 1 && r() < .4))) st = 0;
+          if (st === 3) {                                                  // porta de sacada com grade de ferro
+            const by = ty + 4, bh = 18;
+            shut(wx - 4, by, bh); shut(wx + ww, by, bh);
+            rect("#3a4f66", wx, by, ww, bh); rect("#5d85a6", wx + 1, by + 1, ww - 2, bh - 2); rect("#86aac4", wx + 1, by + 1, ww - 2, 4); rect("#e8e0c8", wx + 4, by + 1, 1, bh - 2);
+            rect("#cfc3a8", wx - 3, ty + 22, ww + 6, 2); rect("rgba(30,15,30,.35)", wx - 3, ty + 24, ww + 6, 1); rect(wc[1], wx - 1, ty + 25, 2, 2); rect(wc[1], wx + ww - 1, ty + 25, 2, 2);
+            rect("#2a2d35", wx - 3, ty + 16, ww + 6, 1); for (let q = wx - 3; q < wx + ww + 3; q += 2) rect("#2a2d35", q, ty + 17, 1, 5);
+            if (r() < .6) { rect("#b4532f", wx + 6, ty + 19, 4, 3); rect(pk(CITY_GREENS), wx + 5, ty + 15, 6, 4); rect(pk(CITY_FLOWER), wx + 6 + ri(0, 3), ty + 15, 1, 1); }
+            D.wins.push({ x: wx + 1, y: by + 1, w: ww - 2, h: bh - 2, lit: r() < .5 });
+            continue;
+          }
+          const wy = ty + 8, wh = 14;
+          if (st === 2) {                                                  // persiana fechada
+            rect(shc, wx - 1, wy, ww + 2, wh); for (let q = 1; q < wh; q += 2) rect("rgba(0,0,0,.28)", wx - 1, wy + q, ww + 2, 1);
+            rect("rgba(0,0,0,.45)", wx + 4, wy, 1, wh); rect("rgba(255,255,255,.2)", wx - 1, wy, 1, wh); rect("#3a3a42", wx - 1, wy + 2, ww + 2, 1);
+          } else {
+            shut(wx - 4, wy, wh); shut(wx + ww, wy, wh);
+            if (st === 1) { cityArch("#3a4f66", wx, wy, ww, wh); cityArch("#5d85a6", wx + 1, wy + 1, ww - 2, wh - 2); }
+            else { rect("#3a4f66", wx, wy, ww, wh); rect("#5d85a6", wx + 1, wy + 1, ww - 2, wh - 2); rect(wc[2], wx - 1, wy - 2, ww + 2, 1); }
+            rect("#86aac4", wx + 1, wy + 2, ww - 2, 3); rect("#e8e0c8", wx + 4, wy + 1, 1, wh - 2); rect("#e8e0c8", wx + 1, wy + 7, ww - 2, 1);
+            D.wins.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2, lit: r() < .5 });
+          }
+          rect("#d8cdb4", wx - 1, wy + wh, ww + 2, 1); rect("rgba(30,15,30,.35)", wx - 1, wy + wh + 1, ww + 2, 1);
+          if (r() < .38) {                                                 // jardineira com flores
+            rect("#7a4a2e", wx - 1, wy + wh - 3, ww + 2, 3);
+            for (let q = 0; q < ww + 2; q += 2) { rect(pk(CITY_GREENS), wx - 1 + q, wy + wh - 5 - ri(0, 1), 2, 3); if (r() < .7) rect(pk(CITY_FLOWER), wx - 1 + q + ri(0, 1), wy + wh - 6 - ri(0, 1), 1, 1); }
+          }
+        }
+      }
+
+      // térreo
+      rect("#8f8274", x, B - 4, w, 4); rect("#a89a88", x, B - 4, w, 1);
+      const lantern = (lx, ly) => { rect("#2a2d35", lx - 1, ly, 5, 1); rect("#e8c070", lx, ly + 1, 3, 4); rect("#2a2d35", lx - 1, ly + 5, 5, 1); rect("#2a2d35", lx + 1, ly - 3, 1, 3); D.lamps.push({ x: lx + 1.5, y: ly + 3, r: 34 }); };
+      const pot = (px0, big) => {
+        const hh = big ? 6 : 5; rect("#b4532f", px0, B - hh, 5, hh); rect("#cf6d3f", px0 - 1, B - hh, 7, 1); rect("#8a3c22", px0 + 4, B - hh + 1, 1, hh - 1);
+        cityBlob(px0 + 2, B - hh - 4, big ? 4 : 3, CITY_GREENS); if (r() < .7) { rect(pk(CITY_FLOWER), px0 + 1, B - hh - 6, 2, 2); rect(pk(CITY_FLOWER), px0 + 3, B - hh - 4, 1, 1); }
+      };
+      const doorAt = (dx, withLamp) => {
+        const dcol = pk(CITY_DOOR);
+        cityArch("#d8ccb0", dx - 2, B - 46, 18, 46); cityArch(dcol, dx, B - 44, 14, 42);
+        for (let xx = dx + 3; xx < dx + 14; xx += 3) rect("rgba(0,0,0,.25)", xx, B - 28, 1, 26);
+        cityArch("#3a4f66", dx + 4, B - 40, 6, 8); rect("#86aac4", dx + 5, B - 38, 2, 3); rect("#d9b26a", dx + 11, B - 18, 1, 2);
+        rect("#b8aa98", dx - 3, B - 2, 20, 2); rect("#d8ccb0", dx - 3, B - 2, 20, 1);
+        D.wins.push({ x: dx + 5, y: B - 38, w: 4, h: 6, lit: r() < .6 });
+        if (withLamp) lantern(dx + 19, B - 38);
+      };
+      if (b.g === "door" || b.g === "sign" || b.g === "shrine") {
+        const dx = b.g === "door" ? x + ri(10, w - 30) : x + 8; doorAt(dx, true);
+        if (b.g === "door") { if (dx - x > 18 && r() < .8) pot(dx - 9); if (x + w - dx > 40 && r() < .8) pot(dx + 24); }
+        if (b.g === "sign") {                                              // placa azul do caminho do cais (a saída da cidade)
+          const sx = CITY.MAX - 40; rect("#e8f0e0", sx - 1, B - 54, 48, 15); rect("#1f4f8a", sx, B - 53, 46, 13);
+          rect("#c8d0c0", sx + 2, B - 51, 1, 1); rect("#c8d0c0", sx + 43, B - 51, 1, 1); rect("#c8d0c0", sx + 2, B - 43, 1, 1); rect("#c8d0c0", sx + 43, B - 43, 1, 1);
+          text("CAIS >", sx + 23, B - 43, "#fff", "center");
+        }
+        if (b.g === "shrine") {                                            // nichozinho com a santa e uma velinha
+          const sx = x + w - 20;
+          cityArch("#d8ccb0", sx - 1, B - 54, 11, 19); cityArch("#2a1a1c", sx, B - 53, 9, 17);
+          rect("#2f5a9a", sx + 2, B - 45, 5, 8); rect("#e8ecf4", sx + 3, B - 44, 3, 6); rect("#e8c9a0", sx + 3, B - 48, 3, 3);
+          rect("#d8ccb0", sx - 2, B - 36, 13, 2); rect("rgba(30,15,30,.35)", sx - 2, B - 34, 13, 1);
+          rect("#f2e6c9", sx + 1, B - 40, 1, 3); rect("#f2e6c9", sx + 7, B - 40, 1, 3); rect("#ffd060", sx + 1, B - 41, 1, 1); rect("#ffd060", sx + 7, B - 41, 1, 1);
+          D.lamps.push({ x: sx + 4.5, y: B - 40, r: 15 });
+        }
+      } else if (b.g === "shop") {
+        const sx0 = x + 6, sw = w - 12, awn = pk(["#c0392b", "#2f6b4f", "#2d5a8a", "#d98e04"]), nm = CITY_SHOPS[bi % CITY_SHOPS.length];
+        rect("#3a2414", x + 8, B - 54, w - 16, 13); rect("#5a3a24", x + 9, B - 53, w - 18, 11);
+        text(nm, x + (w >> 1), B - 43, "#f3e3b5", "center");
+        for (let i = 0; i < sw; i += 4) { const col = i / 4 % 2 ? "#f2e6c9" : awn; rect(col, sx0 + i, B - 40, 4, 7); rect(col, sx0 + i + 1, B - 33, 2, 1); }
+        rect("rgba(20,10,20,.35)", sx0, B - 32, sw, 4);
+        const ww2 = sw - 16;
+        rect("#4a3020", sx0, B - 31, ww2, 26); rect("#3a2a3a", sx0 + 1, B - 30, ww2 - 2, 24); rect("#8a6a4a", sx0 + 1, B - 30, ww2 - 2, 3);
+        rect("#6b4a30", sx0 + 1, B - 19, ww2 - 2, 1); rect("#6b4a30", sx0 + 1, B - 11, ww2 - 2, 1);
+        for (let q = sx0 + 3; q < sx0 + ww2 - 5; q += 5) { rect(pk(["#c0392b", "#f2c94c", "#2f6b4f", "#e8e0c8", "#2d5a8a"]), q, B - 23, 3, 4); rect(pk(["#d9b26a", "#c0392b", "#e8e0c8", "#8a4a2a"]), q, B - 15, 3, 4); }
+        D.wins.push({ x: sx0 + 1, y: B - 30, w: ww2 - 2, h: 24, lit: true, soft: true });
+        const dx = sx0 + ww2 + 2; rect("#4a3020", dx, B - 34, 12, 30); rect("#3a2a3a", dx + 2, B - 32, 8, 12); rect("#d9b26a", dx + 9, B - 16, 1, 2); rect("#b8aa98", dx - 1, B - 4, 14, 2);
+        D.wins.push({ x: dx + 2, y: B - 32, w: 8, h: 12, lit: true });
+        lantern(x + w - 6, B - 52 + 20);
+        if (r() < .7) pot(x + 1);
+      } else if (b.g === "cafe") {
+        rect("#2f4a3a", x + (w >> 1) - 23, B - 54, 46, 12); rect("#f2e6c9", x + (w >> 1) - 22, B - 53, 44, 10); text("CAFFE", x + (w >> 1), B - 44, "#a02a1c", "center");
+        for (let i = 0; i < w - 8; i += 4) { const col = i / 4 % 2 ? "#f2e6c9" : "#b8321f"; rect(col, x + 4 + i, B - 40, 4, 8); rect(col, x + 5 + i, B - 32, 2, 1); }
+        rect("rgba(20,10,20,.35)", x + 4, B - 31, w - 8, 4);
+        rect("#4a3020", x + 10, B - 28, 20, 24); rect("#3a2a3a", x + 11, B - 27, 18, 22); rect("#e8c070", x + 11, B - 27, 18, 3);
+        D.wins.push({ x: x + 11, y: B - 27, w: 18, h: 22, lit: true, soft: true });
+        doorAt(x + w - 26, false); rect("#222a26", x + 34, B - 24, 12, 14); rect("#e8e0c8", x + 36, B - 21, 6, 1); rect("#e8e0c8", x + 36, B - 18, 8, 1);   // lousa do cardápio
+        for (const tx of [x + 6, x + w - 34]) {                            // mesinhas e cadeiras vermelhas na calçada
+          rect("#d9cdb0", tx, B - 3, 11, 2); rect("#a89c82", tx + 1, B - 1, 9, 1); rect("#3a3a42", tx + 5, B, 1, 5); rect("#3a3a42", tx + 3, B + 5, 5, 1);
+          for (const cx of [tx - 7, tx + 13]) { rect("#b53a2c", cx, B, 5, 1); rect("#b53a2c", cx + (cx < tx ? 0 : 4), B - 6, 1, 6); rect("#3a3a42", cx, B + 1, 1, 4); rect("#3a3a42", cx + 4, B + 1, 1, 4); }
+        }
+      } else if (b.g === "arch") {                                         // sottoportico: túnel por baixo do prédio
+        const tw = 28, th = 46, tx = x + (w - tw >> 1);
+        cityArch("#cfc3a8", tx - 2, B - th - 2, tw + 4, th + 2); cityArch("#241820", tx, B - th, tw, th);
+        cityArch("#4d3a36", tx + 5, B - th + 7, 18, th - 10); cityArch("#6a4e44", tx + 8, B - th + 12, 12, th - 18); cityArch("#f6d9a0", tx + 10, B - th + 16, 8, th - 24);
+        rect("#7a6c60", tx, B - 3, tw, 3); rect("#b8aa98", tx, B - 3, tw, 1); rect("#e0d5bc", tx + (tw >> 1) - 2, B - th - 3, 4, 4);
+        lantern(tx - 8, B - 36); lantern(tx + tw + 5, B - 36);
+        D.lamps.push({ x: tx + (tw >> 1), y: B - 22, r: 18 });
+      }
+      g = c2.createLinearGradient(0, top, 0, B); g.addColorStop(0, "rgba(255,236,190,.14)"); g.addColorStop(.55, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,14,44,.30)");
+      ctx.fillStyle = g; ctx.fillRect(x, top, w, ht);                      // luz no alto, penumbra embaixo
+
+      // telhado
+      if (bi % 3 !== 2) {
+        rect("#5a2f20", x - 3, top - 3, w + 6, 2);
+        [[x - 3, w + 6], [x + 1, w - 2], [x + 5, w - 10], [x + 9, w - 18]].forEach(([rx, rw], i) => {
+          const ry = top - 6 - 3 * i; rect(i % 2 ? "#c4623a" : "#b4532f", rx, ry, rw, 3);
+          for (let tx = rx + i % 2; tx < rx + rw; tx += 3) rect("rgba(70,25,15,.35)", tx, ry, 1, 3);
+          rect("rgba(255,200,150,.25)", rx, ry, rw, 1);
+        });
+        if (bi % 2 === 0) { const cx = x + ri(6, w - 16); rect("#9a5a42", cx, top - 26, 6, 15); rect("#5a3022", cx - 1, top - 27, 8, 2); rect("rgba(0,0,0,.2)", cx + 4, top - 26, 2, 15); }
+        else { const ax = x + ri(10, w - 14); rect("#3a3d46", ax, top - 24, 1, 10); rect("#3a3d46", ax - 3, top - 24, 7, 1); rect("#3a3d46", ax - 2, top - 21, 5, 1); rect("#3a3d46", ax - 3, top - 18, 7, 1); }
+      } else {                                                             // terraço com altana de madeira
+        rect(wc[0], x, top - 6, w, 6); rect(wc[2], x, top - 7, w, 1); rect(wc[1], x + w - 4, top - 6, 4, 6);
+        const ax = x + ri(6, w - 30);
+        rect("#8a6a48", ax, top - 22, 20, 15); rect("#b4532f", ax - 2, top - 25, 24, 3); rect("rgba(255,200,150,.25)", ax - 2, top - 25, 24, 1);
+        rect("#2a1c18", ax + 3, top - 18, 5, 11); rect("#2a1c18", ax + 12, top - 18, 5, 11); rect("#6b4a30", ax, top - 22, 1, 15); rect("#6b4a30", ax + 19, top - 22, 1, 15);
+        for (let q = 0; q < 3; q++) { const ppx = x + ri(2, w - 6); if (ppx > ax - 4 && ppx < ax + 22) continue; rect("#b4532f", ppx, top - 10, 4, 3); cityBlob(ppx + 2, top - 13, 2, CITY_GREENS); }
+      }
+      // varal na fachada (só nos prédios de porta simples)
+      if (b.g === "door" && bi % 2 === 1 && nc >= 2) {
+        const ty = B - GF - FH, x1 = x + 3, x2 = x + w - 7, y1 = ty + 27, y2 = ty + 28;
+        rect("#2a2d35", x1 - 1, y1 - 1, 2, 3); rect("#2a2d35", x2, y2 - 1, 2, 3);
+        const items = []; for (let cx = x1 + 6; cx < x2 - 8; cx += 10) items.push({ x: cx, kind: ri(0, 3), col: pk(["#f1ecdc", "#c0392b", "#2d5a8a", "#f2c94c", "#e8e0c8", "#2f6b4f"]), ph: r() * 6 });
+        D.lines.push({ x1, y1, x2, y2, sag: 2, items });
+      }
+    });
+
+    // ---- varais atravessando as vielas e festões de luzes
+    D.gaps.forEach((gp, gi) => {
+      const x1 = gp.x - 6, x2 = gp.x + gp.w + 6, y1 = B - GF - FH + 8, y2 = y1 + 1;
+      if (gi === 1) return;
+      rect("#2a2d35", x1 - 1, y1 - 1, 2, 3); rect("#2a2d35", x2, y2 - 1, 2, 3);
+      const items = []; for (let cx = x1 + 7; cx < x2 - 6; cx += 9) items.push({ x: cx, kind: ri(0, 3), col: pk(["#f1ecdc", "#c0392b", "#2d5a8a", "#f2c94c", "#e8e0c8", "#2f6b4f"]), ph: r() * 6 });
+      D.lines.push({ x1, y1, x2, y2, sag: 3, items });
+    });
+    [[-110, B - 90, 60, B - 94, 9, "bulb"], [130, B - 86, 300, B - 88, 10, "flag"], [330, B - 92, 520, B - 88, 9, "bulb"], [540, B - 90, 700, B - 94, 9, "flag"]].forEach(([x1, y1, x2, y2, sag, kind]) => {
+      for (let x = x1; x <= x2; x++) rect("#2a2d35", x, cityWireY(x1, y1, x2, y2, sag, x), 1, 1);
+      rect("#2a2d35", x1 - 1, y1 - 2, 2, 5); rect("#2a2d35", x2 - 1, y2 - 2, 2, 5);
+      for (let x = x1 + 8, q = 0; x < x2 - 4; x += kind === "bulb" ? 11 : 8, q++) {
+        const y = cityWireY(x1, y1, x2, y2, sag, x);
+        if (kind === "bulb") { rect("#2a2d35", x, y + 1, 1, 1); rect("#e8dcb0", x - 1, y + 2, 3, 3); rect("#fff6d8", x, y + 2, 1, 1); D.bulbs.push({ x, y: y + 3 }); }
+        else { const col = ["#c0392b", "#f2e6c9", "#2f6b4f"][q % 3]; [5, 4, 2, 1].forEach((fw, j) => rect(col, x + ((5 - fw) >> 1) - 2, y + 1 + j, fw, 1)); }
+      }
+    });
+
+    // ---- vespa, caixotes de limões e outros adereços na calçada
+    const vx = 76, vy = B + 4;
+    rect("rgba(0,0,0,.28)", vx - 1, vy - 1, 30, 2);
+    [[vx + 5, vy - 4], [vx + 22, vy - 4]].forEach(([wx, wy]) => { cityBlob(wx, wy, 4, ["#2a2a32", "#23232a", "#1c1c22"]); rect("#9a9aa0", wx - 1, wy - 1, 2, 2); });
+    rect("#8fd0c0", vx + 1, vy - 13, 12, 8); rect("#a9e0d2", vx + 2, vy - 13, 10, 1); rect("#6aa898", vx + 1, vy - 7, 12, 2); rect("#8fd0c0", vx + 10, vy - 8, 9, 2);
+    rect("#8fd0c0", vx + 18, vy - 17, 3, 11); rect("#a9e0d2", vx + 18, vy - 17, 1, 11); rect("#8fd0c0", vx + 18, vy - 9, 8, 1);
+    rect("#4a3022", vx + 3, vy - 16, 9, 3); rect("#2a2d35", vx + 17, vy - 19, 6, 1); rect("#ffe9a0", vx + 22, vy - 17, 2, 2); rect("#c0392b", vx, vy - 10, 1, 2);
+    for (const cx of [292, 306]) {
+      rect("#a8763a", cx, B - 2, 12, 7); rect("#7a5028", cx, B + 1, 12, 1); rect("#7a5028", cx, B + 4, 12, 1);
+      for (let j = 0; j < 6; j++) { rect("#f2d03c", cx + 1 + j * 2, B - 4 + (j % 2), 2, 2); rect("#fff0a0", cx + 1 + j * 2, B - 4 + (j % 2), 1, 1); }
+    }
+    rect("#a8763a", 299, B - 9, 12, 7); rect("#7a5028", 299, B - 6, 12, 1);
+    for (let j = 0; j < 6; j++) rect("#f2d03c", 300 + j * 2, B - 11 + (j % 2), 2, 2);
+
+    // ---- primeiro plano: muro de pedra com vasos (limoeiros, gerânios, agave) e buganvília caindo
+    const PY = 212;
+    rect("#4d423f", FW, PY, CWD, H - PY); rect("#6e6058", FW, PY, CWD, 3); rect("#2e2624", FW, PY + 3, CWD, 1);
+    for (let yy = PY + 4, row = 0; yy < H; yy += 8, row++) { for (let xx = FW - (row % 2 ? 8 : 0); xx < CITY_FX1; xx += 16) rect("rgba(0,0,0,.28)", xx + 15, yy, 1, 8); rect("rgba(0,0,0,.28)", FW, yy + 7, CWD, 1); }
+    for (let xv = -190; xv < CITY_FX1 - 20; xv += 52 + ri(0, 40)) {
+      for (let j = 0; j < 15; j++) { const ln = ri(2, 8); rect(pk(CITY_GREENS), xv + j, PY + 1, 1, ln); if (r() < .5) rect(pk(["#d6477f", "#e868a0", "#b8326a"]), xv + j, PY + ri(1, ln), 2, 2); }
+    }
+    for (let xp = -180, q = 0; xp < CITY_FX1 - 30; xp += 46 + ri(0, 48), q++) {
+      const kind = q % 3;
+      if (kind === 0) {
+        rect("#5a3a24", xp + 5, PY - 22, 2, 13); cityBlob(xp + 6, PY - 30, 11, CITY_GREENS); cityBlob(xp, PY - 24, 6, CITY_GREENS); cityBlob(xp + 12, PY - 25, 6, CITY_GREENS);
+        for (let j = 0; j < 8; j++) { const lx = xp + 6 + ri(-9, 9), ly = PY - 30 + ri(-8, 8); rect("#f4d03f", lx, ly, 2, 2); rect("#fff0a0", lx, ly, 1, 1); }
+      } else if (kind === 1) {
+        cityBlob(xp + 6, PY - 15, 7, CITY_GREENS); for (let j = 0; j < 9; j++) rect(pk(["#d6334a", "#e86aa0", "#f4efe0"]), xp + 6 + ri(-7, 7), PY - 15 + ri(-6, 5), 2, 2);
+      } else {
+        for (let i = -3; i <= 3; i++) { const hh = (4 - Math.abs(i)) * 2 + 2; rect(i % 2 ? "#6a9a74" : "#4f8260", xp + 6 + i * 2, PY - 9 - hh, 2, hh + 1); }
+      }
+      rect("#b4532f", xp, PY - 9, 12, 9); rect("#cf6d3f", xp - 1, PY - 9, 14, 2); rect("#8a3c22", xp + 9, PY - 7, 3, 7);
+    }
+    g = c2.createLinearGradient(0, B + 55, 0, H); g.addColorStop(0, "rgba(20,10,30,0)"); g.addColorStop(1, "rgba(20,10,30,.42)");
+    ctx.fillStyle = g; ctx.fillRect(FW, B + 55, CWD, H - B - 55);          // o primeiro plano escurece, o pescador fica em destaque
+  } finally { ctx = main; }
+  cityCache = { cv: cv2, s: S, font: cityFontOK() };
+}
+
+function cityFar(fog) {                                                  // prédios distantes e o campanário (recebem a névoa da hora)
+  const D = cityData, B = CITY_B, mx = (c, f = .5) => "rgb(" + c.map((v, i) => Math.round(v + (fog[i] - v) * f)) + ")";
+  const FC = CITY_FARC.map(c => mx(c)), RC = mx([150, 78, 58]), RL = mx([176, 98, 70]), WD = CITY_FARC.map(c => mx(c.map(v => v * .62), .4));
+  D.far.forEach(b => {
+    const top = B - b.h;
+    rect(FC[b.c], b.x, top, b.w, b.h); rect("rgba(30,20,50,.12)", b.x + b.w - 4, top, 4, b.h);
+    rect(RC, b.x - 1, top - 3, b.w + 2, 3); rect(RL, b.x + 2, top - 6, b.w - 4, 3); if (b.w > 26) rect(RC, b.x + 6, top - 9, b.w - 12, 3);
+    for (let wy = top + 8; wy < B - 70; wy += 16) for (let wx = b.x + 4; wx < b.x + b.w - 5; wx += 9) rect(WD[b.c], wx, wy, 3, 5);
+  });
+  const tx = 255, tt = B - 128, tc = mx([232, 206, 160]), td = mx([150, 120, 100], .4);          // campanário
+  rect(tc, tx, tt + 12, 15, 130); rect("rgba(30,20,50,.14)", tx + 11, tt + 12, 4, 130);
+  rect(mx([205, 190, 150]), tx - 1, tt + 10, 17, 3); rect(mx([205, 190, 150]), tx - 1, tt + 28, 17, 2);
+  cityArch(td, tx + 3, tt + 14, 4, 12); cityArch(td, tx + 8, tt + 14, 4, 12);
+  for (let i = 0; i < 12; i++) rect(i % 2 ? RC : RL, tx + 7 - (1 + i * .55 | 0), tt + i, 2 + 2 * (1 + i * .55 | 0) - 1, 1);
+  rect(RC, tx + 7, tt - 4, 1, 4);
+}
+
+function drawCityBack(ox, now) {                                         // tudo que recebe a lavagem de cor da hora
+  if (!cityData) cityInit();
+  if (!cityCache || cityCache.s !== S || (!cityCache.font && cityFontOK())) cityBuild();
+  const D = cityData, B = CITY_B, t = now / 1000;
+  ctx.save(); ctx.translate(ox, 0);
+  cityFar(DAY.sky[3]);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(cityCache.cv, CITY_FW, 0, CITY_FX1 - CITY_FW, H);
+  D.lines.forEach(L => {                                                 // varais: fio e roupas balançando de leve
+    for (let x = L.x1; x <= L.x2; x++) rect("#3a3440", x, cityWireY(L.x1, L.y1, L.x2, L.y2, L.sag, x), 1, 1);
+    L.items.forEach(it => {
+      const yy = cityWireY(L.x1, L.y1, L.x2, L.y2, L.sag, it.x) + 1, sn = Math.sin(t * 1.6 + it.ph), sh = sn > .6 ? 1 : sn < -.6 ? -1 : 0, c = it.col;
+      rect("#c0392b", it.x + 1, yy - 1, 1, 1);
+      if (it.kind === 0) { rect(c, it.x, yy, 9, 5); rect(c, it.x + sh, yy + 5, 9, 6); rect("rgba(0,0,0,.12)", it.x + 8 + sh, yy + 5, 1, 6); }
+      else if (it.kind === 1) { rect(c, it.x, yy, 7, 3); rect(c, it.x + 1 + sh, yy + 3, 5, 4); rect(c, it.x - 1, yy, 2, 3); rect(c, it.x + 6, yy, 2, 3); }
+      else if (it.kind === 2) { rect(c, it.x + 1, yy, 5, 2); rect(c, it.x + 1 + sh, yy + 2, 2, 7); rect(c, it.x + 4 + sh, yy + 2, 2, 7); }
+      else { rect(c, it.x + 1, yy, 5, 3); rect(c, it.x + 1 + sh, yy + 3, 5, 4); rect("rgba(255,255,255,.35)", it.x + 1 + sh, yy + 4, 5, 1); }
+    });
+  });
+  const cx = 212, cy = B - 6, tail = Math.sin(t * 3) > 0;               // gato sentado nos degraus
+  rect("#d98a3c", cx - 4, cy - 5, 8, 5); rect("#c0712a", cx - 4, cy - 2, 8, 2); rect("#8f4f1c", cx - 2, cy - 5, 1, 3); rect("#8f4f1c", cx, cy - 5, 1, 2);
+  rect("#d98a3c", cx + 2, cy - 9, 5, 5); rect("#d98a3c", cx + 2, cy - 11, 1, 2); rect("#d98a3c", cx + 6, cy - 11, 1, 2); rect("#2a2d35", cx + 5, cy - 7, 1, 1);
+  rect("#d98a3c", cx - 6, cy - 1, 3, 1); if (tail) { rect("#d98a3c", cx - 7, cy - 3, 1, 3); } else { rect("#d98a3c", cx - 7, cy - 2, 1, 2); rect("#d98a3c", cx - 8, cy - 3, 1, 1); }
   ctx.restore();
 }
 
@@ -2408,15 +2714,16 @@ function drawCity(now) {
   lastView = { z: 1, sx: 0, sy: 0 };
   const ox = (W - WORLD) / 2;
   ctx.save(); ctx.translate(ox - EXT, 0); DAY.paintSky(ctx, now); ctx.restore();       // o mesmo céu do cais (sol, lua, estrelas) na mesma hora
-  DAY.scene(() => drawCityBack(ox), [0, H]);
-  if (DAY.lamp > 0.01) {                                                                 // à noite: janelas acesas e luz dos postes (por cima da lavagem escura)
+  DAY.scene(() => drawCityBack(ox, now), [0, H]);
+  if (DAY.lamp > 0.01) {                                                                 // à noite: janelas acesas, lanternas, luzinhas de festa (por cima da lavagem escura)
     ctx.save(); ctx.translate(ox, 0); ctx.globalAlpha = DAY.lamp;
-    cityData.near.forEach(b => b.wins.forEach(w => { if (w.lit) { ctx.fillStyle = "#ffd98a"; ctx.fillRect(b.x + w.x + 1, CITY_B - b.h + w.y + 1, 8, 9); } }));
-    cityData.lamps.forEach(x => {
-      const g = ctx.createRadialGradient(x + 1, CITY_B - 26, 1, x + 1, CITY_B - 26, 34);
+    cityData.wins.forEach(w => { if (w.lit) { ctx.fillStyle = "rgba(255,190,110,.13)"; ctx.fillRect(w.x - 2, w.y - 2, w.w + 4, w.h + 4); ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : "#ffd98a"; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2); } });
+    cityData.lamps.forEach(l => {
+      const g = ctx.createRadialGradient(l.x, l.y, 1, l.x, l.y, l.r);
       g.addColorStop(0, "rgba(255,225,150,.6)"); g.addColorStop(1, "rgba(255,225,150,0)");
-      ctx.fillStyle = g; ctx.fillRect(x - 36, CITY_B - 62, 74, 70);
+      ctx.fillStyle = g; ctx.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
     });
+    cityData.bulbs.forEach((bu, i) => { ctx.fillStyle = "rgba(255,220,140," + (0.2 + 0.05 * Math.sin(now / 400 + i)).toFixed(2) + ")"; ctx.fillRect(bu.x - 3, bu.y - 3, 6, 6); ctx.fillStyle = "#fff0b8"; ctx.fillRect(bu.x - 1, bu.y - 1, 2, 2); });
     ctx.restore();
   }
   DAY.scene(() => {                                                                      // o pescador (com a mesma lavagem da hora)
