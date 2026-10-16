@@ -18,6 +18,12 @@ const SND = (() => {
   const buf = {};
   let muted = false, ambStarted = false, loading = false;
   try { muted = localStorage.getItem("muted") === "1"; } catch (e) {}
+  let sfxVol = 1, musVol = 1, sfxBus = null;               // volumes (0 a 1,5; 1 = volume original), salvos no navegador
+  try {
+    const a = parseFloat(localStorage.getItem("sfxVol")), b = parseFloat(localStorage.getItem("musVol"));
+    if (a >= 0) sfxVol = Math.min(1.5, a);
+    if (b >= 0) musVol = Math.min(1.5, b);
+  } catch (e) {}
 
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = arr => arr[Math.random() * arr.length | 0];
@@ -74,8 +80,10 @@ const SND = (() => {
       if (!AC) return;
       ac = new AC();
       master = ac.createGain(); master.gain.value = muted ? 0 : 0.7; master.connect(ac.destination);
-      sfx = ac.createGain(); sfx.gain.value = 1; sfx.connect(master);
-      amb = ac.createGain(); amb.gain.value = 0.7; amb.connect(master);
+      sfxBus = ac.createGain(); sfxBus.gain.value = sfxVol; sfxBus.connect(master);   // volume dos efeitos (inclui mar e vento)
+      sfx = ac.createGain(); sfx.gain.value = 1; sfx.connect(sfxBus);
+      amb = ac.createGain(); amb.gain.value = 0.7; amb.connect(sfxBus);
+      mus = ac.createGain(); mus.gain.value = musVol; mus.connect(master);            // volume da música
     }
     if (ac.state === "suspended") ac.resume();
     load();
@@ -130,6 +138,18 @@ const SND = (() => {
       return muted;
     },
     get muted() { return muted; },
+    get sfxVol() { return sfxVol; },
+    get musVol() { return musVol; },
+    setSfxVol(v) {
+      sfxVol = Math.max(0, Math.min(1.5, +v || 0));
+      try { localStorage.setItem("sfxVol", String(sfxVol)); } catch (e) {}
+      if (sfxBus) sfxBus.gain.setTargetAtTime(sfxVol, ac.currentTime, 0.03);
+    },
+    setMusVol(v) {
+      musVol = Math.max(0, Math.min(1.5, +v || 0));
+      try { localStorage.setItem("musVol", String(musVol)); } catch (e) {}
+      if (mus) mus.gain.setTargetAtTime(musVol, ac.currentTime, 0.03);
+    },
     step() {                                              // nunca repete o mesmo passo duas vezes seguidas
       let i; do { i = 1 + (Math.random() * 4 | 0); } while (i === lastStep); lastStep = i;
       play("step_wood_" + i, { vol: 0.45, jitter: 0.08 });

@@ -633,7 +633,7 @@ function drawMaltoUI(now) {
 // ---------- Pedro: negro alto (a altura do Malto), cabelo curto, sem camiseta, graveto na boca. Cara de mau, mas é muito gente boa ----------
 // Chegue perto e aperte E (ou toque nele) para conversar. De vez em quando, do nada, ele tira a flauta e toca "Wonder" (assets/songs/wonder.wav).
 // Para mexer nas falas, edite TIAO_LINES; para mudar o nome, TIAO_NAME; a posição no cais é TX.
-const TIAO_NAME = "Pedro", TX = 385;
+const TIAO_NAME = "Pedro"; let TX = 385;                               // TX muda quando ele sai andando
 const TIAO_LINES = [
   "Opa, firmeza? Pode chegar, não mordo. Cara feia é de fábrica.",
   "Cara de bravo é só o rosto que Deus me deu. Por dentro sou manteiga.",
@@ -650,6 +650,8 @@ const TIAO_LINES = [
 const TIAO_SORRY = "Opa, perdão! Me empolguei na flauta. Chega mais, firmeza?";
 let tt = 0, tTalk = null, tLine = -1, tFr = 0;                          // tFr: 0 = cara de mau ... 1 = sorrindo (sobe quando alguém conversa com ele)
 const FLUTE = { st: "idle", t: 0, k: 0, k0: 0, h: null, next: 14 + Math.random() * 16 };   // idle | up (tira a flauta) | play | down (guarda)
+const TWALK = 26, TW_MIN = 200, TW_MAX = 450;                          // TWALK: velocidade da caminhada (px/s); TW_MIN/TW_MAX: trecho do cais por onde ele passeia
+const TWK = { on: false, face: 1, ph: 0, amp: 0, wait: 6 + Math.random() * 8, goal: 385 };   // wait: segundos até o próximo passeio
 const tNear = () => state === "walk" && Math.abs(px - TX) < 40;
 const tVol = () => 0.9 * Math.max(0.12, 1 - Math.abs(px - TX) / 320);   // mais perto = mais alto
 const ease01 = k => k * k * (3 - 2 * k);
@@ -666,10 +668,23 @@ function tiaoUpdate(dt) {
     if (tTalk.t > len / TYPE_CPS + 6 || Math.abs(px - TX) > 80 || state !== "walk") tTalk = null;
   }
   const F = FLUTE; F.t += dt;
+  const K = TWK;                                                                        // passeio: de vez em quando ele sai andando devagar até outro ponto do cais
+  K.amp += ((K.on ? 1 : 0) - K.amp) * Math.min(1, dt * 8);
+  if (K.on) {
+    const step = TWALK * dt, left = K.goal - TX;
+    if (Math.abs(left) <= step || F.st !== "idle" || tTalk) { if (Math.abs(left) <= step) TX = K.goal; K.on = false; K.wait = 8 + Math.random() * 18; K.ph = 0; }
+    else { TX += Math.sign(left) * step; K.face = Math.sign(left); K.ph += step / 10; }
+  } else if (F.st === "idle" && !tTalk) {
+    K.wait -= dt;
+    if (K.wait <= 0) {
+      let g; do g = TW_MIN + Math.random() * (TW_MAX - TW_MIN); while (Math.abs(g - TX) < 50);
+      K.goal = g; K.face = Math.sign(g - TX); K.on = true; K.ph = 0;
+    }
+  }
   if (!SND.ready("wonder")) SND.preload("wonder");
   if (F.st === "idle") {
     F.k = 0;
-    if (F.t >= F.next && !tTalk && SND.ready("wonder")) { F.st = "up"; F.t = 0; }       // do nada: pega a flauta
+    if (F.t >= F.next && !tTalk && !TWK.on && SND.ready("wonder")) { F.st = "up"; F.t = 0; }       // do nada: pega a flauta
   } else if (F.st === "up") {
     F.k = ease01(Math.min(1, F.t / 0.9));
     if (F.t >= 0.9) {
@@ -686,6 +701,7 @@ function tiaoUpdate(dt) {
 }
 function talkTiao() {
   if (!tNear()) return false;
+  if (TWK.on) { TWK.on = false; TWK.ph = 0; TWK.wait = 10 + Math.random() * 15; }          // parou para conversar
   if (px !== TX) dir = TX < px ? -1 : 1;                                                // vira de lado para ele
   if (tTalk && tTalk.t * TYPE_CPS < tTalk.text.length) { tTalk.t = 99; return true; }   // 1º toque: termina de digitar
   let text;
@@ -701,6 +717,7 @@ function talkTiao() {
 }
 const TIAO_C = { skin: "#5c3a26", dk: "#412518", lt: "#7a4d33", hair: "#140c07", hair2: "#2b1b11" };
 function drawTiao(now) {
+  if (TWK.on) return drawTiaoSide(now);
   const t = now / 1000, F = FLUTE, k = F.k, fr = tFr, C = TIAO_C, L = (a, b, p) => a + (b - a) * p;
   const by = Math.sin(t * 1.5 + 1) * 0.3, S = -35 + by;                                // S: linha dos ombros (a mesma do Malto)
   const bob = k > 0.5 ? Math.sin(t * 5.2) * 0.45 * k : 0;                              // balança a cabeça ao tocar
@@ -773,7 +790,7 @@ function drawTiao(now) {
   const MSH = 7.2, SY = S + 2.5, MAL = 11;
   const POSE = {
     rel: [[[-MSH - 0.5, SY + 6.5], [-MSH - 0.3, SY + MAL + 1]], [[MSH + 0.5, SY + 6.5], [MSH + 0.3, SY + MAL + 1]]],
-    crs: [[[-MSH - 0.6, SY + 11.6], [4.8, SY + 9.2]], [[MSH + 0.6, SY + 9], [-4.8, SY + 6.4]]],
+    crs: [[[-MSH - 0.4, SY + 7], [1.0, SY + 7.8]], [[MSH + 0.4, SY + 6], [-1.8, SY + 5]]],   // braços cruzados mais curtos: cotovelo alto e mão só até o meio do peito
     flt: [[[-9.2, S + 8], [-12, mY + 3.8]], [[8.8, S + 10], [-3.9, mY + 2.8]]],
   };
   const fa = ease01(Math.max(0, (k - 0.55) / 0.45));                                                // a flauta só aparece quando já está perto da boca
@@ -808,6 +825,39 @@ function drawTiao(now) {
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+}
+function drawTiaoSide(now) {                                                            // Pedro andando: de perfil (parado ele fica de frente)
+  const t = now / 1000, K = TWK, C = TIAO_C, gs = Math.sin(K.ph), A = 0.55 * K.amp;
+  const hipY = -19 * Math.cos(A * gs), dy = hipY + 19;                                  // o quadril desce quando as pernas abrem (o pé fica no chão)
+  const by = Math.sin(t * 1.5 + 1) * 0.3 * (1 - K.amp), S = -35 + by + dy, hy = S + 30, mY = -31.2 + hy;
+  ctx.save(); ctx.translate(TX, PIER_Y); ctx.scale(K.face, 1);
+  softShadow(-7 * K.face, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);
+  const leg = (th, col) => { ctx.save(); ctx.translate(0, hipY); ctx.rotate(th); rect(col, -2, 0, 4, 17); rect(col, -1.6, 16.3, 6, 1.7); rect("#1a120c", -1.8, 17.8, 6.4, 1.2); ctx.restore(); };
+  leg(-gs * A, C.dk); leg(gs * A, C.skin);                                              // perna de trás (escura) e da frente
+  const sh = hipY + 10 - (S + 14);                                                      // bermuda
+  rect("#2f627d", -5.2, S + 14, 10.4, sh); rect("rgba(10,20,40,.3)", -5.2, S + 14, 3, sh); rect("#1f4559", -5.2, S + 14, 10.4, 1.4);
+  ctx.save(); ctx.translate(0, hipY); ctx.rotate(0.06 * K.amp); ctx.translate(0, -hipY);   // tronco inclina de leve para a frente
+  const arm = (th, col) => { ctx.save(); ctx.translate(0, S + 2.5); ctx.rotate(th); rect(col, -1.5, -1, 3, 11); rect(C.lt, -1.4, 9.6, 2.8, 2.4); ctx.restore(); };
+  arm(gs * A * 1.1 + 0.04, C.dk);                                                       // braço de trás (atrás do tronco)
+  rect(C.skin, -4.5, S, 9, 15.5); rect("rgba(0,0,0,.3)", -4.5, S, 2.6, 15.5); rect("rgba(255,210,160,.14)", 2.4, S, 2.1, 15.5);
+  rect("rgba(0,0,0,.25)", 0.8, S + 5.4, 3.6, 0.7); rect("rgba(0,0,0,.2)", -3, S + 9.2, 7, 0.5);
+  arm(-gs * A * 1.1 + 0.04, C.skin); rect("rgba(0,0,0,.18)", -1.5, S + 1.5, 1, 9);      // braço da frente (por cima)
+  rect(C.dk, -2.6, S - 3.5, 4.2, 4);                                                    // pescoço
+  rect(C.skin, -4, -38.5 + hy, 9, 9); rect(C.dk, -4, -38.5 + hy, 1.6, 9);               // cabeça de perfil, olhando para a frente
+  rect("rgba(0,0,0,.22)", -4, -32.4 + hy, 9, 3); rect(C.hair, 2.4, -29.9 + hy, 2, 1.4); // barba por fazer e cavanhaque
+  rect(C.dk, -1.2, -35.4 + hy, 1.5, 2.6);                                               // orelha
+  rect("#e9dfcf", 1.4, -36.2 + hy, 2.4, 1); rect(C.hair, 2.4, -36.2 + hy, 1.2, 1); rect("rgba(0,0,0,.55)", 1.2, -36.6 + hy, 2.8, 0.55);
+  ctx.strokeStyle = C.hair; ctx.lineWidth = 1.15; ctx.lineCap = "butt";
+  ctx.beginPath(); ctx.moveTo(0.2, -38.2 + hy); ctx.lineTo(4, -37.2 + hy); ctx.stroke();   // sobrancelha franzida
+  rect("#3a2214", 5, -34.8 + hy, 1.4, 2.4); rect("#6b4430", 5.2, -34.8 + hy, 0.5, 1.8);   // nariz
+  rect("#a05a48", 2.2, mY, 2.6, 0.7);                                                   // boca
+  ctx.save(); ctx.translate(3.4, mY + 0.3 + Math.sin(t * 2.6) * 0.2); ctx.rotate(-0.3 + Math.sin(t * 1.3) * 0.05);   // graveto
+  rect("#b58e55", 0, -0.45, 6.6, 0.9); rect("#8a6a38", 0, 0.1, 6.6, 0.35); rect("#e0c690", 6, -0.45, 0.6, 0.9);
+  ctx.restore();
+  ctx.fillStyle = C.hair; roundPath(-4.8, -46 + hy, 10, 6.4, 2.6); ctx.fill();          // cabelo curto
+  rect(C.hair, -4.8, -42 + hy, 2, 5); rect(C.hair, -4, -40.4 + hy, 9, 0.7);
+  for (let i = 0; i < 5; i++) rect(C.hair2, -3.8 + i * 1.7, -45.3 + hy + (i % 2) * 0.6, 0.9, 0.9);
+  ctx.restore(); ctx.restore();
 }
 function drawTiaoUI(now) {
   const nameY = PIER_Y - 58;
@@ -1101,6 +1151,7 @@ function drawPhone() {
 }
 
 addEventListener("keydown", e => {
+  if (PAUSED) return;                                   // pausado (ou nas Configurações da pausa): as teclas não são do jogo
   if (UI.open) return;                                  // digitando o apelido: as teclas não são do jogo
   if (INTRO.active) return;                             // abertura (título / zoom / queda): ainda sem controles
   SND.unlock();                                         // o navegador só libera o som depois de uma tecla/toque
@@ -2016,16 +2067,24 @@ cfgStyle.textContent = `#cfg{position:fixed;inset:0;z-index:45;display:none;alig
 #cfg .hp-row button{min-width:112px}
 #cfg .hp-row button.off{color:#1b2619;background:transparent;box-shadow:inset 0 0 0 2px #1b2619}
 #cfg .hp-row button:hover,#cfg .hp-row button:focus-visible,#cfg .hp-btns button:hover,#cfg .hp-btns button:focus-visible{background:#2f4029;color:#97a888;outline:none}
-#cfg .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}`;
+#cfg .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}
+#cfg .hp-row>span:first-child{flex:none}
+#cfg input[type=range]{flex:1;min-width:0;accent-color:#1b2619;cursor:pointer}
+#cfg .vv{flex:none;width:3.6em;text-align:right}`;
 document.head.appendChild(cfgStyle);
 cfgEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Configurações"><div class="hp-title">Configurações</div>
   <div class="hp-row"><span>Som</span><button id="cfg-snd" type="button"></button></div>
   <div class="hp-row"><span>Tremor da tela</span><button id="cfg-shk" type="button"></button></div>
+  <div class="hp-row"><span>Efeitos</span><input id="cfg-sfx" type="range" min="0" max="150" step="5"><span class="vv" id="cfg-sfxv"></span></div>
+  <div class="hp-row"><span>Música</span><input id="cfg-mus" type="range" min="0" max="150" step="5"><span class="vv" id="cfg-musv"></span></div>
   <div class="hp-row" id="cfg-keyrow"><span>Tecla de voltar</span><button id="cfg-key" type="button"></button></div>
   <div class="hp-btns"><button id="cfg-close" type="button">Voltar</button></div></div>`;
 document.body.appendChild(cfgEl);
 const cfgBtn = introEl.querySelector("#intro-config"), cfgSnd = cfgEl.querySelector("#cfg-snd"), cfgShk = cfgEl.querySelector("#cfg-shk"), cfgClose = cfgEl.querySelector("#cfg-close"), cfgKeyRow = cfgEl.querySelector("#cfg-keyrow"), cfgKey = cfgEl.querySelector("#cfg-key");
+const cfgSfx = cfgEl.querySelector("#cfg-sfx"), cfgMus = cfgEl.querySelector("#cfg-mus"), cfgSfxV = cfgEl.querySelector("#cfg-sfxv"), cfgMusV = cfgEl.querySelector("#cfg-musv");
 function cfgSync() {
+  cfgSfx.value = Math.round(SND.sfxVol * 100); cfgSfxV.textContent = cfgSfx.value + "%";
+  cfgMus.value = Math.round(SND.musVol * 100); cfgMusV.textContent = cfgMus.value + "%";
   cfgSnd.textContent = SND.muted ? "DESLIGADO" : "LIGADO"; cfgSnd.classList.toggle("off", SND.muted);
   cfgShk.textContent = SHAKE_ON ? "LIGADO" : "DESLIGADO"; cfgShk.classList.toggle("off", !SHAKE_ON);
   cfgKey.textContent = rebinding ? "PRESSIONE..." : keyLabel(RESUME_KEY);
@@ -2035,6 +2094,9 @@ function closeCfg() { if (!cfgEl.classList.contains("on")) return; cfgEl.classLi
 cfgBtn.onclick = openCfg; cfgClose.onclick = closeCfg;
 cfgKey.onclick = () => { rebinding = true; cfgSync(); };
 cfgSnd.onclick = () => { SND.toggleMute(); cfgSync(); };
+cfgSfx.oninput = () => { SND.unlock(); SND.setSfxVol(cfgSfx.value / 100); cfgSync(); };
+cfgSfx.onchange = () => SND.play("catch_chime", { vol: 0.5, jitter: 0 });           // ao soltar o controle, toca um som de teste
+cfgMus.oninput = () => { SND.unlock(); SND.setMusVol(cfgMus.value / 100); cfgSync(); };
 cfgShk.onclick = () => { SHAKE_ON = !SHAKE_ON; try { localStorage.setItem("shake", SHAKE_ON ? "1" : "0"); } catch (e) {} cfgSync(); };
 cfgEl.addEventListener("pointerdown", e => { if (e.target === cfgEl) closeCfg(); });
 addEventListener("keydown", e => { if (e.code === "Escape") closeCfg(); });
