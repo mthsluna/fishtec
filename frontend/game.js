@@ -977,7 +977,7 @@ function zoomView(z, fx, fy, side = 0.5) {                       // side: onde o
   ctx.drawImage(zb, sx * S, sy * S, sw * S, sh * S, 0, 0, W, H);
 }
 // ---------- Puxando o peixe: inclina para trás, vara envergada pela força do peixe e manivela girando ----------
-let reelAng = 0, zs = 1, zfy = 144, lastView = { z: 1, sx: 0, sy: 0 };           // ângulo da manivela; zs: escala do zoom atual (1 = sem zoom); lastView: recorte usado no quadro
+let reelAng = 0, zs = 1, zfy = 144, zside = 0.3, lastView = { z: 1, sx: 0, sy: 0 };           // ângulo da manivela; zs: escala do zoom atual (1 = sem zoom); lastView: recorte usado no quadro
 function reelPose(now, ang = reelAng, inside = fish && fp.y > bar.y && fp.y < bar.y + bar.h) {   // peixe dentro da barra = vara mais folgada; fora = peixe puxando forte
   const pull = (inside ? 0.55 : 0.95) + 0.2 * Math.sin(now / 95);
   const tipA = -1.0 + 0.2 * (pull - 0.5) + 0.03 * Math.sin(now / 130);   // ângulo da ponta: abaixa quando o peixe puxa forte
@@ -1443,7 +1443,7 @@ function catchDims() {                                                         /
   if (ih * r > PIER_Y - above - 30) r = (PIER_Y - above - 30) / ih;           // peixe enorme: nunca passa do topo da tela
   return { fi, ok, w: iw * r, h: ih * r, above };
 }
-const catchFocusY = () => { const d = catchDims(); return (PIER_Y - d.above - d.h - 24 + PIER_Y + 8) / 2; };   // centro do zoom: enquadra o pescador, o peixe e o texto de cima
+const catchFocusY = () => { const d = catchDims(); return (PIER_Y - d.above - d.h + PIER_Y) / 2; };   // centro do zoom: bem no meio entre o topo do peixe e os pés do pescador (o texto cabe acima)
 function drawCatch(now, wx) {
   CU = null;
   if (state !== "show" || !fish) return;
@@ -1506,6 +1506,7 @@ function update(dt) {
   GSHAKE *= Math.exp(-dt * 6);
   const cu = Math.max(0, Math.min(1, (px - CAM_FAR) / (PX_MAX - CAM_FAR)));
   camX += (-(px - WORLD / 2) * CAM_K - CAM_EXTRA * cu * cu * (3 - 2 * cu) - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador   // câmera suave atrás do pescador
+  zside += ((state === "show" && fish ? 0.5 : 0.3) - zside) * Math.min(1, dt * 4);   // ao comemorar, o pescador (e o peixe em cima dele) fica no meio da tela; puxando, fica mais à esquerda
   zfy += ((state === "show" && fish ? catchFocusY() : PIER_Y - 6) - zfy) * Math.min(1, dt * 4);   // o centro do zoom também desliza (sem tranco ao entrar e sair)
   zs += ((state === "reel" ? 1.45 : state === "show" ? catchZoom(catchCm) : 1) - zs) * Math.min(1, dt * 4);   // puxando: 1,45x; comemorando: depende do tamanho do peixe (pequeno = mais perto)
   vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
@@ -2202,7 +2203,7 @@ function draw(now) {
   ctx.restore();
 
   if (INTRO.on) introView(now);
-  else if (zs > 1.003) zoomView(zs, wx + px, zfy, 0.3);   // aproxima no pescador enquanto puxa/comemora o peixe (a interface abaixo não é ampliada)
+  else if (zs > 1.003) zoomView(zs, wx + px, zfy, zside);   // aproxima no pescador enquanto puxa/comemora o peixe (a interface abaixo não é ampliada)
   else lastView = { z: 1, sx: 0, sy: 0 };
 
   if (!INTRO.on) shakeView(now);                                       // tremor levinho (só o cenário; a interface abaixo não treme)
