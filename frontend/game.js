@@ -143,6 +143,7 @@ let fish = null, score = 0, msg = "", msgT = 0, bite = 0;
 const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
+let landT0 = 0;                                                          // quando a boia caiu na água (para o elástico)
 let cs = { t: 0, rel: null, hang: null }; const fxs = [];            // arremesso em andamento e respingos
 let gaitPh = 0, stepIdx = -1, reelT = 0;                       // controle dos sons de passo e de carretilha
 const WALK = 90, RUN = 165;                       // velocidades (px/s): andar e correr (SHIFT)
@@ -647,16 +648,18 @@ function reelPose(now, ang = reelAng, inside = fish && fp.y > bar.y && fp.y < ba
 // A água (copiada do próprio lago, como nos postes) cobre a parte de baixo. Quando o peixe morde, a boia é puxada para baixo em trancos.
 const BOB_R = 3.6;
 const surfY = (now, bx) => BOB_Y + 1 + 0.45 * Math.sin(now / 820 + bx * 0.2) + 0.22 * Math.sin(now / 470 + 1.3);   // altura da água ali, ondulando devagar
-function bobPose(bx, now, st) {                                           // onde a boia está: cy = centro, wl = linha da água, ang = inclinação, pull = quanto está sendo puxada
+function bobPose(bx, now, st, land) {                                           // onde a boia está: cy = centro, wl = linha da água, ang = inclinação, pull = quanto está sendo puxada
   const wl = surfY(now, bx);
   let pull = 0;
   if (st === "bite") {                                                    // peixe puxando: tranco rápido para baixo, volta mais devagar, e de novo
     const a = (now / 1000 * 1.9) % 1, e = a < 0.22 ? 1 - Math.pow(1 - a / 0.22, 2) : Math.pow(1 - (a - 0.22) / 0.78, 2.2);
     pull = 1.4 + 4.6 * e * (0.8 + 0.2 * Math.sin(now / 260));
   } else if (st === "reel") pull = 1.2 + 0.9 * Math.abs(Math.sin(now / 150));   // peixe fisgado: a boia fica meio afundada, tremendo
-  const cy = wl - 0.7 + 0.28 * Math.sin(now / 1150 + 2) + pull;
-  const ang = 0.16 * Math.sin(now / 1350 + bx) + 0.07 * Math.sin(now / 610) + (pull ? 0.18 * Math.sin(now / 90) : 0);   // balança de leve na água
-  return { cy, wl, ang, pull, x: bx + 0.3 * Math.sin(now / 1500 + bx) + (pull ? 0.5 * Math.sin(now / 70) : 0) };
+  const u = land ? Math.max(0, (now - land) / 1000) : 9;                   // tempo desde que a boia caiu na água
+  const spring = u < 2.2 ? 4.2 * Math.exp(-3.1 * u) * Math.sin(10.5 * u) : 0;   // elástico: afunda, quica para cima e vai amortecendo (não cai "durona")
+  const cy = wl - 0.7 + 0.28 * Math.sin(now / 1150 + 2) + pull + spring;
+  const ang = (u < 2.2 ? 0.5 * Math.exp(-2.6 * u) * Math.sin(9 * u + 1) : 0) + 0.16 * Math.sin(now / 1350 + bx) + 0.07 * Math.sin(now / 610) + (pull ? 0.18 * Math.sin(now / 90) : 0);   // balança de leve na água
+  return { cy, wl, ang, pull, spring, x: bx + 0.3 * Math.sin(now / 1500 + bx) + (pull ? 0.5 * Math.sin(now / 70) : 0) };
 }
 function drawBall(bx, cy, ang = 0) {                                       // a bolinha inteira: metade de cima vermelha, de baixo branca, com brilho (sem contorno)
   const R = BOB_R;
@@ -671,8 +674,8 @@ function drawBall(bx, cy, ang = 0) {                                       // a 
   rect("rgba(255,255,255,.85)", bx - 1.9, cy - 2.2, 1.3, 0.9);              // brilho
   ctx.restore();
 }
-function drawBobber(bx, now, st) {                                         // boia na água
-  const P = bobPose(bx, now, st), R = BOB_R, cy = P.cy, wl = P.wl; bx = P.x;
+function drawBobber(bx, now, st, land) {                                   // boia na água
+  const P = bobPose(bx, now, st, land), R = BOB_R, cy = P.cy, wl = P.wl; bx = P.x;
   const wxp = (W - WORLD) / 2 + camX, x0 = bx - R - 1, x1 = bx + R + 1;
   drawBall(bx, cy, P.ang);
   const under = Math.max(0, cy + R - wl);                                  // quanto da bolinha está debaixo d'água
@@ -701,12 +704,12 @@ function drawBobber(bx, now, st) {                                         // bo
     ctx.beginPath(); ctx.ellipse(bx, wl + 0.4, R + 2 + k * 9 * amp, 1.1 + k * 1.7 * amp, 0, 0, 7); ctx.stroke();
   }
 }
-function drawLine(tx, ty, bx, now, st) {
-  const P = bobPose(bx, now, st);
+function drawLine(tx, ty, bx, now, st, land) {
+  const P = bobPose(bx, now, st, land);
   ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 0.7;
-  const top = P.cy - BOB_R + 0.5, slack = st === "bite" || st === "reel" ? 6 : 12;   // linha mais esticada quando o peixe puxa
+  const top = P.cy - BOB_R + 0.5, slack = (st === "bite" || st === "reel" ? 6 : 12) + (land ? 5 * Math.exp(-4 * Math.max(0, (now - land) / 1000)) : 0);   // linha mais esticada quando o peixe puxa
   ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + P.x) / 2, (ty + top) / 2 + slack, P.x, top); ctx.stroke();
-  drawBobber(bx, now, st);
+  drawBobber(bx, now, st, land);
   if (st === "bite") text("!", bx, BOB_Y - 24, "#ffd166", "center");
 }
 function drawOther(p, now) {
@@ -717,6 +720,7 @@ function drawOther(p, now) {
     p.pst = p.state;
     if (p.state === "cast") { p.cs = { t: 0, rel: null, hang: null, k0: p.rd ? p.rd.k : 1 }; p.c0 = now; p.landed = false; }
     if (p.state === "reel") p.ra = 0;
+    if (p.state === "wait" && !p.landed) { p.landed = true; p.land = now; fxs.push({ x: p.bx, t0: now }); }   // o servidor mudou de estado antes da animação terminar
   }
   let pose = null;
   const rd = p.rd || (p.rd = newRod(1));                       // quem não está pescando anda com a vara nas costas
@@ -725,7 +729,7 @@ function drawOther(p, now) {
   if (p.state === "cast" && p.cs) {
     p.cs.t = (now - p.c0) / 1000;
     pose = castPose(p.cs.t, p.cs.k0);
-    if (!p.landed && p.cs.t >= CAST_RELEASE + CAST_FLIGHT) { p.landed = true; fxs.push({ x: p.bx, t0: now }); }   // respingo quando a boia dele cai
+    if (!p.landed && p.cs.t >= CAST_RELEASE + CAST_FLIGHT) { p.landed = true; p.land = now; fxs.push({ x: p.bx, t0: now }); }   // respingo quando a boia dele cai
   } else if (p.state === "reel") {
     const inside = Math.sin(now / 900 + p.x) > -0.2;             // o servidor não manda a barra do minigame: simula o vai-e-vem
     p.ra += (inside ? 14 : -3) * dt;
@@ -735,7 +739,7 @@ function drawOther(p, now) {
 }
 function drawOtherLine(p, now) {                                 // linha e nome são desenhados por cima da água
   if (p.state === "cast" && p.cs && p.tip) drawCast(p.tip, p.cs, p.bx);
-  else if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state);
+  else if (p.state !== "walk" && p.tip) drawLine(p.tip.x, p.tip.y, p.bx, now, p.state, p.land);
   text(p.name, p.x, PIER_Y - FISHER_TOP * hScale(p.h) - 6, "#cfe8ff", "center");
 }
 
@@ -1042,7 +1046,7 @@ function update(dt) {
     showT += dt; if (showT > 3.2) state = "walk";
   } else if (state === "cast") {
     cs.t += dt;
-    if (cs.t >= CAST_RELEASE + CAST_FLIGHT) { state = "wait"; t = 2 + Math.random() * 3; fxs.push({ x: bobber.x, t0: performance.now() }); SND.splash(); }
+    if (cs.t >= CAST_RELEASE + CAST_FLIGHT) { state = "wait"; t = 2 + Math.random() * 3; landT0 = performance.now(); fxs.push({ x: bobber.x, t0: landT0 }); SND.splash(); }
   } else if (state === "wait") {
     t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; SND.bite(); kick(0.5); }
   } else if (state === "bite") {
@@ -1445,6 +1449,81 @@ function postWaves(now, wxp) {
   }
 }
 
+// ---------- Barrinha do minigame: moldura de madeira, água com bolhas, barra verde reluzente e brilhos ----------
+const hs = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };   // número "aleatório" fixo (0 a 1) para cada n
+function spark(x, y, r, a, c = "#fff") {                                    // estrelinha de 4 pontas
+  if (a <= 0.03) return;
+  ctx.globalAlpha = Math.min(1, a);
+  rect(c, x - r, y - 0.4, 2 * r, 0.8); rect(c, x - 0.4, y - r, 0.8, 2 * r);
+  rect("#fff", x - 0.6, y - 0.6, 1.2, 1.2);
+  ctx.globalAlpha = 1;
+}
+function drawReelUI(now) {
+  const X = TRACK.x, Y = TRACK.y, H = TRACK.h, t = now / 1000;
+  const inside = !!fish && fp.y > bar.y && fp.y < bar.y + bar.h, pulse = 0.5 + 0.5 * Math.sin(t * 5);
+  // moldura de madeira com luz em cima/esquerda e sombra embaixo/direita
+  rect("#24170d", X - 15, Y - 9, 46, H + 18); rect("#3b2a1a", X - 14, Y - 8, 44, H + 16);
+  rect("#7a5632", X - 14, Y - 8, 44, 1); rect("#7a5632", X - 14, Y - 8, 1, H + 16);
+  rect("#1f140b", X - 14, Y + H + 7, 44, 1); rect("#1f140b", X + 29, Y - 8, 1, H + 16);
+  [[-12, -6], [27, -6], [-12, H + 4], [27, H + 4]].forEach(([dx, dy], i) => {           // pininhos dourados que piscam
+    rect("#b8862b", X + dx, Y + dy, 2, 2); rect("#ffd978", X + dx, Y + dy, 1, 1);
+    spark(X + dx + 1, Y + dy + 1, 2.6, Math.sin(((t * 0.7 + i * 0.27) % 1) * Math.PI) ** 6);
+  });
+  // água do trilho: degradê, riscos de luz subindo e bolhinhas
+  ctx.save(); ctx.beginPath(); ctx.rect(X, Y, 16, H); ctx.clip();
+  let g = ctx.createLinearGradient(0, Y, 0, Y + H); g.addColorStop(0, "#27607c"); g.addColorStop(0.5, "#1b3a4b"); g.addColorStop(1, "#0f2536");
+  ctx.fillStyle = g; ctx.fillRect(X, Y, 16, H);
+  for (let i = 0; i < 6; i++) {
+    const yy = Y + (((hs(i) * H - t * (5 + i * 2.2)) % H) + H) % H;
+    rect("rgba(170,225,255,.10)", X + 1 + hs(i + 9) * 8, yy, 4 + hs(i + 3) * 5, 0.8);
+  }
+  for (let i = 0; i < 8; i++) {
+    const by = Y + H - ((t * (9 + hs(i + 30) * 9) + hs(i) * H) % H), bx = X + 2 + hs(i + 20) * 12 + Math.sin(t * 2 + i) * 0.8;
+    rect("rgba(205,238,255,.5)", bx, by, 1, 1); rect("rgba(255,255,255,.35)", bx, by, 0.5, 0.5);
+  }
+  rect("rgba(0,0,0,.35)", X, Y, 16, 1); rect("rgba(0,0,0,.25)", X, Y, 1, H);          // sombrinha interna
+  ctx.restore();
+  // barra verde: brilho em volta, degradê, gloss, reflexo passando e glitter
+  const y0 = Y + bar.y, bh = bar.h;
+  for (let k = 3; k >= 1; k--) rect(`rgba(120,255,150,${(inside ? 0.09 + 0.06 * pulse : 0.04) * (4 - k) / 2})`, X + 1 - k, y0 - k, 14 + 2 * k, bh + 2 * k);
+  g = ctx.createLinearGradient(X, 0, X + 16, 0); g.addColorStop(0, "#9bf59b"); g.addColorStop(0.45, "#5fd36a"); g.addColorStop(1, "#38a64d");
+  ctx.fillStyle = g; ctx.fillRect(X + 1, y0, 14, bh);
+  ctx.save(); ctx.beginPath(); ctx.rect(X + 1, y0, 14, bh); ctx.clip();
+  rect("rgba(255,255,255,.32)", X + 2, y0 + 1, 2, bh - 2);                              // gloss na lateral
+  const sw = (t * 38) % (bh + 50) - 25;                                                  // reflexo diagonal que desce pela barra
+  for (let d = 0; d < 4; d++) rect(`rgba(255,255,255,${0.26 - d * 0.05})`, X + 1, y0 + sw + d * 2 - 6, 14, 1.4);
+  ctx.restore();
+  rect("#d6ffd6", X + 1, y0, 14, 1); rect("#2b8541", X + 1, y0 + bh - 1, 14, 1);        // borda de cima clara e de baixo escura
+  if (inside) { ctx.strokeStyle = `rgba(255,255,210,${0.35 + 0.35 * pulse})`; ctx.lineWidth = 0.8; ctx.strokeRect(X + 1.4, y0 + 0.4, 13.2, bh - 0.8); }
+  for (let i = 0; i < 10; i++) {                                                         // glitter dentro da barra (mais forte com o peixe dentro)
+    const ph = (t * (0.7 + hs(i + 70) * 0.9) + hs(i + 90)) % 1;
+    spark(X + 2 + hs(i) * 12, y0 + 2 + hs(i + 50) * Math.max(1, bh - 4), 1 + (hs(i + 110) > 0.6 ? 1.6 : 0.4), Math.sin(ph * Math.PI) * (inside ? 1 : 0.65), "#eaffea");
+  }
+  // peixe: halo dourado e estrelinhas girando quando está dentro da barra
+  const fx = X + 8, fy = Y + fp.y;
+  if (inside) {
+    g = ctx.createRadialGradient(fx, fy, 1, fx, fy, 20); g.addColorStop(0, `rgba(255,240,150,${0.32 + 0.16 * pulse})`); g.addColorStop(1, "rgba(255,240,150,0)");
+    ctx.fillStyle = g; ctx.fillRect(fx - 22, fy - 22, 44, 44);
+  }
+  drawMystery(fx, fy, 30, 22);                                                           // sempre o peixe misterioso; o de verdade só aparece depois de pescar
+  if (inside) for (let i = 0; i < 4; i++) { const an = t * 2.2 + i * Math.PI / 2; spark(fx + Math.cos(an) * 13, fy + Math.sin(an) * 8, 2, 0.5 + 0.5 * Math.sin(t * 6 + i * 2), "#fff3a8"); }
+  // progresso: calha escura, enchimento com degradê, reflexo subindo e brilho na pontinha
+  const px0 = X + 22, fh = TRACK.h * prog / 100, top = Y + TRACK.h - fh;
+  rect("#0e0e0e", px0, Y, 6, H); rect("#2a2a2a", px0, Y, 6, 1); rect("#1b1b1b", px0 + 1, Y + 1, 4, H - 1);
+  const col = prog > 66 ? ["#b9ffb9", "#6bd66b", "#3aa84f"] : prog > 33 ? ["#fff0b0", "#ffd166", "#d99a2b"] : ["#ff9aa2", "#e63946", "#a82432"];
+  if (fh > 0.5) {
+    g = ctx.createLinearGradient(px0 + 1, 0, px0 + 5, 0); g.addColorStop(0, col[0]); g.addColorStop(0.5, col[1]); g.addColorStop(1, col[2]);
+    ctx.fillStyle = g; ctx.fillRect(px0 + 1, top, 4, fh);
+    rect("rgba(255,255,255,.5)", px0 + 1, top, 4, 0.8);
+    ctx.save(); ctx.beginPath(); ctx.rect(px0 + 1, top, 4, fh); ctx.clip();
+    const sh = (t * 55) % (fh + 14); rect("rgba(255,255,255,.45)", px0 + 1, Y + H - sh, 4, 2); rect("rgba(255,255,255,.2)", px0 + 1, Y + H - sh + 2, 4, 2);
+    ctx.restore();
+    spark(px0 + 3, top, 2.4 + pulse, 0.6 + 0.4 * Math.sin(t * 7), col[0]);
+    if (prog > 66) for (let i = 0; i < 3; i++) spark(px0 + 3 + (hs(i + 5) - 0.5) * 9, top + 3 + hs(i) * Math.min(fh, 30), 1.4, Math.sin(((t * 1.3 + i * 0.31) % 1) * Math.PI), "#eaffea");
+  }
+  rect("rgba(255,255,255,.18)", px0 + 1, Y + H * 0.34, 4, 0.7); rect("rgba(255,255,255,.18)", px0 + 1, Y + H * 0.67, 4, 0.7);   // marcas de 33% e 66%
+}
+
 function draw(now) {
   if (!layers) buildLayers(now);
   const ox = (W - WORLD) / 2, wx = ox + camX;              // wx = deslocamento do mundo na tela
@@ -1504,7 +1583,7 @@ function draw(now) {
   drawCatch(now);
   drawDust();
   if (state === "cast") drawCast(tip, cs, bobber.x);
-  else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state);
+  else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state, landT0);
   ctx.restore();
 
   if (INTRO.on) introView(now);
@@ -1514,13 +1593,7 @@ function draw(now) {
 
   // minigame estilo Stardew
   if (state === "reel") {
-    rect("#3b2a1a", TRACK.x - 14, TRACK.y - 8, 44, TRACK.h + 16);
-    rect("#1b3a4b", TRACK.x, TRACK.y, 16, TRACK.h);
-    rect("#6bd66b", TRACK.x + 1, TRACK.y + bar.y, 14, bar.h);
-    drawMystery(TRACK.x + 8, TRACK.y + fp.y, 30, 22);                 // sempre o peixe misterioso; o de verdade só aparece depois de pescar
-    // progresso
-    rect("#1b1b1b", TRACK.x + 22, TRACK.y, 6, TRACK.h);
-    rect(prog > 66 ? "#6bd66b" : prog > 33 ? "#ffd166" : "#e63946", TRACK.x + 23, TRACK.y + TRACK.h * (1 - prog / 100), 4, TRACK.h * prog / 100);
+    drawReelUI(now);
   }
 
   if (vigK > 0.004) {                                                  // vinheta escura bem fraquinha enquanto comemora
