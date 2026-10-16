@@ -1593,8 +1593,9 @@ introStyle.textContent = `
 #intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
   pointer-events:none;transition:opacity .55s ease;font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none}
 #intro.off{opacity:0}
-#intro h1 span{display:inline-block;transform-origin:50% 70%;animation:introWave 2.2s ease-in-out infinite;animation-delay:calc(var(--i) * .12s)}
-@keyframes introWave{0%{transform:translateY(0) scale(1)}25%{transform:translateY(-.07em) scale(1.13)}50%,100%{transform:translateY(0) scale(1)}}
+#intro h1{perspective:3.5em;perspective-origin:50% 50%}
+#intro h1 span{display:inline-block;transform-origin:50% 60%;will-change:transform;animation:introWave 1.8s ease-in-out infinite;animation-delay:calc(var(--i) * -.14s)}
+@keyframes introWave{0%,100%{transform:translateZ(-.3em) rotateY(-12deg)}50%{transform:translateZ(.5em) rotateY(12deg)}}
 @media (prefers-reduced-motion:reduce){#intro h1 span{animation:none}}
 #intro h1{margin:0;font-weight:400;font-size:clamp(54px,12vw,140px);line-height:1;letter-spacing:.09em;color:#ffe0a8;padding-left:.09em;
   text-shadow:0 .045em 0 #f4a261,0 .09em 0 #b83f6a,0 .135em 0 #5e3274,0 0 .6em rgba(255,200,120,.4)}
