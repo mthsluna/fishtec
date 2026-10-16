@@ -18,9 +18,9 @@ const refl = document.createElement("canvas");
 const viewW = () => Math.max(WORLD, Math.min(WORLD + 240, Math.round(H * innerWidth / innerHeight)));
 
 // ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
-const LEVELS = 4;                        // níveis por canal: 2 = bem radical (8 cores), 4 = equilibrado, 6 = mais suave
+const LEVELS = 6;                        // níveis por canal: 2 = bem radical (8 cores), 4 = estilo Obra Dinn clássico, 6 = profissional (216 cores), 8 = quase sem dithering visível
 const STEP = 255 / (LEVELS - 1);
-const NIGHT_LIFT = 0.40;                // clareia as sombras à noite ANTES do dithering (0 = igual a antes, 0.5 = bem mais claro). A paleta continua a mesma de 4 níveis
+const NIGHT_LIFT = 0.55;                // clareia as sombras à noite ANTES do dithering (0 = igual a antes, 0.5 = bem mais claro). A paleta continua a mesma de 4 níveis
 const BAYER = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
                3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
 
@@ -33,7 +33,8 @@ const gl = (() => {
 })();
 const out = gl ? null : cv.getContext("2d");
 const buf = document.createElement("canvas");
-let glTex, liftLoc;
+let DITHER_CELL = 1;
+let glTex, liftLoc, texelLoc, cellLoc;
 if (gl) {
   const VS = "attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}";
   const FS = `#ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -41,13 +42,16 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform sampler2D t;uniform float steps;uniform float lift;varying vec2 uv;
+uniform sampler2D t;uniform float steps;uniform float lift;uniform vec2 texel;uniform float cell;varying vec2 uv;
 float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
 float b8(vec2 a){return (b2(a*.25)*.25+b2(a*.5))*.25+b2(a);}
 void main(){
-  vec3 c=pow(texture2D(t,uv).rgb,vec3(lift))*255.;
+  vec3 c0=texture2D(t,uv).rgb;
+  vec3 bl=(texture2D(t,uv+vec2(texel.x,0.)).rgb+texture2D(t,uv-vec2(texel.x,0.)).rgb+texture2D(t,uv+vec2(0.,texel.y)).rgb+texture2D(t,uv-vec2(0.,texel.y)).rgb)*.25;
+  c0=clamp(c0+(c0-bl)*.45,0.,1.);                       // nitidez leve: bordas mais limpas depois da ampliação
+  vec3 c=pow(c0,vec3(lift))*255.;
   float st=255./(steps-1.);
-  float th=(b8(mod(floor(gl_FragCoord.xy),8.))-.47)*st;
+  float th=(b8(mod(floor(gl_FragCoord.xy/cell),8.))-.47)*st;
   c=clamp(floor((c+th)/st+.5)*st,0.,255.)/255.;
   gl_FragColor=vec4(c,1.);
 }`;
@@ -59,17 +63,24 @@ void main(){
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
   const loc = gl.getAttribLocation(pg, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   glTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, glTex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.uniform1f(gl.getUniformLocation(pg, "steps"), LEVELS);
   liftLoc = gl.getUniformLocation(pg, "lift");
+  texelLoc = gl.getUniformLocation(pg, "texel"); cellLoc = gl.getUniformLocation(pg, "cell");
 }
 
 function setScale(s) {
   S = s; layers = null; W = viewW();
-  cv.width = buf.width = W * S; cv.height = buf.height = H * S;
+  buf.width = W * S; buf.height = H * S;
   refl.width = W * S; refl.height = RD * S;
-  cv.style.width = Math.min(innerWidth, innerHeight * W / H) + "px";   // preenche a tela, sem barras laterais
+  const cssW = Math.min(innerWidth, innerHeight * W / H), cssH = cssW * H / W;   // preenche a tela, sem barras laterais
+  cv.style.width = cssW + "px"; cv.style.height = cssH + "px";
+  if (gl) {                                                           // saída na resolução real do monitor (até 2x e no máximo 2560 px): dithering nítido, sem moiré
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), k = Math.min(dpr, 2560 / cssW);
+    cv.width = Math.max(1, Math.round(cssW * k)); cv.height = Math.max(1, Math.round(cssH * k));
+    DITHER_CELL = Math.max(1, Math.round(k));                         // tamanho de cada "pixel" do padrão de dithering
+  } else { cv.width = buf.width; cv.height = buf.height; }           // sem WebGL: dithering na CPU, no tamanho do buffer
   ctx = buf.getContext("2d", gl ? {} : { willReadFrequently: true });
   ctx.scale(S, S);
 }
@@ -103,6 +114,7 @@ function present() {
   if (!gl) return dither();
   gl.viewport(0, 0, cv.width, cv.height);
   gl.uniform1f(liftLoc, nightLift());
+  gl.uniform2f(texelLoc, 1 / buf.width, 1 / buf.height); gl.uniform1f(cellLoc, DITHER_CELL);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, buf);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
