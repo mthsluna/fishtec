@@ -669,10 +669,10 @@ function keyHint(x, y, now, label) {
   const bob = Math.sin(now / 230) * 1.2, press = Math.floor(now / 550) % 3 === 0 ? 1 : 0, S0 = 13;
   const kw = label ? S0 + 4 + Math.ceil(label.length * UI_CH) : S0, kx = Math.round(x - kw / 2), ky = Math.round(y + bob);
   rect("#0f1624", kx - 1, ky - 1 + press, S0 + 2, S0 + 3);                                // contorno
-  rect("#a8842f", kx, ky + 1 + press, S0, S0);                                           // lateral da tecla (sombra)
-  rect("#ffd166", kx, ky + press, S0, S0 - 1);                                           // topo da tecla
-  rect("#fff0b8", kx + 1, ky + 1 + press, S0 - 2, 1);                                    // brilho
-  ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = "center"; ctx.fillStyle = "#1b1508";
+  rect("#9aa3b2", kx, ky + 1 + press, S0, S0);                                           // lateral da tecla (sombra)
+  rect("#ffffff", kx, ky + press, S0, S0 - 1);                                           // topo da tecla
+  rect("#e4e9f2", kx + 1, ky + 1 + press, S0 - 2, 1);                                    // brilho
+  ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = "center"; ctx.fillStyle = "#1b2230";
   ctx.fillText("E", kx + S0 / 2, ky + S0 - 3 + press);
   if (label) text(label, kx + S0 + 4, ky + S0 - 2, "#ffd166");
 }
@@ -2509,30 +2509,41 @@ try { RESUME_KEY = localStorage.getItem("resumeKey") || "Escape"; } catch (e) {}
 const keyLabel = c => c === "Escape" ? "ESC" : c === "Space" ? "ESPAÇO" : c.replace(/^(Key|Digit)/, "").replace(/^Arrow/, "SETA ").toUpperCase();
 const pzEl = document.createElement("div"); pzEl.id = "pz";
 const pzStyle = document.createElement("style");
-pzStyle.textContent = introStyle.textContent.replaceAll("#intro", "#pz") + `
-#pz{display:none;z-index:45;background:rgba(10,7,26,.62);pointer-events:auto}
+pzStyle.textContent = `
+/* --u = tamanho de 1 pixel do jogo na tela: o painel usa as mesmas medidas do inventário e das caixas de fala */
+#pz{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.6);
+  font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none;--u:3px;--acc:#ffd166}
 #pz.on{display:flex}
-#pz{justify-content:center;padding-top:0}
-#pz .pz-card{display:flex;flex-direction:column;align-items:center;gap:2.4vh;box-sizing:border-box;max-width:94vw;padding:clamp(18px,4vh,36px) clamp(20px,4vw,44px) clamp(22px,4.4vh,40px);
-  background:linear-gradient(180deg,#34265e 0%,#241a45 55%,#1b1336 100%);border:4px solid #ffe0a8;
-  box-shadow:0 0 0 4px #241a45,0 0 0 7px #b83f6a,0 0 0 10px #241a45,inset 0 0 0 3px #241a45,inset 0 0 3.2em rgba(255,200,120,.12),0 28px 70px rgba(0,0,0,.65);
-  animation:pzPop .28s cubic-bezier(.2,.9,.3,1.2)}
-#pz .pz-card h1{font-size:clamp(40px,8vw,92px);padding-bottom:.12em}
-#pz .pz-card h1 span{animation:none;transform:none}
-#pz .pz-card button{font-size:clamp(18px,2.6vw,30px)}
-#pz .pz-card button.sec{margin-top:0}
-@keyframes pzPop{from{transform:translateY(14px) scale(.96);opacity:0}to{transform:none;opacity:1}}
-@media (prefers-reduced-motion:reduce){#pz .pz-card{animation:none}}`;                                  // mesmo título e botões da tela inicial (o CSS é o da abertura, trocando o id)
+#pz .pz-card{width:calc(200 * var(--u));box-sizing:border-box;padding:calc(8 * var(--u)) calc(4 * var(--u)) calc(6 * var(--u));background:rgba(15,22,36,.96);
+  box-shadow:0 0 0 var(--u) var(--acc),0 calc(10 * var(--u)) calc(30 * var(--u)) rgba(0,0,0,.6);animation:pzPop .18s ease-out}
+#pz .pz-top{display:flex;justify-content:space-between;align-items:baseline;padding:0 calc(4 * var(--u));font-size:calc(11 * var(--u));line-height:1;
+  text-shadow:var(--u) var(--u) 0 #000}
+#pz .pz-top b{font-weight:400;color:var(--acc)}
+#pz .pz-top i{font-style:normal;color:#9fd3ff}
+#pz .pz-line{height:var(--u);margin:calc(6 * var(--u)) calc(2 * var(--u)) calc(4 * var(--u));background:rgba(255,255,255,.18)}
+#pz .pz-list{display:flex;flex-direction:column;gap:calc(2 * var(--u))}
+#pz button{display:flex;align-items:center;justify-content:space-between;width:100%;height:calc(22 * var(--u));box-sizing:border-box;padding:0 calc(6 * var(--u));margin:0;border:0;border-radius:0;
+  background:transparent;color:#fff;font:inherit;font-size:calc(11 * var(--u));line-height:1;text-align:left;cursor:pointer;text-shadow:var(--u) var(--u) 0 #000}
+#pz button:focus,#pz button:active{outline:none;background:rgba(255,209,102,.16);color:var(--acc)}
+#pz button::after{content:"";width:calc(4 * var(--u));height:calc(4 * var(--u));background:var(--acc);opacity:0;clip-path:polygon(0 0,100% 50%,0 100%)}
+#pz button:focus::after{opacity:1}
+#pz .pz-foot{padding:0 calc(4 * var(--u));font-size:calc(11 * var(--u));line-height:1;color:#9aa6b8;text-shadow:var(--u) var(--u) 0 #000}
+@keyframes pzPop{from{transform:translateY(calc(6 * var(--u)));opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){#pz .pz-card{animation:none}}`;                                  // painel escuro com borda amarela, no mesmo estilo do inventário
 document.head.appendChild(pzStyle);
-pzEl.innerHTML = `<div class="pz-card" role="dialog" aria-label="Pausa"><h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="pz-back" type="button">VOLTAR AO JOGO</button><button id="pz-cfg" type="button" class="sec">CONFIGURAÇÕES</button><button id="pz-home" type="button" class="sec">TELA INICIAL</button></div>`;
+pzEl.innerHTML = `<div class="pz-card" role="dialog" aria-label="Pausa"><div class="pz-top"><b>Pausa</b><i>FISHTEC</i></div><div class="pz-line"></div><div class="pz-list"><button id="pz-back" type="button">Voltar ao jogo</button><button id="pz-cfg" type="button">Configurações</button><button id="pz-home" type="button">Tela inicial</button></div><div class="pz-line"></div><div class="pz-foot" id="pz-foot"></div></div>`;
 document.body.appendChild(pzEl);
 const pzBtns = [...pzEl.querySelectorAll("button")], pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
+const pzFoot = pzEl.querySelector("#pz-foot");
+function pzSize() { const r = cv.getBoundingClientRect(); pzEl.style.setProperty("--u", (r.height / H || 3) + "px"); }   // 1 pixel do jogo na tela
+addEventListener("resize", pzSize);
+pzBtns.forEach(b => b.addEventListener("mouseenter", () => b.focus()));
 let rebinding = false;
 function pauseGame() {
   PAUSED = true; rebinding = false;
   for (const k in keys) keys[k] = false; SND.reel(false);
   pzEl.classList.add("on");
-  pzBtns.forEach(b => { b.style.width = ""; }); const w = Math.max(...pzBtns.map(b => b.offsetWidth)); if (w) pzBtns.forEach(b => { b.style.width = w + "px"; });   // três botões do mesmo tamanho
+  pzSize(); pzFoot.textContent = (RESUME_KEY === "Escape" ? "ESC" : "ESC ou " + keyLabel(RESUME_KEY)) + " voltar ao jogo";
   pzBack.focus();
 }
 function resumeGame() { PAUSED = false; rebinding = false; pzEl.classList.remove("on"); cv.focus(); }
@@ -2557,7 +2568,11 @@ addEventListener("keydown", e => {                      // captura antes do rest
   if (cfgEl.classList.contains("on")) return;           // Configurações aberta: o ESC fecha só ela
   if (PAUSED) {
     e.preventDefault(); e.stopPropagation();
-    if (!e.repeat && (e.code === "Escape" || e.code === RESUME_KEY)) resumeGame();
+    if (!e.repeat && (e.code === "Escape" || e.code === RESUME_KEY)) { resumeGame(); return; }
+    const i = pzBtns.indexOf(document.activeElement), n = pzBtns.length;
+    if (e.code === "ArrowDown" || e.code === "KeyS") pzBtns[(i + 1) % n].focus();
+    else if (e.code === "ArrowUp" || e.code === "KeyW") pzBtns[(i + n - 1) % n].focus();
+    else if ((e.code === "Enter" || e.code === "Space" || e.code === "KeyE") && !e.repeat && i >= 0) pzBtns[i].click();
     return;
   }
   if (e.code === "Escape" && !e.repeat && !PH.open && !BAG.open) { e.preventDefault(); e.stopPropagation(); pauseGame(); }
