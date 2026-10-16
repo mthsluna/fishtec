@@ -664,6 +664,18 @@ function wrapLines(s, max) {
   s.split(" ").forEach(w => { if ((cur + " " + w).trim().length > max) { out.push(cur); cur = w; } else cur = (cur + " " + w).trim(); });
   if (cur) out.push(cur); return out;
 }
+// tecla "E" flutuando sobre a cabeça do personagem (aviso de que dá para interagir); a tecla balança e "aperta" de tempos em tempos
+function keyHint(x, y, now, label) {
+  const bob = Math.sin(now / 230) * 1.2, press = Math.floor(now / 550) % 3 === 0 ? 1 : 0, S0 = 13;
+  const kw = label ? S0 + 4 + Math.ceil(label.length * UI_CH) : S0, kx = Math.round(x - kw / 2), ky = Math.round(y + bob);
+  rect("#0f1624", kx - 1, ky - 1 + press, S0 + 2, S0 + 3);                                // contorno
+  rect("#a8842f", kx, ky + 1 + press, S0, S0);                                           // lateral da tecla (sombra)
+  rect("#ffd166", kx, ky + press, S0, S0 - 1);                                           // topo da tecla
+  rect("#fff0b8", kx + 1, ky + 1 + press, S0 - 2, 1);                                    // brilho
+  ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = "center"; ctx.fillStyle = "#1b1508";
+  ctx.fillText("E", kx + S0 / 2, ky + S0 - 3 + press);
+  if (label) text(label, kx + S0 + 4, ky + S0 - 2, "#ffd166");
+}
 function drawMaltoUI(now) {
   const nameY = PIER_Y - 58;
   text("Malto", MX, nameY, "#9fd3ff", "center");
@@ -677,7 +689,7 @@ function drawMaltoUI(now) {
     let left = shown;
     lines.forEach((l, i) => { text(l.slice(0, Math.max(0, left)), bx + 7, byy + 11 + i * lh, "#fff"); left -= l.length + 1; });
     if (shown >= full.length && Math.floor(now / 400) % 2) text("E >", bx + w - 5, byy + hgt - 2, "#ffd166", "right");
-  } else if (mNear() && !BAG.open) text(invCount() > 0 ? "[E] vender peixes" : "[E] falar", MX, nameY - 12, "#ffd166", "center");
+  } else if (mNear() && !BAG.open) keyHint(MX, nameY - 28, now, invCount() > 0 ? "vender" : "");
   drawTiaoUI(now);
 }
 // ---------- Pedro: negro alto (a altura do Malto), cabelo curto, sem camiseta, graveto na boca. Cara de mau, mas é muito gente boa ----------
@@ -964,7 +976,7 @@ function drawTiaoUI(now) {
     let left = shown;
     lines.forEach((l, i) => { text(l.slice(0, Math.max(0, left)), bx + 7, byy + 11 + i * lh, "#fff"); left -= l.length + 1; });
     if (shown >= full.length && Math.floor(now / 400) % 2) text("E >", bx + w - 5, byy + hgt - 2, "#ffd166", "right");
-  } else if (tNear()) text("[E] falar", TX, nameY - 12, "#ffd166", "center");
+  } else if (tNear()) keyHint(TX, nameY - 28, now);
 }
 // zoom: reaproveita o quadro pronto (assim o reflexo continua certo) e redesenha só um pedaço dele, ampliado
 const zb = document.createElement("canvas"); let zctx = null;
