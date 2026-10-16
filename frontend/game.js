@@ -67,12 +67,49 @@ function setScale(s) {
   S = s; layers = null; W = viewW();
   cv.width = buf.width = W * S; cv.height = buf.height = H * S;
   refl.width = W * S; refl.height = RD * S;
+  cv.style.imageRendering = "pixelated";                               // sem suavizar ao ampliar: o dithering fica nítido (bitmap)
   cv.style.width = Math.min(innerWidth, innerHeight * W / H) + "px";   // preenche a tela, sem barras laterais
   ctx = buf.getContext("2d", gl ? {} : { willReadFrequently: true });
   ctx.scale(S, S);
 }
 setScale(2);
 addEventListener("resize", () => setScale(S));
+
+// ---------- Efeito bitmap também na interface HTML (intro, ajuda, personalizar, celular em HTML) ----------
+// Mesmo dithering Bayer 8x8 do canvas, mas feito por um filtro SVG: LEVELS níveis por canal, bordas sem suavização (alfa de 1 bit)
+// e sombras/brilhos viram pontilhado. O fundo escuro atrás das telas também vira uma trama Bayer em vez de uma cor lisa.
+const BITMAP = (() => {
+  const tile = px => { const c = document.createElement("canvas"); c.width = c.height = 8;
+    const g = c.getContext("2d"), im = g.createImageData(8, 8);
+    for (let i = 0; i < 64; i++) im.data.set(px(BAYER[i] / 64), i * 4);
+    g.putImageData(im, 0, 0); return c.toDataURL(); };
+  const thr  = tile(b => { const v = Math.round(b * 255); return [v, v, v, 255]; });          // limiares do dithering
+  const back = tile(b => b < 0.78 ? [8, 12, 20, 255] : [0, 0, 0, 0]);                          // fundo escuro (78% de cobertura), pontilhado
+  const st = 1 / (LEVELS - 1), n = 2 * (LEVELS - 1);
+  const table = Array.from({ length: n }, (_, j) => +(Math.round((j + 0.5) / n / st) * st).toFixed(4)).join(" ");
+  document.body.insertAdjacentHTML("beforeend",
+    `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+      <filter id="bitmap" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+        <feImage result="b" x="0" y="0" width="16" height="16" preserveAspectRatio="none" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/>
+        <feTile in="b" result="t"/>
+        <feComposite in="SourceGraphic" in2="t" operator="arithmetic" k1="0" k2="1" k3="${st}" k4="${-0.47 * st}"/>
+        <feComponentTransfer><feFuncR type="discrete" tableValues="${table}"/><feFuncG type="discrete" tableValues="${table}"/><feFuncB type="discrete" tableValues="${table}"/><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer>
+      </filter></defs></svg>`);
+  const img = document.querySelector("#bitmap feImage");
+  img.setAttribute("href", thr); img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", thr);
+  const css = document.createElement("style");
+  css.textContent = `html #help,html #cz{background:transparent url("${back}") 0 0/calc(var(--bm-p,2) * 8px) repeat !important;image-rendering:pixelated}
+.hp-box,.cz-box,#intro h1,#intro button,#telefish{filter:url(#bitmap)}
+#help,#cz,#intro,#telefish{-webkit-font-smoothing:none;font-smooth:never}`;
+  document.head.appendChild(css);
+  function sync() {                                            // 1 "pixel" do dithering da interface = 1 pixel do canvas na tela
+    const p = Math.max(1, Math.round(cv.clientWidth / cv.width) || 2);
+    document.documentElement.style.setProperty("--bm-p", p);
+    img.setAttribute("width", 8 * p); img.setAttribute("height", 8 * p);
+  }
+  addEventListener("resize", sync); sync();
+  return { sync };
+})();
 
 // Fallback (CPU): tabela pronta, sem contas por pixel
 const LUT = new Uint8Array(64 * 256);
