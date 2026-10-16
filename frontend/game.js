@@ -1527,7 +1527,11 @@ function movePose() {                                                           
   return rodPose(rodL, b);   // (sempre com a animação da vara: nas costas, guardando ou sacando)
 }
 function update(dt) {
-  if (PAUSED) return;
+  if (PAUSED) {                                          // pausado: o jogo (pesca, jogador, falas) congela, mas o cenário continua vivo atrás do menu
+    mt += dt;                                            // respiração e movimentos do Malto
+    const tk = tTalk; tTalk = null; tiaoUpdate(dt); tTalk = tk;   // Pedro continua andando/tocando flauta (a fala dele só fica parada)
+    return;
+  }
   msgT = Math.max(0, msgT - dt);
   if (INTRO.phase === "go") introUpdate(dt); else if (INTRO.phase === "up" || INTRO.phase === "down") introMove(dt);
   updatePhone(dt); updateIdle(dt);
@@ -2056,14 +2060,15 @@ function drawReelUI(now) {
 const LAMPS = [-110, 30, 170, 310, 450, 560];            // x de cada poste no mundo (mude aqui para mover/adicionar)
 const LAMP_H = 80;                                       // altura do fuste; a lanterna fica no topo
 const LAMP_WARM = [255, 190, 70];                        // cor da luz (amarelo quente)
-const lampOn = x => DAY.lamp > 0.01 && x + ox0() > -100 && x + ox0() < W + 100;
+let lampWide = false;                                    // true na tela inicial: a câmera está longe e mostra bem mais largura que a tela do jogo
+const lampOn = x => DAY.lamp > 0.01 && (lampWide || (x + ox0() > -100 && x + ox0() < W + 100));
 const ox0 = () => (W - WORLD) / 2 + camX;                // deslocamento do mundo na tela
 function lampFlick(x, now) { return 1 + 0.025 * Math.sin(now / 230 + x) + 0.015 * Math.sin(now / 97 + x * 3); }
 
 function drawLamps(now) {                                // corpo do poste (recebe a lavagem de cor da hora, como o resto do cenário)
   const y0 = PIER_Y + 1, yt = y0 - LAMP_H;               // yt = topo do fuste
   LAMPS.forEach(x => {
-    if (x + ox0() < -30 || x + ox0() > W + 30) return;
+    if (!lampWide && (x + ox0() < -30 || x + ox0() > W + 30)) return;
     softShadow(x, PIER_Y + 1.2, 7, 1.4, 0.35, PIER_Y + 3.2);
     rect("#2b2230", x - 3.5, y0 - 2, 7, 2);              // base
     rect("#3a2e3c", x - 2, y0 - 16, 4, 14);              // pé mais grosso
@@ -2697,13 +2702,15 @@ function introBackdrop(now) {                           // com a câmera longe, 
   wide(layers.hills, lx(PAR.hills)); wide(layers.lake, lx(PAR.lake)); fog(2);
   drawLakeGlints(now, ox + camX * PAR.sky + DAY.lightX);
   wide(layers.deck, lx(PAR.pier));
-  ctx.save(); ctx.translate(wx, 0); drawMalto(now);
+  ctx.save(); ctx.translate(wx, 0); lampWide = true; drawLamps(now); drawMalto(now);   // postes também na tela inicial
   if (INTRO.back) {                                      // voltou ao título pela pausa: o pescador (e os outros jogadores) continuam no cais, senão só o reflexo aparece na água
     Object.values(others).forEach(o => drawOther(o, now));
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
   }
   ctx.restore();
   });
+  if (DAY.lamp > 0.01) { ctx.save(); ctx.translate(wx, 0); drawLampGlow(now); ctx.restore(); }   // luz dos postes (depois do cenário lavado, como no jogo)
+  lampWide = false;
   DAY.scene(() => wide(layers.posts, lx(PAR.pier)));
   ctx.save(); ctx.translate(wx, 0); drawMaltoUI(now); ctx.restore();
 }
