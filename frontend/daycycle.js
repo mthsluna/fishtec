@@ -47,7 +47,7 @@ const DAY = (() => {
 
   // estrelas fixas (mesmas para todos os jogadores)
   let seed = 90210; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
-  const STARS = Array.from({ length: 110 }, () => ({ x: -160 + rnd() * 800, y: 2 + rnd() * 104, big: rnd() < 0.14, ph: rnd() * 6.28 }));
+  const STARS = Array.from({ length: 110 }, () => ({ x: -EXT + rnd() * LW, y: 2 + rnd() * 104, big: rnd() < 0.14, ph: rnd() * 6.28 }));
 
   const D = {
     force: null,                                            // minutos fixos para testar (null = segue o relógio)

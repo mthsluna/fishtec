@@ -9,7 +9,7 @@ const UI_CH = Math.ceil(UI_PX * 576 / 1024 * 10) / 10;                    // lar
 })();
 const cv = document.getElementById("g");
 const WORLD = 480, H = 270;              // WORLD = área jogável (igual ao servidor); a tela pode ser mais larga
-const EXT = 160, LW = WORLD + EXT * 2;   // margem extra das camadas de fundo (para o parallax e telas largas)
+const EXT = 280, LW = WORLD + EXT * 2;   // margem extra das camadas de fundo (para o parallax e telas largas)
 const RD = 90;                           // altura (px lógicos) do reflexo na água
 let W = WORLD;                           // largura visível (ajusta sozinha ao formato da janela)
 let S = 2;                               // resolução interna (baixa sozinha se o jogo ficar pesado)
@@ -20,7 +20,7 @@ const viewW = () => Math.max(WORLD, Math.min(WORLD + 240, Math.round(H * innerWi
 // ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
 const LEVELS = 6;                        // níveis por canal: 2 = bem radical (8 cores), 4 = estilo Obra Dinn clássico, 6 = profissional (216 cores), 8 = quase sem dithering visível
 const STEP = 255 / (LEVELS - 1);
-const NIGHT_LIFT = 0.55;                // clareia as sombras à noite ANTES do dithering (0 = igual a antes, 0.5 = bem mais claro). A paleta continua a mesma de 4 níveis
+const NIGHT_LIFT = 0.12;                // clareia as sombras à noite ANTES do dithering (0 = igual a antes, 0.5 = bem mais claro). A paleta continua a mesma de 4 níveis
 const BAYER = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
                3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
 
@@ -123,7 +123,8 @@ const PIER_Y = 150, WATER_Y = 168;
 const HZ = 132;                                  // linha do horizonte: montanhas e mata acabam aqui; daqui até o cais é o lago distante
 const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do cais, em água aberta
 // o cais ACABA em DECK_END (x do mundo); o pescador anda até PX_MAX, um pouco antes da ponta, e não passa dali
-const DECK_END = 640, PX_MAX = 480, CAM_K = 0.12;   // DECK_END = 640: o cais passa da borda direita mesmo na tela mais larga (a camada de fundo vai até 640)
+const DECK_END = 600, PX_MAX = 584, CAM_K = 0.12;   // o cais acaba em 600 e o pescador anda até 584; depois do x=440 a câmera acompanha de perto para a ponta do cais aparecer na tela
+const CAM_FAR = 440;
 const pxMax = () => PX_MAX;
 // afasta a boia dos postes de madeira (um poste a cada 48px)
 const clearOfPosts = x => {
@@ -1345,7 +1346,7 @@ function update(dt) {
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt); tiaoUpdate(dt);
   GSHAKE *= Math.exp(-dt * 6);
-  camX += (-(px - WORLD / 2) * CAM_K - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
+  camX += (-(Math.min(px, CAM_FAR) - WORLD / 2) * CAM_K - Math.max(0, px - CAM_FAR) - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
   vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
   walkAmp += ((moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 14); moving = false;
