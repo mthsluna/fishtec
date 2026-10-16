@@ -1456,7 +1456,7 @@ function draw(now) {
   // HUD
   if (!INTRO.active) {
   text("Pontos: " + score, 10, 16);
-  const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : "← → mover   SHIFT correr   ESPAÇO lançar" + (mNear() ? "   E falar com o Malto" : "") + "   F celular", cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
+  const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : "", cast: "Lançando...", wait: "Aguarde a fisgada...", bite: "ESPAÇO agora!", reel: "Segure ESPAÇO para subir a barra", show: "" }[state];
   text(hint, 10, H - 10, "#fff");
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   }
@@ -1578,7 +1578,7 @@ const ZIN = 1.3, ZOOM_T = 1.1;                    // zoom no deck: quanto aproxi
 const I_FALL0 = 0.8, I_FALL_T = 0.8, I_BOUNCE = 0.5, I_DROP = 200;   // queda: começa (s), dura (s), quicada ao pousar (s), altura de onde cai (px)
 const SETTLE0 = 2.1, SETTLE_T = 1.0, I_FREE = 2.5, I_END = SETTLE0 + SETTLE_T;   // a câmera volta ao enquadramento normal; controles liberam em I_FREE
 const introEl = document.createElement("div"); introEl.id = "intro";
-introEl.innerHTML = `<h1>FISHTEC</h1><button id="intro-play" type="button">JOGAR</button>`;
+introEl.innerHTML = `<h1>FISHTEC</h1><button id="intro-play" type="button">JOGAR</button><button id="intro-help" type="button" class="sec">AJUDA</button>`;
 const introStyle = document.createElement("style");
 introStyle.textContent = `
 #intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3.4vh;padding-top:8vh;
@@ -1587,18 +1587,48 @@ introStyle.textContent = `
 #intro h1{margin:0;font-weight:400;font-size:clamp(54px,12vw,140px);line-height:1;letter-spacing:.09em;color:#ffe0a8;padding-left:.09em;
   text-shadow:0 .045em 0 #f4a261,0 .09em 0 #b83f6a,0 .135em 0 #5e3274,0 0 .6em rgba(255,200,120,.4)}
 #intro button{pointer-events:auto;font:inherit;font-size:clamp(24px,4vw,40px);letter-spacing:.14em;padding:.35em 1.7em .35em 1.84em;cursor:pointer;
-  color:#241a45;background:#ffe0a8;border:3px solid #241a45;box-shadow:0 .14em 0 #b83f6a,0 0 0 3px #ffe0a8;animation:introPulse 1.6s ease-in-out infinite}
+  color:#241a45;background:#ffe0a8;border:3px solid #241a45;box-shadow:0 .14em 0 #b83f6a,0 0 0 3px #ffe0a8}
 #intro button:hover,#intro button:focus-visible{background:#fff6dc;outline:none}
 #intro button:active{transform:translateY(.1em);box-shadow:0 .04em 0 #b83f6a,0 0 0 3px #ffe0a8}
-@keyframes introPulse{50%{transform:translateY(-.06em)}}
-@media (prefers-reduced-motion:reduce){#intro button{animation:none}}`;
+#intro button.sec{font-size:clamp(18px,2.8vw,28px);color:#ffe0a8;background:#241a45;border-color:#ffe0a8;box-shadow:0 .14em 0 #5e3274;margin-top:-1vh}
+#intro button.sec:hover,#intro button.sec:focus-visible{background:#3a2a66}
+#intro button.sec:active{box-shadow:0 .04em 0 #5e3274}
+#help{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
+  font:20px/1.15 "Nokia Cellphone FC","VT323",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
+#help.on{display:flex}
+#help .hp-box{width:min(420px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 18px 16px;background:#97a888;
+  border:4px solid #1b2619;border-radius:10px;box-shadow:0 0 0 3px #7d8f71,0 14px 50px #000}
+#help .hp-title{font-size:28px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:8px}
+#help .hp-row{display:flex;gap:12px;align-items:baseline;padding:5px 0;border-bottom:1px dashed rgba(27,38,25,.35)}
+#help .hp-row:last-of-type{border-bottom:0}
+#help .hp-row b{flex:none;width:128px;font-weight:400;background:#1b2619;color:#97a888;padding:2px 6px;text-align:center}
+#help .hp-btns{display:flex;justify-content:flex-end;margin-top:12px}
+#help .hp-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 18px;cursor:pointer}
+#help .hp-btns button:hover,#help .hp-btns button:focus-visible{background:#2f4029;outline:none}`;
 document.head.appendChild(introStyle); document.body.appendChild(introEl);
-const introBtn = introEl.querySelector("#intro-play");
+const introBtn = introEl.querySelector("#intro-play"), helpBtn = introEl.querySelector("#intro-help");
+const helpEl = document.createElement("div"); helpEl.id = "help";
+helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div class="hp-title">Ajuda</div>
+  <div class="hp-row"><b>← → &nbsp;A D</b><span>andar pelo cais</span></div>
+  <div class="hp-row"><b>SHIFT</b><span>correr (segure enquanto anda)</span></div>
+  <div class="hp-row"><b>ESPAÇO</b><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
+  <div class="hp-row"><b>CLIQUE / TOQUE</b><span>faz o mesmo que o ESPAÇO</span></div>
+  <div class="hp-row"><b>E</b><span>falar com o Malto (perto dele)</span></div>
+  <div class="hp-row"><b>F</b><span>abrir ou guardar o celular</span></div>
+  <div class="hp-row"><b>M</b><span>ligar ou desligar o som</span></div>
+  <div class="hp-btns"><button id="help-close" type="button">Voltar</button></div></div>`;
+document.body.appendChild(helpEl);
+const helpClose = helpEl.querySelector("#help-close");
+function openHelp() { helpEl.classList.add("on"); helpClose.focus(); }
+function closeHelp() { if (!helpEl.classList.contains("on")) return; helpEl.classList.remove("on"); introBtn.focus(); }
+helpBtn.onclick = openHelp; helpClose.onclick = closeHelp;
+helpEl.addEventListener("pointerdown", e => { if (e.target === helpEl) closeHelp(); });
+addEventListener("keydown", e => { if (e.code === "Escape") closeHelp(); });
 function introPlay() {
   if (INTRO.phase !== "title") return;
   SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
   INTRO.phase = "custom"; introEl.classList.add("off");
-  setTimeout(() => introEl.remove(), 700);
+  setTimeout(() => introEl.remove(), 700); helpEl.remove();
   openCustomizer(true);
 }
 function introGo() { INTRO.phase = "go"; INTRO.t = 0; }
