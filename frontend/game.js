@@ -1693,55 +1693,75 @@ document.head.appendChild(cfgStyle);
 cfgEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Configurações"><div class="hp-title">Configurações</div>
   <div class="hp-row"><span>Som</span><button id="cfg-snd" type="button"></button></div>
   <div class="hp-row"><span>Tremor da tela</span><button id="cfg-shk" type="button"></button></div>
+  <div class="hp-row" id="cfg-keyrow"><span>Tecla de voltar</span><button id="cfg-key" type="button"></button></div>
   <div class="hp-btns"><button id="cfg-close" type="button">Voltar</button></div></div>`;
 document.body.appendChild(cfgEl);
-const cfgBtn = introEl.querySelector("#intro-config"), cfgSnd = cfgEl.querySelector("#cfg-snd"), cfgShk = cfgEl.querySelector("#cfg-shk"), cfgClose = cfgEl.querySelector("#cfg-close");
+const cfgBtn = introEl.querySelector("#intro-config"), cfgSnd = cfgEl.querySelector("#cfg-snd"), cfgShk = cfgEl.querySelector("#cfg-shk"), cfgClose = cfgEl.querySelector("#cfg-close"), cfgKeyRow = cfgEl.querySelector("#cfg-keyrow"), cfgKey = cfgEl.querySelector("#cfg-key");
 function cfgSync() {
   cfgSnd.textContent = SND.muted ? "DESLIGADO" : "LIGADO"; cfgSnd.classList.toggle("off", SND.muted);
   cfgShk.textContent = SHAKE_ON ? "LIGADO" : "DESLIGADO"; cfgShk.classList.toggle("off", !SHAKE_ON);
+  cfgKey.textContent = rebinding ? "PRESSIONE..." : keyLabel(RESUME_KEY);
 }
-function openCfg() { cfgSync(); cfgEl.classList.add("on"); cfgClose.focus(); }
-function closeCfg() { if (!cfgEl.classList.contains("on")) return; cfgEl.classList.remove("on"); cfgBtn.focus(); }
+function openCfg() { cfgKeyRow.style.display = INTRO.active ? "none" : ""; cfgSync(); if (PAUSED) pzEl.classList.remove("on"); cfgEl.classList.add("on"); cfgClose.focus(); }
+function closeCfg() { if (!cfgEl.classList.contains("on")) return; cfgEl.classList.remove("on"); if (PAUSED) { pzEl.classList.add("on"); pzBack.focus(); } else cfgBtn.focus(); }
 cfgBtn.onclick = openCfg; cfgClose.onclick = closeCfg;
+cfgKey.onclick = () => { rebinding = true; cfgSync(); };
 cfgSnd.onclick = () => { SND.toggleMute(); cfgSync(); };
 cfgShk.onclick = () => { SHAKE_ON = !SHAKE_ON; try { localStorage.setItem("shake", SHAKE_ON ? "1" : "0"); } catch (e) {} cfgSync(); };
 cfgEl.addEventListener("pointerdown", e => { if (e.target === cfgEl) closeCfg(); });
 addEventListener("keydown", e => { if (e.code === "Escape") closeCfg(); });
 
-// ---------- Pausa (ESC no jogo): voltar ao jogo, escolher a tecla de voltar e ir para a tela inicial ----------
-let RESUME_KEY = "Escape";                              // tecla (além do ESC) que fecha a pausa; dá para trocar no menu
+// ---------- Pausa (ESC no jogo): voltar ao jogo, configurações e tela inicial ----------
+let RESUME_KEY = "Escape";                              // tecla (além do ESC) que fecha a pausa; dá para trocar em Configurações
 try { RESUME_KEY = localStorage.getItem("resumeKey") || "Escape"; } catch (e) {}
 const keyLabel = c => c === "Escape" ? "ESC" : c === "Space" ? "ESPAÇO" : c.replace(/^(Key|Digit)/, "").replace(/^Arrow/, "SETA ").toUpperCase();
 const pzEl = document.createElement("div"); pzEl.id = "pz";
 const pzStyle = document.createElement("style");
-pzStyle.textContent = cfgStyle.textContent.replaceAll("#cfg", "#pz") + `
-#pz .pz-btn{display:block;width:100%;margin:8px 0 0;font:inherit;color:#97a888;background:#1b2619;border:0;padding:9px 14px;cursor:pointer}
-#pz .pz-btn:hover,#pz .pz-btn:focus-visible{background:#2f4029;outline:none}`;
+pzStyle.textContent = `#pz{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(10,7,26,.74);
+  font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none}
+#pz.on{display:flex}
+#pz .pz-box{width:min(420px,90vw);box-sizing:border-box;padding:22px 26px 26px;display:flex;flex-direction:column;align-items:stretch;gap:14px;
+  background:linear-gradient(#2d2160,#241a45 60%,#1c1438);border:4px solid #ffe0a8;
+  box-shadow:0 0 0 3px #241a45,0 0 0 7px #b83f6a,0 0 0 10px #241a45,0 18px 60px #000}
+#pz h1{margin:0 0 6px;text-align:center;font-weight:400;font-size:clamp(40px,11vw,60px);line-height:1;letter-spacing:.09em;padding-left:.09em;color:#ffe0a8;
+  text-shadow:0 .045em 0 #f4a261,0 .09em 0 #b83f6a,0 .135em 0 #5e3274}
+#pz .pz-line{height:4px;margin:0 0 4px;background:repeating-linear-gradient(90deg,#ffe0a8 0 8px,transparent 8px 12px);opacity:.55}
+#pz button{font:inherit;font-size:clamp(17px,4.6vw,24px);letter-spacing:.14em;padding:.5em 1em .5em 1.14em;cursor:pointer;text-transform:uppercase;
+  color:#ffe0a8;background:#241a45;border:3px solid #ffe0a8;box-shadow:0 .14em 0 #5e3274}
+#pz button:hover,#pz button:focus-visible{background:#3a2a66;outline:none}
+#pz button:active{transform:translateY(.1em);box-shadow:0 .04em 0 #5e3274}
+#pz button.main{color:#241a45;background:#ffe0a8;box-shadow:0 .14em 0 #b83f6a}
+#pz button.main:hover,#pz button.main:focus-visible{background:#fff6dc}
+#pz button.main:active{box-shadow:0 .04em 0 #b83f6a}`;
 document.head.appendChild(pzStyle);
-pzEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Pausa"><div class="hp-title">Pausa</div>
-  <button class="pz-btn" id="pz-back" type="button">Voltar ao jogo</button>
-  <div class="hp-row"><span>Tecla para voltar</span><button id="pz-key" type="button"></button></div>
-  <button class="pz-btn" id="pz-home" type="button">Tela inicial</button></div>`;
+pzEl.innerHTML = `<div class="pz-box" role="dialog" aria-label="FISHTEC"><h1>FISHTEC</h1><div class="pz-line"></div>
+  <button class="main" id="pz-back" type="button">Voltar ao jogo</button>
+  <button id="pz-cfg" type="button">Configurações</button>
+  <button id="pz-home" type="button">Tela inicial</button></div>`;
 document.body.appendChild(pzEl);
-const pzBack = pzEl.querySelector("#pz-back"), pzKey = pzEl.querySelector("#pz-key"), pzHome = pzEl.querySelector("#pz-home");
+const pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
 let rebinding = false;
-const pzSync = () => { pzKey.textContent = rebinding ? "PRESSIONE..." : keyLabel(RESUME_KEY); };
 function pauseGame() {
-  PAUSED = true; rebinding = false; pzSync();
+  PAUSED = true; rebinding = false;
   for (const k in keys) keys[k] = false; SND.reel(false);
   pzEl.classList.add("on"); pzBack.focus();
 }
 function resumeGame() { PAUSED = false; rebinding = false; pzEl.classList.remove("on"); cv.focus(); }
 pzBack.onclick = resumeGame;
-pzKey.onclick = () => { rebinding = true; pzSync(); };
+pzCfg.onclick = openCfg;
 pzHome.onclick = () => location.reload();               // recomeça do título (a aparência fica salva)
 pzEl.addEventListener("pointerdown", e => { if (e.target === pzEl) resumeGame(); });
 addEventListener("keydown", e => {                      // captura antes do resto do jogo (assim o ESC que guarda o celular não abre a pausa junto)
+  if (rebinding) {                                      // escolhendo a tecla de voltar (em Configurações)
+    e.preventDefault(); e.stopPropagation();
+    RESUME_KEY = e.code; try { localStorage.setItem("resumeKey", RESUME_KEY); } catch (er) {}
+    rebinding = false; cfgSync(); return;
+  }
   if (INTRO.active || UI.open) return;
+  if (cfgEl.classList.contains("on")) return;           // Configurações aberta: o ESC fecha só ela
   if (PAUSED) {
     e.preventDefault(); e.stopPropagation();
-    if (rebinding) { RESUME_KEY = e.code; try { localStorage.setItem("resumeKey", RESUME_KEY); } catch (er) {} rebinding = false; pzSync(); }
-    else if (!e.repeat && (e.code === "Escape" || e.code === RESUME_KEY)) resumeGame();
+    if (!e.repeat && (e.code === "Escape" || e.code === RESUME_KEY)) resumeGame();
     return;
   }
   if (e.code === "Escape" && !e.repeat && !PH.open) { e.preventDefault(); e.stopPropagation(); pauseGame(); }
@@ -1750,7 +1770,7 @@ function introPlay() {
   if (INTRO.phase !== "title") return;
   SND.unlock();                                       // o clique libera o som (o mar e o vento começam aqui)
   INTRO.phase = "custom"; introEl.classList.add("off");
-  setTimeout(() => introEl.remove(), 700); helpEl.remove(); cfgEl.remove();
+  setTimeout(() => introEl.remove(), 700); helpEl.remove();
   openCustomizer(true);
 }
 function introGo() { INTRO.phase = "go"; INTRO.t = 0; }
