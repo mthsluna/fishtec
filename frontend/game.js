@@ -135,12 +135,22 @@ const clearOfPosts = x => {
 
 // Peixes (se o servidor estiver fora, usa a lista local)
 let fishList = [
-  { id: "piranha-vermelha", name: "Piranha-vermelha", file: "piranha-vermelha.png", difficulty: 3, points: 40 },
-  { id: "budiao-verde", name: "Budião-verde", file: "budiao-verde.png", difficulty: 2, points: 20 },
-  { id: "peixe-voador", name: "Peixe-voador", file: "peixe-voador.png", difficulty: 4, points: 70 },
-  { id: "peixe-bandeira", name: "Peixe-bandeira", file: "peixe-bandeira.png", difficulty: 5, points: 120 },
+  { id: "piranha-vermelha", name: "Piranha vermelha", file: "piranha-vermelha.png", difficulty: 3, points: 40 },
+  { id: "budiao-verde", name: "Budião verde", file: "budiao-verde.png", difficulty: 2, points: 20 },
+  { id: "peixe-voador", name: "Peixe voador", file: "peixe-voador.png", difficulty: 4, points: 70 },
+  { id: "peixe-bandeira", name: "Peixe bandeira", file: "peixe-bandeira.png", difficulty: 5, points: 120 },
+  { id: "peixe-cofre", name: "Peixe cofre", file: "peixe-cofre.png", difficulty: 2, points: 25 },
+  { id: "peixe-listrado", name: "Peixe listrado", file: "peixe-listrado.png", difficulty: 2, points: 25 },
+  { id: "budiao-listrado", name: "Budião listrado", file: "budiao-listrado.png", difficulty: 2, points: 22 },
+  { id: "peixe-zebra", name: "Peixe zebra", file: "peixe-zebra.png", difficulty: 3, points: 45 },
+  { id: "garoupa-pintada", name: "Garoupa pintada", file: "garoupa-pintada.png", difficulty: 3, points: 50 },
+  { id: "salmao", name: "Salmão", file: "salmao.png", difficulty: 3, points: 55 },
+  { id: "peixe-tigre", name: "Peixe tigre", file: "peixe-tigre.png", difficulty: 4, points: 75 },
+  { id: "garoupa-azul", name: "Garoupa azul", file: "garoupa-azul.png", difficulty: 4, points: 80 },
+  { id: "peixe-dourado-dentuco", name: "Peixe dourado dentuço", file: "peixe-dourado-dentuco.png", difficulty: 4, points: 65 },
+  { id: "lagosta", name: "Lagosta", file: "lagosta.png", difficulty: 5, points: 140 },
 ];
-fetch(API + "/api/fish").then(r => r.json()).then(d => fishList = d).catch(() => {});
+fetch(API + "/api/fish").then(r => r.json()).then(d => fishList = d.map(f => ({ ...f, name: String(f.name).replace(/-/g, " ") }))).catch(() => {});
 const imgs = {};
 const img = f => imgs[f] || (imgs[f] = Object.assign(new Image(), { src: "assets/fishes/" + f }));
 fishList.forEach(f => img(f.file));
@@ -1143,10 +1153,12 @@ function drawFx(now) {                                                   // ané
 
 // ---------- Tamanho dos peixes: cada espécie tem uma faixa em cm [mínimo, máximo]; cada peixe pescado sorteia um tamanho dentro dela ----------
 // Peixe pequeno = zoom forte no pescador (para ver de perto); peixe grande = zoom leve. Para ajustar, mexa em FISH_SIZE (ou mande "size": [min, max] no servidor).
-const FISH_SIZE = { "peixe-bandeira": [10, 20], "piranha-vermelha": [16, 30], "peixe-voador": [20, 34], "budiao-verde": [32, 52] };
+const FISH_SIZE = { "peixe-bandeira": [10, 20], "piranha-vermelha": [16, 30], "peixe-voador": [20, 34], "budiao-verde": [32, 52],
+  "peixe-cofre": [10, 22], "peixe-listrado": [18, 34], "budiao-listrado": [22, 40], "peixe-zebra": [20, 38], "garoupa-pintada": [35, 70], "salmao": [50, 90], "peixe-tigre": [25, 45], "garoupa-azul": [40, 80], "peixe-dourado-dentuco": [40, 70], "lagosta": [20, 40] };
 const sizeRange = f => (f && f.size) || FISH_SIZE[f && f.id] || (f ? [f.difficulty * 3 + 8, f.difficulty * 3 + 22] : [20, 30]);
 const rollSize = f => { const [lo, hi] = sizeRange(f), u = (Math.random() + Math.random()) / 2; return Math.round((lo + (hi - lo) * u) * 10) / 10; };   // média de dois sorteios: o comum é perto do meio, os extremos são raros
-const FISH_K = { "peixe-bandeira": 2.4e-5, "piranha-vermelha": 3.2e-5, "peixe-voador": 1.1e-5, "budiao-verde": 2.3e-5 };   // kg = K * cm^3 (cada espécie tem o corpo mais fino ou mais gordinho)
+const FISH_K = { "peixe-bandeira": 2.4e-5, "piranha-vermelha": 3.2e-5, "peixe-voador": 1.1e-5, "budiao-verde": 2.3e-5,
+  "peixe-cofre": 6e-05, "peixe-listrado": 2.2e-05, "budiao-listrado": 2.3e-05, "peixe-zebra": 1.5e-05, "garoupa-pintada": 1.6e-05, "salmao": 1e-05, "peixe-tigre": 2.4e-05, "garoupa-azul": 1.6e-05, "peixe-dourado-dentuco": 1.3e-05, "lagosta": 2.4e-05 };   // kg = K * cm^3 (cada espécie tem o corpo mais fino ou mais gordinho)
 const rollKg = (f, cm) => Math.round((FISH_K[f && f.id] || 2e-5) * Math.pow(cm, 3) * (0.9 + Math.random() * 0.2) * 100) / 100;   // peso pelo tamanho, com ±10% de variação entre peixes do mesmo tamanho
 const fmtCm = v => v.toFixed(1).replace(".", ",") + " cm";
 const fmtKg = v => v.toFixed(2).replace(".", ",") + " kg";

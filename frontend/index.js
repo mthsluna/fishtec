@@ -12,10 +12,20 @@ app.use(express.json());
 
 // difficulty: 1 (fácil) a 5 (difícil) | rarity: peso do sorteio
 const FISH = [
-  { id: "piranha-vermelha", name: "Piranha-vermelha", file: "piranha-vermelha.png", difficulty: 3, rarity: 30, points: 40 },
-  { id: "budiao-verde",     name: "Budião-verde",     file: "budiao-verde.png",     difficulty: 2, rarity: 45, points: 20 },
-  { id: "peixe-voador",     name: "Peixe-voador",     file: "peixe-voador.png",     difficulty: 4, rarity: 18, points: 70 },
-  { id: "peixe-bandeira",   name: "Peixe-bandeira",   file: "peixe-bandeira.png",   difficulty: 5, rarity: 7,  points: 120 },
+  { id: "piranha-vermelha", name: "Piranha vermelha", file: "piranha-vermelha.png", difficulty: 3, rarity: 30, points: 40 },
+  { id: "budiao-verde",     name: "Budião verde",     file: "budiao-verde.png",     difficulty: 2, rarity: 45, points: 20 },
+  { id: "peixe-voador",     name: "Peixe voador",     file: "peixe-voador.png",     difficulty: 4, rarity: 18, points: 70 },
+  { id: "peixe-bandeira",   name: "Peixe bandeira",   file: "peixe-bandeira.png",   difficulty: 5, rarity: 7,  points: 120 },
+  { id: "peixe-cofre", name: "Peixe cofre", file: "peixe-cofre.png", difficulty: 2, rarity: 30, points: 25 },
+  { id: "peixe-listrado", name: "Peixe listrado", file: "peixe-listrado.png", difficulty: 2, rarity: 35, points: 25 },
+  { id: "budiao-listrado", name: "Budião listrado", file: "budiao-listrado.png", difficulty: 2, rarity: 35, points: 22 },
+  { id: "peixe-zebra", name: "Peixe zebra", file: "peixe-zebra.png", difficulty: 3, rarity: 22, points: 45 },
+  { id: "garoupa-pintada", name: "Garoupa pintada", file: "garoupa-pintada.png", difficulty: 3, rarity: 22, points: 50 },
+  { id: "salmao", name: "Salmão", file: "salmao.png", difficulty: 3, rarity: 20, points: 55 },
+  { id: "peixe-tigre", name: "Peixe tigre", file: "peixe-tigre.png", difficulty: 4, rarity: 12, points: 75 },
+  { id: "garoupa-azul", name: "Garoupa azul", file: "garoupa-azul.png", difficulty: 4, rarity: 12, points: 80 },
+  { id: "peixe-dourado-dentuco", name: "Peixe dourado dentuço", file: "peixe-dourado-dentuco.png", difficulty: 4, rarity: 14, points: 65 },
+  { id: "lagosta", name: "Lagosta", file: "lagosta.png", difficulty: 5, rarity: 5, points: 140 },
 ];
 
 const pick = () => {
