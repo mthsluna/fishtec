@@ -607,6 +607,7 @@ function drawMalto(now) {
     }
   }
   ctx.restore();
+  drawTiao(now);                                                                         // o outro personagem do cais
 }
 function wrapLines(s, max) {
   const out = []; let cur = "";
@@ -627,6 +628,210 @@ function drawMaltoUI(now) {
     lines.forEach((l, i) => { text(l.slice(0, Math.max(0, left)), bx + 7, byy + 11 + i * lh, "#fff"); left -= l.length + 1; });
     if (shown >= full.length && Math.floor(now / 400) % 2) text("E >", bx + w - 5, byy + hgt - 2, "#ffd166", "right");
   } else if (mNear()) text("[E] falar", MX, nameY - 12, "#ffd166", "center");
+  drawTiaoUI(now);
+}
+// ---------- Tião: negro alto (a altura do Malto), dreads, sem camiseta, graveto na boca. Cara de mau, mas é muito gente boa ----------
+// Chegue perto e aperte E (ou toque nele) para conversar. De vez em quando, do nada, ele tira a flauta e toca "Wonder" (assets/songs/wonder.wav).
+// Para mexer nas falas, edite TIAO_LINES; para mudar o nome, TIAO_NAME; a posição no cais é TX.
+const TIAO_NAME = "Tião", TX = 385;
+const TIAO_LINES = [
+  "Opa, firmeza? Pode chegar, não mordo. Cara feia é de fábrica.",
+  "Cara de bravo é só o rosto que Deus me deu. Por dentro sou manteiga.",
+  "Pescou hoje? Se não pegou nada, relaxa: peixe também tem dia de folga.",
+  "Esse graveto aqui? Ajuda a pensar. E espanta conversa fiada.",
+  "Eu toco flauta quando ninguém tá olhando. Mas pode olhar, eu deixo.",
+  "Se o peixe fugir, não leva a mal. Ele só tava de passagem.",
+  "O Malto fala bonito, mas sou eu quem escuta de verdade.",
+  "Já chorei vendo o pôr do sol neste cais. Não conta pra ninguém.",
+  "Cais pequeno, vizinho é família. Qualquer coisa, grita.",
+  "Sem camiseta mesmo. O sol aqui é de graça, aproveito tudo.",
+  "Quer uma dica? Paciência. O resto o peixe resolve.",
+];
+const TIAO_SORRY = "Opa, perdão! Me empolguei na flauta. Chega mais, firmeza?";
+let tt = 0, tTalk = null, tLine = -1, tFr = 0;                          // tFr: 0 = cara de mau ... 1 = sorrindo (sobe quando alguém conversa com ele)
+const FLUTE = { st: "idle", t: 0, k: 0, k0: 0, h: null, next: 14 + Math.random() * 16 };   // idle | up (tira a flauta) | play | down (guarda)
+const tNear = () => state === "walk" && Math.abs(px - TX) < 40;
+const tVol = () => 0.9 * Math.max(0.12, 1 - Math.abs(px - TX) / 320);   // mais perto = mais alto
+const ease01 = k => k * k * (3 - 2 * k);
+function fluteStop() { if (FLUTE.h) FLUTE.h.stop(0.5); FLUTE.k0 = FLUTE.k; FLUTE.st = "down"; FLUTE.t = 0; }
+
+function tiaoUpdate(dt) {
+  tt += dt;
+  tFr += ((tTalk ? 1 : 0) - tFr) * Math.min(1, dt * 5);
+  if (tTalk) {
+    const len = tTalk.text.length, a = Math.floor(tTalk.t * TYPE_CPS / 3);
+    tTalk.t += dt;
+    if (Math.floor(tTalk.t * TYPE_CPS / 3) > a && tTalk.t * TYPE_CPS < len)           // "voz" mais grave que a do Malto
+      SND.play("step_wood_" + (1 + (Math.random() * 4 | 0)), { vol: 0.12, rate: 1.25, jitter: 0.2 });
+    if (tTalk.t > len / TYPE_CPS + 6 || Math.abs(px - TX) > 80 || state !== "walk") tTalk = null;
+  }
+  const F = FLUTE; F.t += dt;
+  if (!SND.ready("wonder")) SND.preload("wonder");
+  if (F.st === "idle") {
+    F.k = 0;
+    if (F.t >= F.next && !tTalk && SND.ready("wonder")) { F.st = "up"; F.t = 0; }       // do nada: pega a flauta
+  } else if (F.st === "up") {
+    F.k = ease01(Math.min(1, F.t / 0.9));
+    if (F.t >= 0.9) {
+      F.h = SND.playSong("wonder", { vol: tVol() });
+      if (F.h) { F.st = "play"; F.t = 0; } else fluteStop();
+    }
+  } else if (F.st === "play") {
+    F.k = 1; F.h.set(tVol());
+    if (F.h.ended || F.t > F.h.dur + 1) fluteStop();
+  } else {                                                                              // down
+    F.k = F.k0 * (1 - ease01(Math.min(1, F.t / 0.8)));
+    if (F.t >= 0.8) { F.st = "idle"; F.t = 0; F.k = 0; F.next = 35 + Math.random() * 55; }
+  }
+}
+function talkTiao() {
+  if (!tNear()) return false;
+  if (px !== TX) dir = TX < px ? -1 : 1;                                                // vira de lado para ele
+  if (tTalk && tTalk.t * TYPE_CPS < tTalk.text.length) { tTalk.t = 99; return true; }   // 1º toque: termina de digitar
+  let text;
+  if (FLUTE.st === "up" || FLUTE.st === "play") { fluteStop(); text = TIAO_SORRY; tLine = -2; }   // interrompeu a música: ele para e pede desculpa
+  else {
+    let n;
+    if (tLine === -1) n = 0;
+    else do { n = 1 + (Math.random() * (TIAO_LINES.length - 1) | 0); } while (n === tLine);
+    tLine = n; text = TIAO_LINES[n];
+  }
+  tTalk = { t: 0, text };
+  return true;
+}
+const TIAO_C = { skin: "#5c3a26", dk: "#412518", lt: "#7a4d33", hair: "#140c07", hair2: "#2b1b11" };
+function drawTiao(now) {
+  const t = now / 1000, F = FLUTE, k = F.k, fr = tFr, C = TIAO_C, L = (a, b, p) => a + (b - a) * p;
+  const by = Math.sin(t * 1.5 + 1) * 0.3, S = -35 + by;                                // S: linha dos ombros (a mesma do Malto)
+  const bob = k > 0.5 ? Math.sin(t * 5.2) * 0.45 * k : 0;                              // balança a cabeça ao tocar
+  const hy = by - 5 + bob, mY = -31.2 + hy, mX = L(0, -1.1, k);                        // mY/mX: boca
+  const blink = (t + 1.3) % 4.4 > 4.28, shut = k > 0.55 || blink;
+  ctx.save(); ctx.translate(TX, PIER_Y);
+  softShadow(-7, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);           // sombra longa para a esquerda + contato nos pés
+
+  // pernas, chinelos e bermuda
+  [-4.6, 0.6].forEach(lx => {
+    rect(C.skin, lx, -19, 4, 17); rect("rgba(0,0,0,.22)", lx, -19, 1.2, 17); rect("rgba(255,210,160,.1)", lx + 3, -19, 1, 17);
+    rect(C.skin, lx - 0.5, -2.6, 5, 1.7); rect("#1a120c", lx - 0.7, -1.1, 5.4, 1.1);   // pé com a sola do chinelo
+  });
+  ctx.beginPath(); ctx.moveTo(-5.9, S + 14); ctx.lineTo(5.9, S + 14); ctx.lineTo(6.3, -9); ctx.lineTo(0.7, -9); ctx.lineTo(0, -13.5); ctx.lineTo(-0.7, -9); ctx.lineTo(-6.3, -9); ctx.closePath();
+  ctx.fillStyle = "#2f627d"; ctx.fill();
+  ctx.save(); ctx.clip(); rect("rgba(10,20,40,.3)", -7, S + 14, 3.4, 30); rect("rgba(255,255,255,.1)", 3.4, S + 14, 3, 30); rect("rgba(10,20,40,.35)", -7, -10.4, 14, 1.4); ctx.restore();
+  rect("#1f4559", -5.9, S + 14, 11.8, 1.4); rect("#e6d9b8", -0.4, S + 15.2, 0.8, 3.2); rect("#e6d9b8", -1.1, S + 15, 2.2, 0.8);   // cós e cordinha
+
+  // tronco sem camiseta
+  const torso = () => { ctx.beginPath(); ctx.moveTo(-6.3, S); ctx.lineTo(6.3, S); ctx.lineTo(5, S + 15); ctx.lineTo(-5, S + 15); ctx.closePath(); };
+  torso(); ctx.fillStyle = C.skin; ctx.fill();
+  ctx.save(); torso(); ctx.clip();
+  rect("rgba(0,0,0,.3)", -7, S, 3.6, 16); rect("rgba(255,210,160,.14)", 3.3, S, 3.2, 16);          // luz do pôr do sol à direita
+  rect("rgba(255,210,160,.13)", -5, S + 2, 4.7, 3.6); rect("rgba(255,210,160,.13)", 0.3, S + 2, 4.7, 3.6);   // peitoral
+  rect("rgba(0,0,0,.32)", -5, S + 5.6, 4.7, 0.8); rect("rgba(0,0,0,.32)", 0.3, S + 5.6, 4.7, 0.8);
+  rect("rgba(0,0,0,.25)", -0.2, S + 2, 0.4, 3.8); rect("#35200f", -3.2, S + 4.2, 1, 1); rect("#35200f", 2.2, S + 4.2, 1, 1);
+  rect("rgba(0,0,0,.22)", -0.2, S + 6.6, 0.4, 8.4); rect("rgba(0,0,0,.2)", -3.4, S + 9.2, 6.8, 0.5); rect("rgba(0,0,0,.2)", -3.4, S + 12, 6.8, 0.5);   // abdômen
+  rect("rgba(0,0,0,.2)", -5, S + 1, 4, 0.5); rect("rgba(0,0,0,.2)", 1, S + 1, 4, 0.5);          // clavículas
+  ctx.restore();
+  rect(C.dk, -2.3, S - 3.5, 4.6, 4); rect("rgba(0,0,0,.18)", -2.3, S - 1, 4.6, 1.2);             // pescoço
+  ctx.strokeStyle = "#e8d9a8"; ctx.lineWidth = 0.6;                                              // colar com um pingente dourado
+  ctx.beginPath(); ctx.moveTo(-2.8, S - 0.6); ctx.quadraticCurveTo(0, S + 5.2, 2.8, S - 0.6); ctx.stroke();
+  rect("#d9a441", -0.6, S + 3.1, 1.2, 1.6);
+
+  // dreads caindo dos lados (por baixo do rosto)
+  [-1, 1].forEach(sd => [22, 26, 19, 24, 20].forEach((len, i) => {
+    const x = sd * (4.7 + i * 0.95) - 0.55, sw = Math.sin(t * 1.1 + i * 1.3 + sd) * 0.45 + bob * 0.3, y0 = -47.2 + hy;
+    rect(C.hair, x + sw * 0.2, y0, 1.1, len + sw); rect(C.hair2, x + sw * 0.2, y0 + 2, 0.4, len - 2);
+    for (let q = 4; q < len; q += 3.2) rect("rgba(255,255,255,.07)", x + sw * 0.2, y0 + q, 1.1, 0.5);   // anelzinhos do dread
+    rect("#3a2517", x + sw * 0.2, y0 + len + sw - 0.8, 1.1, 0.8);                                      // ponta mais clara
+  }));
+
+  // cabeça
+  rect("#2c1a10", -5.1, -39 + hy, 1, 6); rect("#2c1a10", 4.1, -39 + hy, 1, 6);                      // costeletas
+  rect(C.skin, -4.2, -38.5 + hy, 8.4, 9); rect(C.dk, -4.2, -38.5 + hy, 1.4, 9); rect("rgba(255,210,160,.12)", 2.6, -38.5 + hy, 1.6, 9);
+  rect("rgba(0,0,0,.22)", -4.2, -32.4 + hy, 8.4, 3);                                                 // barba por fazer
+  rect(C.hair, -2.2, -32.2 + hy, 4.4, 0.7);                                                          // bigode
+  rect(C.hair, -1.3, -29.9 + hy, 2.6, 1.4);                                                          // cavanhaque
+  rect("#3a2214", -0.8, -35 + hy, 1.6, 2.6); rect("#6b4430", -0.2, -35 + hy, 0.5, 2);               // nariz
+  rect("#8a5a40", 2.7, -38 + hy, 0.5, 3.2);                                                          // cicatriz na sobrancelha direita
+  if (shut) { rect(C.hair, -3.3, -35.8 + hy, 2.5, 0.55); rect(C.hair, 0.8, -35.8 + hy, 2.5, 0.55); }  // olhos fechados
+  else {
+    const lk = Math.sin(t * 0.37) > 0.8 ? 0.5 : 0;                                                   // às vezes olha de lado
+    rect("#e9dfcf", -3.3, -36.2 + hy, 2.5, 1); rect("#e9dfcf", 0.8, -36.2 + hy, 2.5, 1);
+    rect(C.hair, -2.6 + lk, -36.2 + hy, 1.2, 1); rect(C.hair, 1.5 + lk, -36.2 + hy, 1.2, 1);
+    rect("rgba(0,0,0,.55)", -3.4, -36.6 + hy, 2.7, 0.55); rect("rgba(0,0,0,.55)", 0.8, -36.6 + hy, 2.7, 0.55);   // pálpebra pesada (olhar de poucos amigos)
+  }
+  const bi = L(-36.6, k > 0.55 ? -37.6 : -37.9, Math.max(fr, k > 0.55 ? 1 : 0));                    // sobrancelhas: franzidas -> relaxadas
+  ctx.strokeStyle = C.hair; ctx.lineWidth = 1.15; ctx.lineCap = "butt";
+  ctx.beginPath(); ctx.moveTo(-4, -37.9 + hy); ctx.lineTo(-0.7, bi + hy); ctx.moveTo(4, -37.9 + hy); ctx.lineTo(0.7, bi + hy); ctx.stroke();
+  if (k > 0.45) { rect("#2a120e", mX - 0.8, mY - 0.1, 1.6, 1.3); rect("#8a5040", mX - 1.2, mY + 0.1, 0.5, 0.8); rect("#8a5040", mX + 0.7, mY + 0.1, 0.5, 0.8); }   // boquinha da flauta
+  else if (fr > 0.5) { rect("#a05a48", -1.8, mY, 3.6, 0.8); rect("#f1e6d4", -1.2, mY + 0.1, 2.4, 0.5); rect("#a05a48", -2.3, mY - 0.6, 0.7, 0.7); rect("#a05a48", 1.6, mY - 0.6, 0.7, 0.7); }   // sorriso
+  else { rect("#a05a48", -1.6, mY + 0.1, 3.2, 0.7); rect("#a05a48", -2.1, mY + 0.6, 0.7, 0.7); rect("#a05a48", 1.4, mY + 0.6, 0.7, 0.7); }   // boca emburrada
+  if (k < 0.3) {                                                                                     // graveto mascado no canto da boca
+    ctx.save(); ctx.translate(1.3, mY + 0.3 + Math.sin(t * 2.6) * 0.2); ctx.rotate(-0.3 + Math.sin(t * 1.3) * 0.05);
+    rect("#b58e55", 0, -0.45, 6.6, 0.9); rect("#8a6a38", 0, 0.1, 6.6, 0.35); rect("#e0c690", 6, -0.45, 0.6, 0.9);
+    ctx.restore();
+  }
+  // topo do cabelo (dreads): a cabeça chega na altura do Malto
+  ctx.fillStyle = C.hair; roundPath(-5.8, -45.2 + hy, 11.6, 5.9, 3); ctx.fill();
+  for (let i = 0; i < 7; i++) {
+    rect(C.hair2, -5 + i * 1.65, -44.2 + hy, 0.4, 4.4);                                                  // risquinhos dos dreads
+    rect(C.hair, -5.4 + i * 1.7, -39.8 + hy, 1.3, 0.8 + (i * 7 % 3) * 0.5);                          // franja em pontas
+    rect(C.hair, -5.4 + i * 1.7, -46.1 + hy + (i % 2) * 0.5, 1.3, 1.2);                              // pontas no topo
+  }
+  rect("rgba(255,255,255,.06)", -4.5, -44.7 + hy, 6, 1);
+
+  // braços: cruzados (cara de mau) -> soltos (conversando) -> segurando a flauta
+  const MSH = 7.75, SY = S + 2.5, MAL = 11;
+  const POSE = {
+    rel: [[[-MSH - 0.5, SY + 6.5], [-MSH - 0.3, SY + MAL + 1]], [[MSH + 0.5, SY + 6.5], [MSH + 0.3, SY + MAL + 1]]],
+    crs: [[[-MSH - 0.6, SY + 11.6], [4.8, SY + 9.2]], [[MSH + 0.6, SY + 9], [-4.8, SY + 6.4]]],
+    flt: [[[-9.2, S + 8], [-12, mY + 3.8]], [[8.8, S + 10], [-3.9, mY + 2.8]]],
+  };
+  const fa = ease01(Math.max(0, (k - 0.55) / 0.45));                                                // a flauta só aparece quando já está perto da boca
+  if (k > 0.5 || F.st === "down") {                                                                 // flauta (por baixo das mãos)
+    const A = POSE.flt[1][1], B = POSE.flt[0][1], dx = B[0] - A[0], dy = B[1] - A[1];
+    ctx.globalAlpha = fa; ctx.lineCap = "round";
+    ctx.strokeStyle = "#5b6370"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(A[0] - dx * 0.5, A[1] - dy * 0.5); ctx.lineTo(B[0] + dx * 0.5, B[1] + dy * 0.5); ctx.stroke();
+    ctx.strokeStyle = "#d6dbe3"; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(A[0] - dx * 0.5, A[1] - dy * 0.5); ctx.lineTo(B[0] + dx * 0.5, B[1] + dy * 0.5); ctx.stroke();
+    for (let q = 0; q < 5; q++) rect("#4a5160", A[0] + dx * (0.05 + q * 0.22), A[1] + dy * (0.05 + q * 0.22) - 0.4, 0.8, 0.8);   // chaves
+    ctx.globalAlpha = 1; ctx.lineCap = "butt";
+  }
+  if (fa < 1) { ctx.globalAlpha = 1 - fa; rect("#d6dbe3", 3.4, S + 13.4, 1.1, 4.2); rect("#5b6370", 3.4, S + 17.2, 1.1, 0.5); ctx.globalAlpha = 1; }   // flauta presa na bermuda
+  [0, 1].forEach(i => {                                                                              // 0 = braço da esquerda da tela
+    const base = [0, 1].map(j => [L(POSE.crs[i][j][0], POSE.rel[i][j][0], fr), L(POSE.crs[i][j][1], POSE.rel[i][j][1], fr)]);
+    const E = [L(base[0][0], POSE.flt[i][0][0], k), L(base[0][1], POSE.flt[i][0][1], k)], Hd = [L(base[1][0], POSE.flt[i][1][0], k), L(base[1][1], POSE.flt[i][1][1], k)];
+    const sx = i ? MSH : -MSH;
+    shoulder(sx, SY, C.skin);
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.strokeStyle = C.dk; ctx.lineWidth = 4.1; ctx.beginPath(); ctx.moveTo(sx, SY); ctx.lineTo(E[0] + 0.3, E[1] + 0.4); ctx.lineTo(Hd[0] + 0.3, Hd[1] + 0.4); ctx.stroke();
+    ctx.strokeStyle = C.skin; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(sx, SY); ctx.lineTo(E[0], E[1]); ctx.lineTo(Hd[0], Hd[1]); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,210,160,.16)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx - 0.5, SY - 0.4); ctx.lineTo(E[0] - 0.6, E[1] - 0.5); ctx.stroke();   // luz no bíceps
+    ctx.fillStyle = C.lt; ctx.beginPath(); ctx.arc(Hd[0], Hd[1], 1.8, 0, 7); ctx.fill();            // mão
+    ctx.lineCap = "butt"; ctx.lineJoin = "miter";
+  });
+
+  // notinhas saindo da flauta
+  if (F.st === "play") for (let j = 0; j < 4; j++) {
+    const p = (t * 0.6 + j * 0.25) % 1, nx = -19 - p * 11 + Math.sin(p * 8 + j * 2) * 2.5, ny = mY + 3 - p * 28, a = (1 - p) * Math.min(1, p * 6);
+    ctx.globalAlpha = a; ctx.fillStyle = ["#ffd166", "#9fd3ff", "#ff9ecb", "#b6f5a8"][j];
+    ctx.beginPath(); ctx.ellipse(nx, ny, 1.5, 1.1, -0.4, 0, 7); ctx.fill();
+    rect(ctx.fillStyle, nx + 1.0, ny - 5, 0.7, 5); rect(ctx.fillStyle, nx + 1.6, ny - 5, 1.7, 0.8); rect(ctx.fillStyle, nx + 2.3, ny - 4.1, 0.9, 1);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+function drawTiaoUI(now) {
+  const nameY = PIER_Y - 58;
+  text(TIAO_NAME, TX, nameY, "#ffb86b", "center");
+  if (tTalk) {
+    const full = tTalk.text, shown = Math.min(full.length, Math.floor(tTalk.t * TYPE_CPS));
+    const lines = wrapLines(full, 24), lh = 11, w = Math.ceil(24 * UI_CH) + 14, hgt = lines.length * lh + 9;
+    const bx = Math.round(TX - w / 2), byy = Math.round(nameY - 14 - hgt);
+    rect("#ffb86b", bx - 1, byy - 1, w + 2, hgt + 2); rect("#1f1410", bx, byy, w, hgt);
+    ctx.fillStyle = "#ffb86b"; ctx.beginPath(); ctx.moveTo(TX - 5, byy + hgt + 1); ctx.lineTo(TX + 5, byy + hgt + 1); ctx.lineTo(TX, byy + hgt + 7); ctx.fill();
+    ctx.fillStyle = "#1f1410"; ctx.beginPath(); ctx.moveTo(TX - 4, byy + hgt); ctx.lineTo(TX + 4, byy + hgt); ctx.lineTo(TX, byy + hgt + 5); ctx.fill();
+    let left = shown;
+    lines.forEach((l, i) => { text(l.slice(0, Math.max(0, left)), bx + 7, byy + 11 + i * lh, "#fff"); left -= l.length + 1; });
+    if (shown >= full.length && Math.floor(now / 400) % 2) text("E >", bx + w - 5, byy + hgt - 2, "#ffd166", "right");
+  } else if (tNear()) text("[E] falar", TX, nameY - 12, "#ffd166", "center");
 }
 // zoom: reaproveita o quadro pronto (assim o reflexo continua certo) e redesenha só um pedaço dele, ampliado
 const zb = document.createElement("canvas"); let zctx = null;
@@ -819,7 +1024,7 @@ function phoneSelect() {                                                // E: se
   setTimeout(() => { closePhone(); openCustomizer(false); }, 260);          // "Personalizar personagem"
 }
 const nearOther = () => Object.values(others).some(o => Math.abs(o.x - px) < 40);
-const interacting = () => !!mTalk || mNear() || nearOther();             // conversando/perto do Malto ou de outro jogador: fica de lado
+const interacting = () => !!mTalk || mNear() || !!tTalk || tNear() || nearOther();             // conversando/perto do Malto ou de outro jogador: fica de lado
 function updateIdle(dt) {
   const quiet = state === "walk" && !PH.open && !wantDraw && Math.abs(spd) < 1 && !(keys.ArrowLeft || keys.ArrowRight || keys.KeyA || keys.KeyD);
   idleT = quiet && !interacting() ? idleT + dt : 0;
@@ -912,7 +1117,7 @@ addEventListener("keydown", e => {
   if (e.code === "KeyM" && !e.repeat) say(SND.toggleMute() ? "Som desligado" : "Som ligado");
   if (e.code === "KeyF" && !e.repeat) togglePhone();
   if (e.code === "Escape" && PH.open) closePhone();
-  if (e.code === "KeyE" && !e.repeat) { if (PH.open) phoneSelect(); else talkMalto(); }   // com o celular aberto, E é do celular
+  if (e.code === "KeyE" && !e.repeat) { if (PH.open) phoneSelect(); else if (!talkMalto()) talkTiao(); }   // com o celular aberto, E é do celular
   if (e.code === "Space") { e.preventDefault(); if (!e.repeat) press(); }
 });
 addEventListener("keyup", e => keys[e.code] = false);
@@ -923,6 +1128,7 @@ cv.addEventListener("pointerdown", e => {
   SND.unlock();
   const r = cv.getBoundingClientRect(), wxp = (e.clientX - r.left) / r.width * W - ((W - WORLD) / 2 + camX);
   if (mNear() && Math.abs(wxp - MX) < 22 && talkMalto()) return;      // toque no Malto = conversar (não lança a linha)
+  if (tNear() && Math.abs(wxp - TX) < 22 && talkTiao()) return;        // toque no Tião também
   keys.Space = true; press();
 });
 addEventListener("pointerup", () => keys.Space = false);
@@ -1008,7 +1214,7 @@ function update(dt) {
   msgT = Math.max(0, msgT - dt);
   if (INTRO.phase === "go") introUpdate(dt); else if (INTRO.phase === "up" || INTRO.phase === "down") introMove(dt);
   updatePhone(dt); updateIdle(dt);
-  maltoUpdate(dt);
+  maltoUpdate(dt); tiaoUpdate(dt);
   GSHAKE *= Math.exp(-dt * 6);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
@@ -1792,7 +1998,7 @@ helpEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Ajuda"><div cl
   <div class="hp-row"><div class="hp-keys">${KEY(ICO.shift, "w")}</div><span>correr (segure enquanto anda)</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("", "sp")}</div><span>lançar a linha, fisgar quando morder e segurar para puxar o peixe</span></div>
   <div class="hp-row"><div class="hp-keys">${ICO.mouse}</div><span>clique ou toque: faz o mesmo que a barra de espaço</span></div>
-  <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>falar com o Malto (perto dele)</span></div>
+  <div class="hp-row"><div class="hp-keys">${KEY("E")}</div><span>falar com o Malto e o Tião (perto deles)</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("F")}</div><span>abrir ou guardar o celular</span></div>
   <div class="hp-row"><div class="hp-keys">${KEY("M")}</div><span>ligar ou desligar o som</span></div>
   <div class="hp-btns"><button id="help-close" type="button">Voltar</button></div></div>`;

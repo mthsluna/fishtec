@@ -92,10 +92,37 @@ const SND = (() => {
     s.start(ac.currentTime + delay);
   }
 
+  // ---------- música: arquivos grandes (assets/songs/*.wav), carregados sob demanda e fora da lista NAMES ----------
+  const songs = {}, songAsked = {};
+  let songsPlaying = 0, mus = null;
+  function preload(name) {                                // baixa e decodifica a música (só depois do primeiro toque/tecla); se faltar o arquivo, ignora
+    if (!ac || songAsked[name]) return; songAsked[name] = true;
+    fetch("assets/songs/" + name + ".wav").then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(a => new Promise((ok, no) => ac.decodeAudioData(a, ok, no)))
+      .then(b => { songs[name] = b; }).catch(() => {});
+  }
+  function playSong(name, { vol = 0.8 } = {}) {           // devolve { set(vol), stop(fade), ended, dur } ou null se ainda não carregou
+    if (!ac || !songs[name]) return null;
+    if (!mus) { mus = ac.createGain(); mus.connect(master); }
+    const s = ac.createBufferSource(), g = ac.createGain(), h = { ended: false, dur: songs[name].duration };
+    s.buffer = songs[name]; g.gain.value = 0; s.connect(g); g.connect(mus);
+    g.gain.setTargetAtTime(vol, ac.currentTime, 0.25);    // entra com fade
+    let stopped = false;
+    h.set = v => { if (!h.ended) g.gain.setTargetAtTime(v, ac.currentTime, 0.2); };
+    h.stop = (fade = 0.5) => { if (stopped || h.ended) return; stopped = true; g.gain.setTargetAtTime(0, ac.currentTime, fade / 3); try { s.stop(ac.currentTime + fade + 0.1); } catch (e) {} };
+    s.onended = () => { h.ended = true; if (--songsPlaying <= 0) { songsPlaying = 0; amb.gain.setTargetAtTime(0.7, ac.currentTime, 0.8); } };
+    if (++songsPlaying === 1) amb.gain.setTargetAtTime(0.28, ac.currentTime, 0.8);   // o mar e o vento abaixam enquanto a música toca
+    s.start();
+    return h;
+  }
+
   let lastStep = -1;
   const api = {
     unlock,
     play,
+    preload, playSong,
+    ready: name => !!songs[name],
+    songDur: name => songs[name] ? songs[name].duration : 0,
     toggleMute() {
       muted = !muted;
       try { localStorage.setItem("muted", muted ? "1" : "0"); } catch (e) {}
