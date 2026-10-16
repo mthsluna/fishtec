@@ -55,6 +55,7 @@ const DAY = (() => {
     sky: [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]],
     topCss: "#241a45", washCss: "rgba(0,0,0,0)", washA: 0, waterCss: "rgba(0,0,0,0)", waterA: 0,
     starA: 0,
+    lamp: 0,                                                // 0 a 1: quão acesos estão os postes de luz (acendem no entardecer, apagam de manhã)
     sunX: 370, sunY: 62, sunA: 1, sunE: .4, moonX: 100, moonY: 60, moonA: 0,
     lightX: 370, lightA: 1, lc: [255, 205, 150],            // de onde vem o brilho na água, quão forte e de que cor
     glow: ["#fffbe6", "#ffe9a8", "rgba(255,200,120,0)"],
@@ -70,6 +71,7 @@ const DAY = (() => {
       this.washA = w[3]; this.washCss = `rgba(${rgb(w.slice(0, 3))},${w[3].toFixed(3)})`;
       this.waterA = v[3]; this.waterCss = `rgba(${rgb(v.slice(0, 3))},${v[3].toFixed(3)})`;
       this.starA = lerp(a.stars, b.stars, f);
+      this.lamp = m < 720 ? 1 - sm(300, 375, m) : sm(1050, 1140, m);   // apagam das 05:00 às 06:15; acendem das 17:30 às 19:00
 
       // sol: nasce à esquerda, passa no alto ao meio-dia e se põe à direita atrás das montanhas
       const p = (m - SUNRISE) / (SUNSET - SUNRISE);

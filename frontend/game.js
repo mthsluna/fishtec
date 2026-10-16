@@ -1820,6 +1820,73 @@ function drawReelUI(now) {
   rect("rgba(255,255,255,.18)", px0 + 1, Y + H * 0.34, 4, 0.7); rect("rgba(255,255,255,.18)", px0 + 1, Y + H * 0.67, 4, 0.7);   // marcas de 33% e 66%
 }
 
+// ---------- Postes de luz do cais: acendem à noite com luz amarela quente ----------
+const LAMPS = [-110, 30, 170, 310, 450, 590];            // x de cada poste no mundo (mude aqui para mover/adicionar)
+const LAMP_H = 38;                                       // altura do fuste; a lanterna fica no topo
+const LAMP_WARM = [255, 190, 70];                        // cor da luz (amarelo quente)
+const lampOn = x => DAY.lamp > 0.01 && x + ox0() > -100 && x + ox0() < W + 100;
+const ox0 = () => (W - WORLD) / 2 + camX;                // deslocamento do mundo na tela
+function lampFlick(x, now) { return 1 + 0.025 * Math.sin(now / 230 + x) + 0.015 * Math.sin(now / 97 + x * 3); }
+
+function drawLamps(now) {                                // corpo do poste (recebe a lavagem de cor da hora, como o resto do cenário)
+  const y0 = PIER_Y + 1;
+  LAMPS.forEach(x => {
+    if (x + ox0() < -30 || x + ox0() > W + 30) return;
+    softShadow(x, PIER_Y + 1.2, 7, 1.4, 0.35, PIER_Y + 3.2);
+    rect("#2b2230", x - 3, y0 - 2, 6, 2);                // base
+    rect("#3a2e3c", x - 1, y0 - LAMP_H, 2, LAMP_H - 2);  // fuste
+    rect("#6b5a63", x, y0 - LAMP_H, 0.6, LAMP_H - 2);    // brilho do ferro
+    rect("#2b2230", x - 2.5, y0 - LAMP_H - 2, 5, 2);     // colar
+    rect("#9a7440", x - 3, y0 - LAMP_H - 9, 6, 7);       // vidro (apagado)
+    rect("#2b2230", x - 3.6, y0 - LAMP_H - 9, 0.8, 7); rect("#2b2230", x + 2.8, y0 - LAMP_H - 9, 0.8, 7);   // armação
+    rect("#2b2230", x - 4.2, y0 - LAMP_H - 11, 8.4, 2);  // tampa
+    rect("#3a2e3c", x - 2, y0 - LAMP_H - 13, 4, 2);
+    rect("#2b2230", x - 0.5, y0 - LAMP_H - 15, 1, 2);    // pontinha
+  });
+}
+
+function drawLampGlow(now) {                             // luz: vidro aceso, halo e poça de luz nas tábuas (em coordenadas do mundo)
+  const L = DAY.lamp, [r, g, b] = LAMP_WARM, y0 = PIER_Y + 1, cy = y0 - LAMP_H - 5.5;
+  LAMPS.forEach(x => {
+    if (!lampOn(x)) return;
+    const k = L * lampFlick(x, now);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, k * 1.1);              // vidro aceso
+    rect("#ffd36a", x - 3, cy - 3.5, 6, 7); rect("#fff3c2", x - 1.6, cy - 2.2, 3.2, 4.4);
+    ctx.globalCompositeOperation = "lighter";            // somar luz: o que está atrás clareia e esquenta
+    let gr = ctx.createRadialGradient(x, cy, 3, x, cy, 90);
+    gr.addColorStop(0, `rgba(${r},${g + 12},${b + 20},${0.55 * k})`);
+    gr.addColorStop(0.3, `rgba(${r},${g},${b},${0.2 * k})`);
+    gr.addColorStop(1, `rgba(${r},${g - 30},${b - 30},0)`);
+    ctx.globalAlpha = 1; ctx.fillStyle = gr; ctx.fillRect(x - 90, cy - 90, 180, 180);
+    ctx.beginPath(); ctx.rect(x - 90, PIER_Y, 180, 3.4); ctx.clip();      // poça de luz só nas tábuas do deck
+    ctx.translate(x, PIER_Y + 1); ctx.scale(1, 0.07);
+    gr = ctx.createRadialGradient(0, 0, 2, 0, 0, 80);
+    gr.addColorStop(0, `rgba(255,210,110,${0.8 * k})`); gr.addColorStop(0.5, `rgba(${r},${g},${b},${0.35 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(-80, -80, 160, 160);
+    ctx.restore();
+  });
+}
+
+function drawLampWater(now) {                            // brilho amarelo na água embaixo de cada poste (o reflexo do poste já vem do cenário)
+  const t = now / 1000, [r, g, b] = LAMP_WARM;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  LAMPS.forEach(lx0 => {
+    const x = lx0 + ox0();
+    if (!lampOn(lx0)) return;
+    const k = DAY.lamp * lampFlick(lx0, now);
+    ctx.save(); ctx.translate(x, WATER_Y + 3); ctx.scale(1, 0.22);
+    const gr = ctx.createRadialGradient(0, 0, 2, 0, 0, 52);
+    gr.addColorStop(0, `rgba(${r},${g},${b},${0.32 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(-52, -52, 104, 104); ctx.restore();
+    for (let i = 0; i < 6; i++) {                        // faíscas de luz ondulando
+      const y = WATER_Y + 6 + i * 4.5, w = 10 - i * 1.2 + Math.sin(t * 1.6 + i * 1.9 + lx0) * 2.5, j = Math.sin(t * 0.9 + i * 2.3 + lx0) * 3;
+      ctx.fillStyle = `rgba(${r},${g + 20},${b + 40},${(0.22 - i * 0.03) * k})`; ctx.fillRect(x - w / 2 + j, y, w, 0.9);
+    }
+  });
+  ctx.restore();
+}
+
 function draw(now) {
   DAY.update(gameMinutes());
   if (!layers) buildLayers(now);
@@ -1855,6 +1922,7 @@ function draw(now) {
   drawLakeGlints(now, ox + camX * PAR.sky + DAY.lightX);
   ctx.drawImage(layers.deck, lx(PAR.pier), 0, LW, H);
   ctx.save(); ctx.translate(wx, 0);
+  drawLamps(now);
   drawMalto(now);
   Object.values(others).forEach(o => drawOther(o, now));
   const ip = INTRO.on ? introPose(now) : undefined;                     // abertura: null = ainda não apareceu, objeto = caindo, undefined = normal
@@ -1865,6 +1933,7 @@ function draw(now) {
   if (sq) ctx.restore();
   ctx.restore();
   }, [0, WATER_Y]);
+  if (DAY.lamp > 0.01) { ctx.save(); ctx.translate(wx, 0); drawLampGlow(now); ctx.restore(); }   // luz dos postes (antes do reflexo, para refletir na água)
 
   // 2) água com reflexo
   reflect();
@@ -1873,6 +1942,7 @@ function draw(now) {
   drawReflection(now);
   drawWaves(now, ox);                                      // ondas, sombras e o brilho do sol na água
   pierShadow(now, ox + camX);
+  if (DAY.lamp > 0.01) drawLampWater(now);
   DAY.scene(() => ctx.drawImage(layers.posts, lx(PAR.pier), 0, LW, H), [PIER_Y + 8, PIER_Y + 42]);
   postWaves(now, ox + camX);
 
