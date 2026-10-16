@@ -175,10 +175,28 @@ let ready = false;                                                              
 try { const sv = JSON.parse(localStorage.getItem("look") || "{}"); myName = String(sv.name || "").slice(0, 14);
   if (/^#[0-9a-f]{6}$/i.test(sv.shirt)) me.shirt = sv.shirt; if (/^#[0-9a-f]{6}$/i.test(sv.pants)) me.pants = sv.pants; me.h = Math.max(0, Math.min(1, +sv.h || 0)); } catch (e) {}
 const lookPayload = () => ({ name: myName, shirt: me.shirt, pants: me.pants, h: +me.h.toFixed(3) });
+// ---------- Relógio do jogo: o dia tem 30 min reais (1 min do jogo = 1,25 s) e todos veem a mesma hora ----------
+// A hora vem do relógio do SERVIDOR: medimos a diferença (clockOff) entre ele e o do aparelho, compensando a latência.
+const DAY_MS = 30 * 60 * 1000;
+let clockOff = 0;                                                               // servidor - aparelho, em ms (0 = sem servidor: usa o relógio local)
+const gameMinutes = () => (((Date.now() + clockOff) % DAY_MS) / DAY_MS) * 1440;   // 0 a 1440 (00:00 a 24:00)
+function gameClock() {
+  const m = Math.floor(gameMinutes()) % 1440;
+  return String(m / 60 | 0).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+}
 const socket = typeof io !== "undefined" ? io(API, { transports: ["websocket"] }) : null;
 if (socket) {
+  const syncClock = () => {
+    const t0 = Date.now();
+    socket.timeout(4000).emit("time:sync", (err, serverNow) => {
+      if (err || !(serverNow > 0)) return;
+      const t1 = Date.now();
+      clockOff = serverNow + (t1 - t0) / 2 - t1;                                // supõe que a ida e a volta levaram o mesmo tempo
+    });
+  };
+  setInterval(() => { if (socket.connected) syncClock(); }, 60000);             // reajusta de minuto em minuto (corrige deriva)
   const add = p => others[p.id] = { ...p, tx: p.x };
-  socket.on("connect", () => { if (ready) socket.emit("join", lookPayload()); });
+  socket.on("connect", () => { syncClock(); if (ready) socket.emit("join", lookPayload()); });
   socket.on("players", list => { Object.keys(others).forEach(k => delete others[k]); list.forEach(p => p.id !== socket.id && add(p)); });
   socket.on("player:join", add);
   socket.on("player:look", d => { const o = others[d.id]; if (o) Object.assign(o, d); });
@@ -783,7 +801,7 @@ function drawTiao(now) {
   ctx.fillStyle = C.hair; roundPath(-5.1, -46 + hy, 10.2, 6.4, 2.6); ctx.fill();
   rect(C.hair, -5.1, -42 + hy, 1.1, 3.6); rect(C.hair, 4, -42 + hy, 1.1, 3.6);                       // laterais descendo até as costeletas
   for (let i = 0; i < 6; i++) rect(C.hair2, -4.2 + i * 1.7, -45.3 + hy + (i % 2) * 0.6, 0.9, 0.9);   // cachinhos/textura
-  rect(C.hair, -4.6, -40.4 + hy, 9.2, 0.7);                                                          // linha da testa
+  rect(C.hair, -4.6, -41 + hy, 9.2, 2.7);                                                            // franja: preenche o vão entre o cabelo e o rosto (antes dava pra ver o fundo)
   rect("rgba(255,255,255,.07)", -3.5, -45.4 + hy, 5, 0.9);
 
   // braços: cruzados (cara de mau) -> soltos (conversando) -> segurando a flauta
@@ -1153,6 +1171,7 @@ function nokiaScreen(sw, sh, inv) {                                      // layo
   ctx.font = NOKIA_FONT; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
   const lx = LCD_M + LCD_DX, lw = sw - 2 * LCD_M;                        // área do conteúdo: mesma margem dos dois lados, deslocada para a esquerda
   ctx.fillStyle = LCD_INK; ctx.fillText("Menu", lx + 3, 11);
+  ctx.textAlign = "right"; ctx.fillText(gameClock(), lx + lw - 2, 11); ctx.textAlign = "left";   // hora do jogo (igual para todos), no canto direito
   rect(LCD_INK, lx, 14, lw, 1);                                          // linha abaixo de "Menu": largura total, 1px de espessura
   if (inv) rect(LCD_INK, lx, 17, lw, 19);                                 // opção selecionada em vídeo invertido (mesma largura da linha)
   ctx.fillStyle = inv ? LCD_BG : LCD_INK;

@@ -59,6 +59,8 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("player:join", players[socket.id]);
   });
 
+  socket.on("time:sync", (ack) => { if (typeof ack === "function") ack(Date.now()); });   // relógio do jogo: o cliente mede a diferença para o horário do servidor
+
   socket.on("look", (d = {}) => {                           // mudou apelido/roupa/altura depois de entrar
     const p = players[socket.id];
     if (!p) return;
