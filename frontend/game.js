@@ -1726,13 +1726,13 @@ pzStyle.textContent = introStyle.textContent.replaceAll("#intro", "#pz") + `
   box-shadow:0 0 0 4px #241a45,0 0 0 7px #b83f6a,0 0 0 10px #241a45,inset 0 0 0 3px #241a45,inset 0 0 3.2em rgba(255,200,120,.12),0 28px 70px rgba(0,0,0,.65);
   animation:pzPop .28s cubic-bezier(.2,.9,.3,1.2)}
 #pz .pz-card h1{font-size:clamp(40px,8vw,92px);padding-bottom:.12em}
+#pz .pz-card h1 span{animation:none;transform:none}
 #pz .pz-card button{font-size:clamp(18px,2.6vw,30px)}
 #pz .pz-card button.sec{margin-top:0}
-#pz .pz-rule{width:100%;height:4px;margin:-.4vh 0;background:repeating-linear-gradient(90deg,#ffe0a8 0 8px,transparent 8px 12px);opacity:.55}
 @keyframes pzPop{from{transform:translateY(14px) scale(.96);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){#pz .pz-card{animation:none}}`;                                  // mesmo título e botões da tela inicial (o CSS é o da abertura, trocando o id)
 document.head.appendChild(pzStyle);
-pzEl.innerHTML = `<div class="pz-card" role="dialog" aria-label="Pausa"><h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><div class="pz-rule" aria-hidden="true"></div><button id="pz-back" type="button">VOLTAR AO JOGO</button><button id="pz-cfg" type="button" class="sec">CONFIGURAÇÕES</button><button id="pz-home" type="button" class="sec">TELA INICIAL</button></div>`;
+pzEl.innerHTML = `<div class="pz-card" role="dialog" aria-label="Pausa"><h1 aria-label="FISHTEC">${[..."FISHTEC"].map((c, i) => `<span aria-hidden="true" style="--i:${i}">${c}</span>`).join("")}</h1><button id="pz-back" type="button">VOLTAR AO JOGO</button><button id="pz-cfg" type="button" class="sec">CONFIGURAÇÕES</button><button id="pz-home" type="button" class="sec">TELA INICIAL</button></div>`;
 document.body.appendChild(pzEl);
 const pzBtns = [...pzEl.querySelectorAll("button")], pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
 let rebinding = false;
