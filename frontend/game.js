@@ -1714,8 +1714,7 @@ function drawReelUI(now) {
   rect("#7a5632", X - 14, Y - 8, 44, 1); rect("#7a5632", X - 14, Y - 8, 1, H + 16);
   rect("#1f140b", X - 14, Y + H + 7, 44, 1); rect("#1f140b", X + 29, Y - 8, 1, H + 16);
   [[-12, -6], [27, -6], [-12, H + 4], [27, H + 4]].forEach(([dx, dy], i) => {           // pininhos dourados que piscam
-    rect("#b8862b", X + dx, Y + dy, 2, 2); rect("#ffd978", X + dx, Y + dy, 1, 1);
-    spark(X + dx + 1, Y + dy + 1, 2.6, Math.sin(((t * 0.7 + i * 0.27) % 1) * Math.PI) ** 6);
+    rect("#7f858d", X + dx, Y + dy, 2, 2); rect("#c9ced4", X + dx, Y + dy, 1, 1);
   });
   // água do trilho: degradê, riscos de luz subindo e bolhinhas
   ctx.save(); ctx.beginPath(); ctx.rect(X, Y, 16, H); ctx.clip();
@@ -1743,18 +1742,9 @@ function drawReelUI(now) {
   ctx.restore();
   rect("#d6ffd6", X + 1, y0, 14, 1); rect("#2b8541", X + 1, y0 + bh - 1, 14, 1);        // borda de cima clara e de baixo escura
   if (inside) { ctx.strokeStyle = `rgba(255,255,210,${0.35 + 0.35 * pulse})`; ctx.lineWidth = 0.8; ctx.strokeRect(X + 1.4, y0 + 0.4, 13.2, bh - 0.8); }
-  for (let i = 0; i < 10; i++) {                                                         // glitter dentro da barra (mais forte com o peixe dentro)
-    const ph = (t * (0.7 + hs(i + 70) * 0.9) + hs(i + 90)) % 1;
-    spark(X + 2 + hs(i) * 12, y0 + 2 + hs(i + 50) * Math.max(1, bh - 4), 1 + (hs(i + 110) > 0.6 ? 1.6 : 0.4), Math.sin(ph * Math.PI) * (inside ? 1 : 0.65), "#eaffea");
-  }
   // peixe: halo dourado e estrelinhas girando quando está dentro da barra
   const fx = X + 8, fy = Y + fp.y;
-  if (inside) {
-    g = ctx.createRadialGradient(fx, fy, 1, fx, fy, 20); g.addColorStop(0, `rgba(255,240,150,${0.32 + 0.16 * pulse})`); g.addColorStop(1, "rgba(255,240,150,0)");
-    ctx.fillStyle = g; ctx.fillRect(fx - 22, fy - 22, 44, 44);
-  }
   drawMystery(fx, fy, 30, 22);                                                           // sempre o peixe misterioso; o de verdade só aparece depois de pescar
-  if (inside) for (let i = 0; i < 4; i++) { const an = t * 2.2 + i * Math.PI / 2; spark(fx + Math.cos(an) * 13, fy + Math.sin(an) * 8, 2, 0.5 + 0.5 * Math.sin(t * 6 + i * 2), "#fff3a8"); }
   // progresso: calha escura, enchimento com degradê, reflexo subindo e brilho na pontinha
   const px0 = X + 22, fh = TRACK.h * prog / 100, top = Y + TRACK.h - fh;
   rect("#0e0e0e", px0, Y, 6, H); rect("#2a2a2a", px0, Y, 6, 1); rect("#1b1b1b", px0 + 1, Y + 1, 4, H - 1);
@@ -1766,8 +1756,6 @@ function drawReelUI(now) {
     ctx.save(); ctx.beginPath(); ctx.rect(px0 + 1, top, 4, fh); ctx.clip();
     const sh = (t * 55) % (fh + 14); rect("rgba(255,255,255,.45)", px0 + 1, Y + H - sh, 4, 2); rect("rgba(255,255,255,.2)", px0 + 1, Y + H - sh + 2, 4, 2);
     ctx.restore();
-    spark(px0 + 3, top, 2.4 + pulse, 0.6 + 0.4 * Math.sin(t * 7), col[0]);
-    if (prog > 66) for (let i = 0; i < 3; i++) spark(px0 + 3 + (hs(i + 5) - 0.5) * 9, top + 3 + hs(i) * Math.min(fh, 30), 1.4, Math.sin(((t * 1.3 + i * 0.31) % 1) * Math.PI), "#eaffea");
   }
   rect("rgba(255,255,255,.18)", px0 + 1, Y + H * 0.34, 4, 0.7); rect("rgba(255,255,255,.18)", px0 + 1, Y + H * 0.67, 4, 0.7);   // marcas de 33% e 66%
 }
