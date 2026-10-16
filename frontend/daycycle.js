@@ -153,7 +153,7 @@ const DAY = (() => {
       }
       const sc = this._scx, tf = main.getTransform();
       let y0 = 0, y1 = h;
-      if (band) { y0 = Math.max(0, Math.floor(band[0] * S)); y1 = Math.min(h, Math.ceil(band[1] * S)); }
+      if (band) { y0 = Math.max(0, Math.floor(band[0] * tf.d + tf.f)); y1 = Math.min(h, Math.ceil(band[1] * tf.d + tf.f)); }   // usa a câmera atual (com zoom a faixa muda de lugar)
       sc.setTransform(1, 0, 0, 1, 0, 0); sc.globalAlpha = 1; sc.globalCompositeOperation = "source-over";
       sc.clearRect(0, y0, w, y1 - y0);
       sc.setTransform(tf); sc.imageSmoothingEnabled = main.imageSmoothingEnabled;

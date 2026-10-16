@@ -73,7 +73,7 @@ void main(){
 function setScale(s) {
   S = s; layers = null; W = viewW();
   buf.width = W * S; buf.height = H * S;
-  refl.width = W * S; refl.height = RD * S;
+  refl.width = W * S; refl.height = Math.ceil(RD * S * 2.3);   // altura extra: com zoom o reflexo ocupa mais pixels
   const cssW = Math.min(innerWidth, innerHeight * W / H), cssH = cssW * H / W;   // preenche a tela, sem barras laterais
   cv.style.width = cssW + "px"; cv.style.height = cssH + "px";
   if (gl) {                                                           // saída na resolução real do monitor (até 2x e no máximo 2560 px): dithering nítido, sem moiré
@@ -1036,11 +1036,11 @@ function drawBobber(bx, now, st, land) {                                   // bo
     ctx.fillStyle = "rgba(60,120,205,.8)";                                 // a parte debaixo d'água fica azulada
     ctx.beginPath(); ctx.arc(bx, cy, R, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-    const sy = (Math.max(cy + R, wl) + 3) * S;                             // água de verdade, copiada de logo abaixo da boia (mesma cor, ondas e brilho)
+    const T = ctx.getTransform(), sy = (Math.max(cy + R, wl) + 3) * T.d + T.f;   // (com zoom: usa a câmera atual) água de verdade, copiada de logo abaixo da boia (mesma cor, ondas e brilho)
     for (let x = Math.floor(x0); x < x1; x++) {                            // colunas de 1px: o topo da água ondula
       const top = wl + 0.5 * Math.sin(now / 420 + x * 1.35) + 0.2 * Math.sin(now / 230 + x * 2.3), h = Math.max(0.6, wl + hh - top);
       ctx.globalAlpha = 0.6;
-      ctx.drawImage(buf, (x + wxp) * S, sy, S, h * S, x, top, 1, h);
+      ctx.drawImage(buf, x * T.a + T.e, sy, T.a, h * T.d, x, top, 1, h);
       ctx.globalAlpha = 1;
       rect("rgba(225,240,250,.5)", x, top, 1, 0.8);                        // borda de cima mais clara (contraste)
     }
@@ -1890,20 +1890,23 @@ function buildLayers(now) {
 const PAR = { sky: 0.04, cloud: 0.12, far: 0.25, mid: 0.37, near: 0.5, hills: 0.75, lake: 0.75, pier: 1 };
 const rctx = refl.getContext("2d");
 
-function reflect() {                       // copia o que está acima da água para o canvas do reflexo
+function reflect() {                       // copia o que está acima da água para o canvas do reflexo (já na ampliação da câmera atual)
+  const t = ctx.getTransform(), d = t.d, Hd = Math.min(refl.height, Math.ceil(RD * d)), yw = WATER_Y * d + t.f;
   rctx.setTransform(1, 0, 0, 1, 0, 0);
   rctx.clearRect(0, 0, refl.width, refl.height);
-  rctx.drawImage(buf, 0, (WATER_Y - RD) * S, W * S, RD * S, 0, 0, W * S, RD * S);
+  const top = Math.max(0, yw - Hd), bot = Math.min(buf.height, yw), hh = bot - top;
+  if (hh > 0.5) rctx.drawImage(buf, 0, top, buf.width, hh, 0, Hd - (yw - top), buf.width, hh);   // a base fica alinhada com a linha da água
 }
 function drawReflection(now) {             // desenha o reflexo espelhado, em faixas que ondulam (mais forte longe da margem)
-  const rh = 1;
-  for (let r = 0; r < RD; r += rh) {
+  const t = ctx.getTransform(), d = t.d, z = d / S, Hd = Math.min(refl.height, Math.ceil(RD * d)), ys = (WATER_Y * d + t.f) / S;
+  ctx.save(); ctx.setTransform(S, 0, 0, S, 0, 0);                      // o reflexo já está em pixels de tela: desenha sem a câmera, só espaçando as faixas pelo zoom
+  for (let r = 0; r < RD; r++) {
     const k = r / RD;
     const off = Math.sin(r / 5 + now / 900) * (0.3 + k * 1.6) + Math.sin(r / 2.6 - now / 650) * 0.35;
     ctx.globalAlpha = 0.6 * (1 - k * 0.8);
-    ctx.drawImage(refl, 0, (RD - r - rh) * S, W * S, rh * S, off - 4, WATER_Y + r, W + 8, rh);
+    ctx.drawImage(refl, 0, Hd - (r + 1) * d, refl.width, d, off * z - 4, ys + r * z, W + 8, z);
   }
-  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 // ---------- Ondas: cristas horizontais em perspectiva, iluminadas pelo sol (grade pequena, suavizada ao desenhar) ----------
@@ -1987,7 +1990,8 @@ function postWaves(now, wxp) {
     const h = Math.max(0.6, 1.3 + 1.0 * Math.sin(t * 1.6 + ph) + 0.6 * Math.sin(t * 2.7 + ph * 1.7));   // quanto a água sobe no poste (0 a ~3px)
     rect("rgba(0,0,0,.18)", x0, BOTTOM - 4, x1 - x0, 4 - h + 0.01);              // madeira úmida logo acima da água
     ctx.globalAlpha = 0.93;
-    ctx.drawImage(buf, x0 * S, (BOTTOM + 1) * S, (x1 - x0) * S, h * S, x0, BOTTOM - h, x1 - x0, h);   // água de verdade cobrindo o pé do poste
+    const T = ctx.getTransform();
+    ctx.drawImage(buf, x0 * T.a + T.e, (BOTTOM + 1) * T.d + T.f, (x1 - x0) * T.a, h * T.d, x0, BOTTOM - h, x1 - x0, h);   // água de verdade cobrindo o pé do poste
     ctx.globalAlpha = 1;
     rect(`rgba(225,240,250,${0.3 + 0.12 * h})`, x0, BOTTOM - h, x1 - x0, 0.9);   // borda de cima mais clara (contraste)
   }
@@ -2172,6 +2176,11 @@ function draw(now) {
   DAY.repaintSky(now);
   const ox = (W - WORLD) / 2, wx = ox + camX;              // wx = deslocamento do mundo na tela
   const lx = f => ox + camX * f - EXT;                     // posição de uma camada com fator de parallax f
+  // câmera: com zoom, a cena INTEIRA é redesenhada já ampliada (nada de esticar o quadro pronto): personagens, linha, ondas e reflexo ficam nítidos
+  const zk = !INTRO.on && zs > 1.003 ? zs : 1, vw = W / zk, vh = H / zk;
+  const vx = zk > 1 ? Math.max(0, Math.min(W - vw, wx + px - zside * vw)) : 0, vy = zk > 1 ? Math.max(0, Math.min(H - vh, zfy - vh / 2)) : 0;
+  lastView = { z: zk, sx: vx, sy: vy };
+  ctx.save(); if (zk > 1) { ctx.scale(zk, zk); ctx.translate(-vx, -vy); }
 
   // 1) acima da água: céu, nuvens, montanhas, cais e pescadores
   ctx.drawImage(layers.sky, lx(PAR.sky), 0, LW, H);
@@ -2237,9 +2246,8 @@ function draw(now) {
   else if (state === "wait" || state === "bite" || state === "reel") drawLine(tip.x, tip.y, bobber.x, now, state, landT0);
   ctx.restore();
 
+  ctx.restore();                                           // fim da câmera: a interface abaixo não é ampliada
   if (INTRO.on) introView(now);
-  else if (zs > 1.003) zoomView(zs, wx + px, zfy, zside);   // aproxima no pescador enquanto puxa/comemora o peixe (a interface abaixo não é ampliada)
-  else lastView = { z: 1, sx: 0, sy: 0 };
 
   if (!INTRO.on) shakeView(now);                                       // tremor levinho (só o cenário; a interface abaixo não treme)
 
