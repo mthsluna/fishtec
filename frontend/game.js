@@ -184,6 +184,8 @@ const dust = [];                                  // fumacinha da freada
 const rodL = newRod(1);                           // a vara começa (e fica) nas costas; só é sacada para pescar
 let wantDraw = false, vigK = 0;                    // wantDraw: quer lançar mas ainda está sacando a vara; vigK: vinheta
 const STOW_T = 0.6, DRAW_T = 0.55;                // segundos para guardar nas costas / sacar de volta
+let GSHAKE = 0;                                   // tremor leve do jogo (px): sobe nos eventos e decai sozinho
+const kick = a => { GSHAKE = Math.max(GSHAKE, a); };
 let camX = 0;                                     // câmera: acompanha o pescador (base do parallax)
 const keys = {};
 
@@ -914,14 +916,14 @@ function startCast() {
 
 function startReel() {
   if (!fish) fish = fishList[0];
-  state = "reel"; prog = 25; reelT = 0; reelAng = 0; SND.hook();
+  state = "reel"; prog = 25; reelT = 0; reelAng = 0; SND.hook(); kick(0.7);
   bar.y = TRACK.h - bar.h; bar.v = 0;
   fp.y = TRACK.h / 2; fp.target = fp.y; fp.timer = 0;
 }
 
 function finish(win) {
-  if (win) { state = "show"; showT = 0; score += fish.points; SND.win(); post("/api/catch", { id: fish.id }).catch(() => {}); }
-  else { state = "walk"; SND.lose(); say("O peixe escapou..."); }
+  if (win) { state = "show"; showT = 0; score += fish.points; SND.win(); kick(0.9); post("/api/catch", { id: fish.id }).catch(() => {}); }
+  else { state = "walk"; SND.lose(); kick(0.4); say("O peixe escapou..."); }
 }
 // ---------- Comemoração: braços pra cima e o peixe pescado aparece grande, flutuando sobre eles ----------
 let showT = 0;
@@ -974,6 +976,7 @@ function update(dt) {
   if (INTRO.phase === "go") introUpdate(dt);
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt);
+  GSHAKE *= Math.exp(-dt * 6);
   camX += (-(px - WORLD / 2) * 0.12 - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador
   zk += ((state === "reel" ? 1 : 0) - zk) * Math.min(1, dt * 4);
   vigK += ((state === "show" ? 1 : 0) - vigK) * Math.min(1, dt * 5);   // vinheta suave ao pescar      // zoom entra e sai suavemente
@@ -1012,7 +1015,7 @@ function update(dt) {
     cs.t += dt;
     if (cs.t >= CAST_RELEASE + CAST_FLIGHT) { state = "wait"; t = 2 + Math.random() * 3; fxs.push({ x: bobber.x, t0: performance.now() }); SND.splash(); }
   } else if (state === "wait") {
-    t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; SND.bite(); }
+    t -= dt; if (t <= 0) { state = "bite"; bite = 1.4; SND.bite(); kick(0.5); }
   } else if (state === "bite") {
     bite -= dt; if (bite <= 0) { state = "walk"; SND.lose(); say("Fisgou tarde demais"); }
   } else if (state === "reel") {
@@ -1478,6 +1481,8 @@ function draw(now) {
   if (INTRO.on) introView(now);
   else if (zk > 0.003) zoomView(1 + 0.45 * zk, wx + px, PIER_Y - 6, 0.3);   // aproxima no pescador enquanto puxa o peixe (a interface abaixo não é ampliada)
 
+  if (!INTRO.on) shakeView(now);                                       // tremor levinho (só o cenário; a interface abaixo não treme)
+
   // minigame estilo Stardew
   if (state === "reel") {
     rect("#3b2a1a", TRACK.x - 14, TRACK.y - 8, 44, TRACK.h + 16);
@@ -1705,7 +1710,7 @@ function introUpdate(dt) {
     I.landed = true; I.shake = 1; spawnDust(10, 1); spawnDust(10, -1);
     SND.play("step_wood_1", { vol: 0.9, rate: 0.75 }); SND.play("pier_creak_2", { vol: 0.35, rate: 0.9, delay: 0.05 });
   }
-  I.shake *= Math.exp(-dt * 4);
+  I.shake *= Math.exp(-dt * 7);
   if (I.active && I.t >= I_FREE) I.active = false;
   if (I.t >= I_END) I.on = false;
 }
@@ -1724,7 +1729,7 @@ function introSquash() {                                // amassa/estica o corpo
 }
 function introCam(now) {                                // câmera: A = longe e no alto (título), B = zoom no deck, C = enquadramento normal do jogo
   const I = INTRO, wx = (W - WORLD) / 2 + camX;
-  const A = { z: ZA, x: W / 2, y: INTRO_BOTTOM - H / ZA / 2 + Math.sin(now / 2600) * 2 };   // a base da tela fica na linha da água: só o deck aparece lá embaixo
+  const A = { z: ZA, x: W / 2, y: INTRO_BOTTOM - H / ZA / 2 + Math.sin(now / 2600) * 2.3 };   // balanço lento da câmera no título (antes 2, +15%)   // a base da tela fica na linha da água: só o deck aparece lá embaixo
   const B = { z: ZIN, x: wx + px, y: PIER_Y - 26 };
   const C = { z: 1, x: W / 2, y: H / 2 };
   const mix = (a, b, p) => {                           // zoom e posição na MESMA curva: o zoom é geométrico e o centro acompanha o tamanho da janela (zoom em direção a um ponto)
@@ -1755,7 +1760,7 @@ function introExtra(now) {                              // (em coordenadas do qu
   });
   introClouds.forEach(cl => {
     ctx.globalAlpha = Math.max(0.4, 0.92 + Math.min(0, (cl.y + 40) / 700));                                    // as mais altas ficam mais apagadas
-    ctx.drawImage(cl.img, (cl.x0 + now / 1000 * cl.v) % 1200 - 280, cl.y, cl.w, cl.h);
+    ctx.drawImage(cl.img, (cl.x0 + now / 1000 * cl.v * 1.15) % 1200 - 280, cl.y, cl.w, cl.h);
   });
   ctx.globalAlpha = 1;
 }
@@ -1789,9 +1794,18 @@ function introBackdrop(now) {                           // com a câmera longe, 
   wide(layers.posts, lx(PAR.pier));
   ctx.save(); ctx.translate(wx, 0); drawMaltoUI(now); ctx.restore();
 }
+function shakeView(now) {                                // balança o quadro pronto: leve ao fisgar/pegar e um tremor bem fraquinho enquanto puxa o peixe
+  const a = GSHAKE + (state === "reel" ? 0.22 : 0);
+  if (a < 0.02) return;
+  if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
+  zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
+  const dx = Math.sin(now / 21) * a + Math.sin(now / 37 + 2) * a * 0.6, dy = Math.sin(now / 17 + 1) * a, m = a * 1.7;   // m: amplia um pouco para não aparecer borda
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(zb, 0, 0, buf.width, buf.height, dx - m, dy - m, W + 2 * m, H + 2 * m);
+}
 function introView(now) {                               // longe (zoom < 1): cenário redesenhado; perto (zoom >= 1): reaproveita o quadro pronto (com água e reflexo)
   const c = introCam(now), z = c.z, sw = W / z, sh = H / z, direct = z < 1;
-  const go = INTRO.phase === "go", sx = c.x - sw / 2 + (go ? INTRO.shake * Math.sin(now / 13 + 1.3) * 9 : 0), sy = c.y - sh / 2 + (go ? INTRO.shake * Math.sin(now / 16) * 16 : 0);   // tremor no pouso: vertical 16 + horizontal 9
+  const sx = c.x - sw / 2, sy = c.y - sh / 2 + (INTRO.phase === "go" ? INTRO.shake * Math.sin(now / 18) * 5.5 : 0);
   if (!zctx || zb.width !== buf.width || zb.height !== buf.height) { zb.width = buf.width; zb.height = buf.height; zctx = zb.getContext("2d"); }
   zctx.setTransform(1, 0, 0, 1, 0, 0); zctx.drawImage(buf, 0, 0);
   ctx.fillStyle = "#241a45"; ctx.fillRect(0, 0, W, H);                       // mesma cor do topo do céu do jogo: emenda sem costura
