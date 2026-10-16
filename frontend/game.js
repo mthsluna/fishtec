@@ -166,7 +166,7 @@ const post = (p, b) => fetch(API + p, { method: "POST", headers: { "Content-Type
 // Estado
 let px = 240, dir = 1, state = "walk", t = 0, bobber = { x: 0, y: 0 };
 let moving = false, walkAmp = 0;
-let fish = null, score = 0, msg = "", msgT = 0, bite = 0;
+let fish = null, msg = "", msgT = 0, bite = 0;
 const bar = { y: 0, v: 0, h: 44 }, fp = { y: 0, target: 0, timer: 0 };
 let prog = 0;
 const TRACK = { get x() { return W - 60; }, y: 50, h: 170 };
@@ -527,21 +527,26 @@ const mNear = () => state === "walk" && Math.abs(px - MX) < 40;
 function maltoUpdate(dt) {
   mt += dt;
   if (mTalk) {
-    const len = MALTO_LINES[mLine].length, a = Math.floor(mTalk.t * TYPE_CPS / 3);
+    const len = mTalk.text.length, a = Math.floor(mTalk.t * TYPE_CPS / 3);
     mTalk.t += dt;
     if (Math.floor(mTalk.t * TYPE_CPS / 3) > a && mTalk.t * TYPE_CPS < len)           // "voz" de máquina de escrever
       SND.play("step_wood_" + (1 + (Math.random() * 4 | 0)), { vol: 0.1, rate: 1.9, jitter: 0.25 });
     if (mTalk.t > len / TYPE_CPS + 6 || Math.abs(px - MX) > 80 || state !== "walk") mTalk = null;
   }
 }
-function talkMalto() {
-  if (!mNear()) return false;
-  if (px !== MX) dir = MX < px ? -1 : 1;                                                         // vira de lado para o Malto
-  if (mTalk && mTalk.t * TYPE_CPS < MALTO_LINES[mLine].length) { mTalk.t = 99; return true; }   // 1º toque: termina de digitar
+const maltoSay = text => { mTalk = { t: 0, text }; };
+function talkLore() {                                                                            // uma fala de conversa do Malto
   let n;
   if (mLine < 0) n = 0;                                                                         // primeira fala é a saudação
   else do { n = 1 + (Math.random() * (MALTO_LINES.length - 1) | 0); } while (n === mLine);      // depois sorteia sem repetir
-  mLine = n; mTalk = { t: 0 };
+  mLine = n; maltoSay(MALTO_LINES[n]);
+}
+function talkMalto() {
+  if (!mNear()) return false;
+  if (px !== MX) dir = MX < px ? -1 : 1;                                                         // vira de lado para o Malto
+  if (mTalk && mTalk.t * TYPE_CPS < mTalk.text.length) { mTalk.t = 99; return true; }           // 1º toque: termina de digitar
+  if (invCount() > 0) { openBag("shop"); maltoSay(pickOf(SHOP_HELLO)); return true; }           // com peixe no inventário: o Malto compra
+  if (mLine >= 0 && Math.random() < 0.35) maltoSay(pickOf(SHOP_EMPTY)); else talkLore();       // sem peixe: conversa (e às vezes lembra que compra peixe)
   return true;
 }
 
@@ -663,7 +668,7 @@ function drawMaltoUI(now) {
   const nameY = PIER_Y - 58;
   text("Malto", MX, nameY, "#9fd3ff", "center");
   if (mTalk) {
-    const full = MALTO_LINES[mLine], shown = Math.min(full.length, Math.floor(mTalk.t * TYPE_CPS));
+    const full = mTalk.text, shown = Math.min(full.length, Math.floor(mTalk.t * TYPE_CPS));
     const lines = wrapLines(full, 24), lh = 11, w = Math.ceil(24 * UI_CH) + 14, hgt = lines.length * lh + 9;
     const bx = Math.round(MX - w / 2), byy = Math.round(nameY - 14 - hgt);
     rect("#9fd3ff", bx - 1, byy - 1, w + 2, hgt + 2); rect("#0f1624", bx, byy, w, hgt);
@@ -672,7 +677,7 @@ function drawMaltoUI(now) {
     let left = shown;
     lines.forEach((l, i) => { text(l.slice(0, Math.max(0, left)), bx + 7, byy + 11 + i * lh, "#fff"); left -= l.length + 1; });
     if (shown >= full.length && Math.floor(now / 400) % 2) text("E >", bx + w - 5, byy + hgt - 2, "#ffd166", "right");
-  } else if (mNear()) text("[E] falar", MX, nameY - 12, "#ffd166", "center");
+  } else if (mNear() && !BAG.open) text(invCount() > 0 ? "[E] vender peixes" : "[E] falar", MX, nameY - 12, "#ffd166", "center");
   drawTiaoUI(now);
 }
 // ---------- Pedro: negro alto (a altura do Malto), cabelo curto, sem camiseta, graveto na boca. Cara de mau, mas é muito gente boa ----------
@@ -1123,6 +1128,103 @@ function drawFx(now) {                                                   // ané
   }
 }
 
+// ---------- Dinheiro (F$), inventário de peixes e venda para o Malto ----------
+// O dinheiro é guardado em CENTAVOS (inteiro). O preço de cada peixe vem da dificuldade dele (PRICE_BY_DIFF), ou de um "price" (em centavos) na lista de peixes do servidor.
+// Tudo fica salvo no navegador (localStorage). [I] abre o inventário; perto do Malto, [E] abre a venda.
+const PRICE_BY_DIFF = { 1: 650, 2: 1400, 3: 3250, 4: 6800, 5: 14500 };       // F$6,50 / 14,00 / 32,50 / 68,00 / 145,00
+const priceOf = f => f ? (f.price != null ? f.price : PRICE_BY_DIFF[f.difficulty] || 500) : 0;
+const fmtMoney = c => { c = Math.max(0, Math.round(c)); return "F$" + String(Math.floor(c / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + String(c % 100).padStart(2, "0"); };
+let money = 0, inv = {};
+try { money = Math.max(0, parseInt(localStorage.getItem("money"), 10) || 0); const sv = JSON.parse(localStorage.getItem("inv") || "{}"); for (const k in sv) if (sv[k] > 0) inv[k] = sv[k] | 0; } catch (e) {}
+const saveWallet = () => { try { localStorage.setItem("money", String(money)); localStorage.setItem("inv", JSON.stringify(inv)); } catch (e) {} };
+const invCount = () => Object.values(inv).reduce((a, b) => a + b, 0);
+const fishById = id => fishList.find(f => f.id === id);
+const invValue = () => Object.keys(inv).reduce((a, id) => a + inv[id] * priceOf(fishById(id)), 0);
+const pickOf = arr => arr[Math.random() * arr.length | 0];
+const SHOP_HELLO = ["Mostra o que pescou. Pago na hora, em F$.", "Peixe fresco? Pode colocar no balcão... quer dizer, na caixa.", "Hum, cheiro de maré. Vamos ver o que você trouxe."];
+const SHOP_EMPTY = ["Sem peixe, sem F$. Volta quando pescar alguma coisa.", "Eu compro peixe, sabia? Pesque um pouco e me procure."];
+const SHOP_SOLD = ["Negócio fechado. Peixe bom, esse.", "Fresco mesmo. Aceito.", "Paguei justo, pescador. Cada escama conta.", "Boa pesca. Esse some rapidinho."];
+const SHOP_BYE = ["Volte quando o mar render mais.", "Até a próxima maré, pescador."];
+const BAG = { open: false, mode: "inv", sel: 0, geo: null };              // mode: "inv" (só ver) ou "shop" (vender ao Malto)
+const bagRows = () => (BAG.mode === "shop" ? fishList.filter(f => inv[f.id] > 0) : fishList);
+function openBag(mode) {
+  if (BAG.open && BAG.mode === mode) return;
+  BAG.open = true; BAG.mode = mode; BAG.sel = 0; BAG.geo = null;
+  for (const k in keys) keys[k] = false;                                   // para de andar enquanto olha a mochila
+  if (typeof PH !== "undefined") PH.open = false;
+  SND.play("step_wood_1", { vol: 0.12, rate: 2.2, jitter: 0.1 });
+}
+function closeBag(bye) {
+  if (!BAG.open) return;
+  const wasShop = BAG.mode === "shop"; BAG.open = false; BAG.geo = null;
+  if (bye && wasShop && mNear()) maltoSay(pickOf(SHOP_BYE));
+}
+function sellFish(f, n) {
+  const have = inv[f.id] | 0; n = Math.min(n, have); if (n <= 0) return;
+  const total = n * priceOf(f);
+  inv[f.id] = have - n; if (inv[f.id] <= 0) delete inv[f.id];
+  money += total; saveWallet();
+  SND.play("catch_chime", { vol: 0.4, jitter: 0 }); kick(0.25);
+  say("Vendeu " + n + "x " + f.name + " por " + fmtMoney(total));
+  maltoSay(pickOf(SHOP_SOLD));
+  const rows = bagRows();
+  if (!rows.length) closeBag(false); else BAG.sel = Math.min(BAG.sel, rows.length - 1);
+}
+function bagKey(e) {                                                       // teclas enquanto a mochila/venda está aberta
+  const rows = bagRows(), f = rows[BAG.sel];
+  const stop = () => { e.preventDefault(); e.stopPropagation(); };
+  if (e.code === "Escape" || (BAG.mode === "inv" && e.code === "KeyI")) { stop(); if (!e.repeat) closeBag(true); return; }
+  if (e.code === "ArrowUp" || e.code === "KeyW") { stop(); if (rows.length) BAG.sel = (BAG.sel + rows.length - 1) % rows.length; return; }
+  if (e.code === "ArrowDown" || e.code === "KeyS") { stop(); if (rows.length) BAG.sel = (BAG.sel + 1) % rows.length; return; }
+  if (BAG.mode !== "shop") return;
+  if ((e.code === "KeyE" || e.code === "Enter") && !e.repeat) { stop(); if (f) sellFish(f, 1); return; }
+  if (e.code === "KeyQ" && !e.repeat) { stop(); if (f) sellFish(f, inv[f.id]); return; }                  // vende todos desse tipo
+  if (e.code === "KeyR" && !e.repeat) { stop(); rows.slice().forEach(r => sellFish(r, inv[r.id] | 0)); return; }   // vende tudo
+  if (e.code === "KeyC" && !e.repeat) { stop(); closeBag(false); talkLore(); return; }                 // volta a conversar
+}
+function bagPointer(lx, ly) {                                              // toque/clique: seleciona a linha; tocar na já selecionada vende 1; fora do painel fecha
+  const g = BAG.geo; if (!g) return true;
+  if (lx < g.x || lx > g.x + g.w || ly < g.y || ly > g.y + g.h) { closeBag(true); return true; }
+  const i = Math.floor((ly - g.rowY) / g.rowH), rows = bagRows();
+  if (i >= 0 && i < rows.length) { if (BAG.sel === i && BAG.mode === "shop") sellFish(rows[i], 1); else BAG.sel = i; }
+  else if (BAG.mode === "shop" && ly >= g.y + g.h - 16) rows.slice().forEach(r => sellFish(r, inv[r.id] | 0));   // toque na linha de baixo: vende tudo
+  return true;
+}
+function drawBag(now) {
+  if (!BAG.open) return;
+  const shop = BAG.mode === "shop", rows = bagRows(), RH = 24, pw = 248, top = 30;
+  const ph = top + Math.max(1, rows.length) * RH + (shop ? 44 : 30), x = Math.round(W - pw - 10), y = 58, acc = shop ? "#9fd3ff" : "#ffd166";
+  BAG.geo = { x, y, w: pw, h: ph, rowY: y + top, rowH: RH };
+  ctx.globalAlpha = 0.96; rect(acc, x - 1, y - 1, pw + 2, ph + 2); rect("#0f1624", x, y, pw, ph); ctx.globalAlpha = 1;
+  text(shop ? "Malto compra peixe" : "Inventário", x + 8, y + 14, acc);
+  text(fmtMoney(money), x + pw - 8, y + 14, "#8be28b", "right");
+  rect("rgba(255,255,255,.18)", x + 6, y + 20, pw - 12, 1);
+  if (!rows.length) text("Nenhum peixe ainda.", x + 8, y + top + 16, "#9aa6b8");
+  rows.forEach((f, i) => {
+    const ry = y + top + i * RH, n = inv[f.id] | 0, sel = i === BAG.sel, dim = n <= 0;
+    if (sel) rect(shop ? "rgba(159,211,255,.22)" : "rgba(255,209,102,.16)", x + 4, ry, pw - 8, RH - 2);
+    const fi = img(f.file);
+    if (fi.complete && fi.naturalWidth) {                                                     // miniatura do peixe
+      const r = Math.min(30 / fi.naturalWidth, 18 / fi.naturalHeight), w = fi.naturalWidth * r, h = fi.naturalHeight * r;
+      ctx.globalAlpha = dim ? 0.3 : 1; ctx.drawImage(fi, x + 8 + (30 - w) / 2, ry + (RH - 2 - h) / 2, w, h); ctx.globalAlpha = 1;
+    }
+    text(f.name, x + 44, ry + 10, dim ? "#6d7889" : "#fff");
+    for (let d = 0; d < 5; d++) rect(d < f.difficulty ? (dim ? "#5a6475" : "#ff9f43") : "rgba(255,255,255,.14)", x + 44 + d * 5, ry + 14, 3, 3);   // dificuldade (quanto mais, mais caro)
+    text("x" + n, x + pw - 80, ry + 15, dim ? "#6d7889" : "#ffd166", "right");
+    text(fmtMoney(priceOf(f)), x + pw - 8, ry + 15, dim ? "#6d7889" : "#8be28b", "right");
+  });
+  const by = y + top + Math.max(1, rows.length) * RH;
+  rect("rgba(255,255,255,.18)", x + 6, by + 1, pw - 12, 1);
+  if (shop) {
+    text("Total: " + fmtMoney(invValue()), x + 8, by + 14, "#fff");
+    text("E vende 1  Q todos  R tudo", x + 8, by + 26, "#9aa6b8");
+    text("C conversar  ESC sair", x + 8, by + 37, "#9aa6b8");
+  } else {
+    text("Valem " + fmtMoney(invValue()) + " no Malto", x + 8, by + 14, "#fff");
+    text("I ou ESC fechar", x + 8, by + 25, "#9aa6b8");
+  }
+}
+
 // ---------- Telefish: celular que sobe ao apertar F (desenhado dentro do canvas, então recebe o mesmo filtro do jogo) ----------
 // E interage com o menu. Ao lançar a vara, ou ao sair do modo andar, ele desce sozinho.
 const PHONE_SRC = "assets/imgs/telefish.png";
@@ -1243,7 +1345,9 @@ addEventListener("keydown", e => {
   if (UI.open) return;                                  // digitando o apelido: as teclas não são do jogo
   if (INTRO.active) return;                             // abertura (título / zoom / queda): ainda sem controles
   SND.unlock();                                         // o navegador só libera o som depois de uma tecla/toque
+  if (BAG.open) { bagKey(e); return; }                  // inventário/venda aberta: as teclas são dela
   keys[e.code] = true;
+  if (e.code === "KeyI" && !e.repeat && state === "walk") openBag("inv");
   if (e.code === "KeyM" && !e.repeat) say(SND.toggleMute() ? "Som desligado" : "Som ligado");
   if (e.code === "KeyF" && !e.repeat) togglePhone();
   if (e.code === "Escape" && PH.open) closePhone();
@@ -1257,6 +1361,7 @@ cv.addEventListener("pointerdown", e => {
   if (state === "walk" && e.clientX) { /* toque: metade esquerda/direita move, centro lança */ }
   SND.unlock();
   const r = cv.getBoundingClientRect(), wxp = (e.clientX - r.left) / r.width * W - ((W - WORLD) / 2 + camX);
+  if (BAG.open) { bagPointer((e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H); return; }   // toque na venda/inventário
   if (mNear() && Math.abs(wxp - MX) < 22 && talkMalto()) return;      // toque no Malto = conversar (não lança a linha)
   if (tNear() && Math.abs(wxp - TX) < 22 && talkTiao()) return;        // toque no Tião também
   keys.Space = true; press();
@@ -1290,7 +1395,7 @@ function startReel() {
 }
 
 function finish(win) {
-  if (win) { state = "show"; showT = 0; score += fish.points; SND.win(); kick(0.9); post("/api/catch", { id: fish.id }).catch(() => {}); }
+  if (win) { state = "show"; showT = 0; inv[fish.id] = (inv[fish.id] | 0) + 1; saveWallet(); SND.win(); kick(0.9); post("/api/catch", { id: fish.id }).catch(() => {}); }
   else { state = "walk"; SND.lose(); kick(0.4); say("O peixe escapou..."); }
 }
 // ---------- Comemoração: braços pra cima e o peixe pescado aparece grande, flutuando sobre eles ----------
@@ -1317,7 +1422,7 @@ function drawCatch(now) {
   }
   const top = cy - h / 2 * sc;
   text(fish.name, cx, Math.max(14, top - 14), "#ffd166", "center");
-  text("+" + fish.points + " pontos", cx, Math.max(25, top - 3), "#fff", "center");
+  text("Guardado no inventário · vale " + fmtMoney(priceOf(fish)), cx, Math.max(25, top - 3), "#fff", "center");
   ctx.globalAlpha = 1;
 }
 
@@ -1345,6 +1450,7 @@ function update(dt) {
   if (INTRO.phase === "go") introUpdate(dt); else if (INTRO.phase === "up" || INTRO.phase === "down") introMove(dt);
   updatePhone(dt); updateIdle(dt);
   maltoUpdate(dt); tiaoUpdate(dt);
+  if (BAG.open && (state !== "walk" || (BAG.mode === "shop" && !mNear()))) closeBag(false);   // começou a pescar / afastou do Malto: fecha
   GSHAKE *= Math.exp(-dt * 6);
   const cu = Math.max(0, Math.min(1, (px - CAM_FAR) / (PX_MAX - CAM_FAR)));
   camX += (-(px - WORLD / 2) * CAM_K - CAM_EXTRA * cu * cu * (3 - 2 * cu) - camX) * Math.min(1, dt * 4);   // câmera suave atrás do pescador   // câmera suave atrás do pescador
@@ -2060,12 +2166,14 @@ function draw(now) {
 
   // HUD
   if (!INTRO.active) {
-  text("Pontos: " + score, 10, 16);
+  text(fmtMoney(money), 10, 16, "#8be28b");
+  if (invCount() > 0) text("Peixes: " + invCount(), 10, 28, "#ffd166");
   const SP = { key: "space" };
-  const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : "", cast: "", wait: "", bite: [SP, " agora!"], reel: ["Segure ", SP, " para subir a barra"], show: "" }[state];
+  const hint = { walk: PH.open ? "E selecionar   F ou ESC guardar o celular" : BAG.open ? "" : "I inventário", cast: "", wait: "", bite: [SP, " agora!"], reel: ["Segure ", SP, " para subir a barra"], show: "" }[state];
   hintLine(Array.isArray(hint) ? hint : [hint], 10, H - 10);
   if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   }
+  drawBag(now);
   drawPhone();                                         // por último, antes do filtro: o celular também leva o dithering
   present();
 }
@@ -2366,7 +2474,7 @@ addEventListener("keydown", e => {                      // captura antes do rest
     if (!e.repeat && (e.code === "Escape" || e.code === RESUME_KEY)) resumeGame();
     return;
   }
-  if (e.code === "Escape" && !e.repeat && !PH.open) { e.preventDefault(); e.stopPropagation(); pauseGame(); }
+  if (e.code === "Escape" && !e.repeat && !PH.open && !BAG.open) { e.preventDefault(); e.stopPropagation(); pauseGame(); }
 }, true);
 function introPlay() {
   if (INTRO.phase !== "title") return;
