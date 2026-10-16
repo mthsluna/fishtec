@@ -511,32 +511,35 @@ function drawMalto(now) {
   ctx.save(); ctx.translate(MX, PIER_Y);
   softShadow(-7, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);              // sombra longa para a esquerda + sombra de contato nos pés
 
-  // pernas e botas
-  rect("#1d2531", -4.2, -12, 3.8, 10.5); rect("#232c3a", 0.4, -12, 3.8, 10.5);
-  rect("#0e0e12", -5, -2.6, 5.4, 2.6); rect("#0e0e12", -0.4, -2.6, 5.4, 2.6);
+  // corpo na mesma estrutura do pescador (altura máxima: pernas +8, tronco +3), com o sobretudo mais largo e aberto na frente
+  const S = -24 - 11 + by, CW = 6, COAT = "#8997ab";                                 // S: topo do tronco (linha dos ombros); CW: meia largura do sobretudo
+  const lg = (lx, col) => { rect(col, lx, -19, 4, 17); rect("#0e0e12", lx - 0.5, -2.5, 5, 2.5); };
+  lg(-4.6, "#1d2531"); lg(0.6, "#232c3a");
+  const skirt = () => { ctx.beginPath(); ctx.moveTo(-CW - 0.2, S + 16); ctx.lineTo(CW + 0.2, S + 16); ctx.lineTo(8.6, S + 26); ctx.lineTo(-8.6, S + 26); ctx.closePath(); };
+  skirt(); ctx.fillStyle = COAT; ctx.fill();                                                                         // saia do sobretudo: abre em A até o joelho
+  ctx.beginPath(); ctx.moveTo(-CW - 0.2, S + 16); ctx.lineTo(-2.2, S + 16); ctx.lineTo(-3.2, S + 26); ctx.lineTo(-8.6, S + 26); ctx.closePath();
+  ctx.fillStyle = "rgba(20,28,50,.32)"; ctx.fill();                                                                  // lado esquerdo na sombra
+  ctx.beginPath(); ctx.moveTo(0, S + 14); ctx.lineTo(1.7, S + 26); ctx.lineTo(-1.7, S + 26); ctx.closePath(); ctx.fillStyle = "#1d2531"; ctx.fill();   // abertura da frente (aparece a calça)
+  rect("rgba(20,28,50,.35)", -8.6, S + 25, 17.2, 1);                                                                 // barra
+  rect(COAT, -CW, S, CW * 2, 17);
+  rect("rgba(20,28,50,.32)", -CW, S, 3, 17); rect("rgba(255,255,255,.14)", CW - 2.5, S, 2.5, 17);                    // sombra à esquerda, luz à direita
+  rect("rgba(20,28,50,.4)", -0.4, S + 8, 0.8, 7);                                                                    // abertura da frente
+  [[-3.3, S + 4], [2, S + 4], [-3.3, S + 10], [2, S + 10]].forEach(([x, y]) => rect("#d9a441", x, y, 1.3, 1.3));     // botões dourados
+  rect("#5a4631", -CW, S + 15, CW * 2, 2); rect("#d9a441", -1.1, S + 14.8, 2.2, 2.4); rect("#2a1d10", -0.4, S + 15.5, 0.8, 1);   // cinto com fivela
 
-  // sobretudo: ombros estreitos, caimento reto até o joelho, barra levemente aberta
-  const S = -32 + by;
-  const coat = () => { ctx.beginPath(); ctx.moveTo(-6, S); ctx.lineTo(6, S); ctx.lineTo(6.6, -20); ctx.lineTo(8.2, -10.5); ctx.lineTo(-8.2, -10.5); ctx.lineTo(-6.6, -20); ctx.closePath(); };
-  coat(); ctx.fillStyle = "#8997ab"; ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-6, S); ctx.lineTo(-2.2, S); ctx.lineTo(-3, -10.5); ctx.lineTo(-8.2, -10.5); ctx.lineTo(-6.6, -20); ctx.closePath();
-  ctx.fillStyle = "rgba(20,28,50,.32)"; ctx.fill();                                // lado esquerdo na sombra
-  rect("rgba(255,255,255,.14)", 4.6, S + 6, 1.2, 15);                              // luz do lado direito
-  rect("rgba(20,28,50,.4)", -0.4, S + 8, 0.8, 21 - by);                                      // abertura da frente
-  [[-2.9, -22.4], [1.7, -22.4], [-3.1, -15.5], [1.9, -15.5]].forEach(([x, y]) => rect("#d9a441", x, y + by, 1.3, 1.3));   // botões dourados
-  rect("#5a4631", -6.7, -20 + by * 0.5, 13.4, 2); rect("#d9a441", -1.1, -20.2 + by * 0.5, 2.2, 2.4); rect("#2a1d10", -0.4, -19.5 + by * 0.5, 0.8, 1);   // cinto com fivela
-
-  // gola: camisa escura em V, pescoço e duas abas de gola levantadas (pontas sobem ao lado do pescoço)
+  // gola: camisa escura em V, lapelas do sobretudo bem visíveis e gola redonda clara em volta do pescoço
   const hy = by - 5;
-  ctx.beginPath(); ctx.moveTo(-2.4, S - 3); ctx.lineTo(2.4, S - 3); ctx.lineTo(0, S + 9); ctx.closePath(); ctx.fillStyle = "#1f2733"; ctx.fill();
-  rect("#e8b98f", -1.8, S - 4, 3.6, 4.2);                                                                       // pescoço
-  ctx.beginPath(); ctx.moveTo(-1.8, S - 4); ctx.lineTo(-6.4, S - 3.4); ctx.lineTo(-6.8, S + 1); ctx.lineTo(-3.8, S + 5); ctx.lineTo(-0.5, S + 9); ctx.lineTo(-2, S + 1); ctx.closePath();
-  ctx.fillStyle = "#6f7d92"; ctx.fill();                                                         // aba esquerda (na sombra)
-  ctx.beginPath(); ctx.moveTo(1.8, S - 4); ctx.lineTo(6.4, S - 3.4); ctx.lineTo(6.8, S + 1); ctx.lineTo(3.8, S + 5); ctx.lineTo(0.5, S + 9); ctx.lineTo(2, S + 1); ctx.closePath();
-  ctx.fillStyle = "#a9b5c6"; ctx.fill();                                                         // aba direita (na luz)
+  ctx.beginPath(); ctx.moveTo(-2.6, S - 1.5); ctx.lineTo(2.6, S - 1.5); ctx.lineTo(0, S + 9); ctx.closePath(); ctx.fillStyle = "#1f2733"; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-1.8, S - 2); ctx.lineTo(-5.8, S - 1.2); ctx.lineTo(-6, S + 3); ctx.lineTo(-3.8, S + 7); ctx.lineTo(-0.5, S + 9.5); ctx.lineTo(-2, S + 2); ctx.closePath();
+  ctx.fillStyle = "#6f7d92"; ctx.fill();                                                                             // lapela esquerda (na sombra)
+  ctx.beginPath(); ctx.moveTo(1.8, S - 2); ctx.lineTo(5.8, S - 1.2); ctx.lineTo(6, S + 3); ctx.lineTo(3.8, S + 7); ctx.lineTo(0.5, S + 9.5); ctx.lineTo(2, S + 2); ctx.closePath();
+  ctx.fillStyle = "#a9b5c6"; ctx.fill();                                                                             // lapela direita (na luz)
+  ctx.fillStyle = "#d8dee8"; roundPath(-2.9, S - 1, 5.8, 4.2, 2); ctx.fill();                                        // gola redonda da camisa
+  ctx.fillStyle = "#e8b98f"; roundPath(-2, S - 1.2, 4, 2.8, 1.3); ctx.fill();                                        // pescoço no decote
+  rect("rgba(0,0,0,.14)", -2, S - 0.4, 4, 0.6);
 
-  // braço esquerdo solto: manga, ombrinho e mão no mesmo estilo do pescador
-  const MAL = 8.5, MSH = 7.75, SY = S + 2;
+  // braços iguais aos do pescador (mesmo comprimento, manga, ombrinho e mão), colados no sobretudo
+  const MAL = 8 + 3, MSH = CW + 1.75, SY = S + 2.5;
   ctx.save(); ctx.translate(-MSH, SY); ctx.rotate(Math.PI / 2 + 0.03);
   rect("#6f7d92", 0, -1.75, MAL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, MAL, 0.8); rect("#f3c8a0", MAL - 0.5, -1.75, 3, 3.5);
   ctx.restore();
