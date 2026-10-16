@@ -1822,48 +1822,58 @@ function drawReelUI(now) {
 
 // ---------- Postes de luz do cais: acendem à noite com luz amarela quente ----------
 const LAMPS = [-110, 30, 170, 310, 450, 590];            // x de cada poste no mundo (mude aqui para mover/adicionar)
-const LAMP_H = 38;                                       // altura do fuste; a lanterna fica no topo
+const LAMP_H = 80;                                       // altura do fuste; a lanterna fica no topo
 const LAMP_WARM = [255, 190, 70];                        // cor da luz (amarelo quente)
 const lampOn = x => DAY.lamp > 0.01 && x + ox0() > -100 && x + ox0() < W + 100;
 const ox0 = () => (W - WORLD) / 2 + camX;                // deslocamento do mundo na tela
 function lampFlick(x, now) { return 1 + 0.025 * Math.sin(now / 230 + x) + 0.015 * Math.sin(now / 97 + x * 3); }
 
 function drawLamps(now) {                                // corpo do poste (recebe a lavagem de cor da hora, como o resto do cenário)
-  const y0 = PIER_Y + 1;
+  const y0 = PIER_Y + 1, yt = y0 - LAMP_H;               // yt = topo do fuste
   LAMPS.forEach(x => {
     if (x + ox0() < -30 || x + ox0() > W + 30) return;
     softShadow(x, PIER_Y + 1.2, 7, 1.4, 0.35, PIER_Y + 3.2);
-    rect("#2b2230", x - 3, y0 - 2, 6, 2);                // base
-    rect("#3a2e3c", x - 1, y0 - LAMP_H, 2, LAMP_H - 2);  // fuste
-    rect("#6b5a63", x, y0 - LAMP_H, 0.6, LAMP_H - 2);    // brilho do ferro
-    rect("#2b2230", x - 2.5, y0 - LAMP_H - 2, 5, 2);     // colar
-    rect("#9a7440", x - 3, y0 - LAMP_H - 9, 6, 7);       // vidro (apagado)
-    rect("#2b2230", x - 3.6, y0 - LAMP_H - 9, 0.8, 7); rect("#2b2230", x + 2.8, y0 - LAMP_H - 9, 0.8, 7);   // armação
-    rect("#2b2230", x - 4.2, y0 - LAMP_H - 11, 8.4, 2);  // tampa
-    rect("#3a2e3c", x - 2, y0 - LAMP_H - 13, 4, 2);
-    rect("#2b2230", x - 0.5, y0 - LAMP_H - 15, 1, 2);    // pontinha
+    rect("#2b2230", x - 3.5, y0 - 2, 7, 2);              // base
+    rect("#3a2e3c", x - 2, y0 - 16, 4, 14);              // pé mais grosso
+    rect("#2b2230", x - 2.6, y0 - 17.5, 5.2, 1.5);
+    rect("#3a2e3c", x - 1, yt, 2, LAMP_H - 17);          // fuste
+    rect("#6b5a63", x, yt, 0.6, LAMP_H - 17);            // brilho do ferro
+    rect("#2b2230", x - 2.5, yt - 2, 5, 2);              // colar
+    rect("#9a7440", x - 3, yt - 9, 6, 7);                // vidro (apagado)
+    rect("#2b2230", x - 3.6, yt - 9, 0.8, 7); rect("#2b2230", x + 2.8, yt - 9, 0.8, 7);   // armação
+    rect("#2b2230", x - 6, yt - 11, 12, 2);              // chapéu largo: a luz sai só para baixo
+    rect("#3a2e3c", x - 4, yt - 13, 8, 2);
+    rect("#3a2e3c", x - 2, yt - 15, 4, 2);
+    rect("#2b2230", x - 0.5, yt - 17, 1, 2);             // pontinha
   });
 }
 
-function drawLampGlow(now) {                             // luz: vidro aceso, halo e poça de luz nas tábuas (em coordenadas do mundo)
-  const L = DAY.lamp, [r, g, b] = LAMP_WARM, y0 = PIER_Y + 1, cy = y0 - LAMP_H - 5.5;
+function drawLampGlow(now) {                             // luz: vidro aceso, cone de luz para baixo e poça nas tábuas (coordenadas do mundo)
+  const L = DAY.lamp, [r, g, b] = LAMP_WARM, y0 = PIER_Y + 1, yt = y0 - LAMP_H, cy = yt - 5.5, yb = yt - 2;
   LAMPS.forEach(x => {
     if (!lampOn(x)) return;
     const k = L * lampFlick(x, now);
     ctx.save();
     ctx.globalAlpha = Math.min(1, k * 1.1);              // vidro aceso
     rect("#ffd36a", x - 3, cy - 3.5, 6, 7); rect("#fff3c2", x - 1.6, cy - 2.2, 3.2, 4.4);
+    ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "lighter";            // somar luz: o que está atrás clareia e esquenta
-    let gr = ctx.createRadialGradient(x, cy, 3, x, cy, 90);
-    gr.addColorStop(0, `rgba(${r},${g + 12},${b + 20},${0.55 * k})`);
-    gr.addColorStop(0.3, `rgba(${r},${g},${b},${0.2 * k})`);
-    gr.addColorStop(1, `rgba(${r},${g - 30},${b - 30},0)`);
-    ctx.globalAlpha = 1; ctx.fillStyle = gr; ctx.fillRect(x - 90, cy - 90, 180, 180);
-    ctx.beginPath(); ctx.rect(x - 90, PIER_Y, 180, 3.4); ctx.clip();      // poça de luz só nas tábuas do deck
+    ctx.save(); ctx.beginPath(); ctx.rect(x - 40, yt - 11, 80, 200); ctx.clip();   // o chapéu bloqueia a luz para cima
+    let gr = ctx.createRadialGradient(x, cy, 2, x, cy, 20);                          // halo curto em volta da lanterna
+    gr.addColorStop(0, `rgba(${r},${g + 12},${b + 20},${0.5 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(x - 20, cy - 20, 40, 40);
+    ctx.restore();
+    gr = ctx.createLinearGradient(0, yb, 0, PIER_Y + 1);                              // cone de luz: mais forte perto da lanterna
+    gr.addColorStop(0, `rgba(${r},${g + 6},${b + 10},${0.17 * k})`); gr.addColorStop(1, `rgba(${r},${g - 10},${b},${0.07 * k})`);
+    ctx.fillStyle = gr;
+    [62, 44, 27].forEach(hw => {                         // três cones empilhados = centro mais forte e borda macia
+      ctx.beginPath(); ctx.moveTo(x - 4, yb); ctx.lineTo(x + 4, yb); ctx.lineTo(x + hw, PIER_Y + 1); ctx.lineTo(x - hw, PIER_Y + 1); ctx.closePath(); ctx.fill();
+    });
+    ctx.beginPath(); ctx.rect(x - 100, PIER_Y, 200, 3.4); ctx.clip();                 // poça de luz só nas tábuas do deck
     ctx.translate(x, PIER_Y + 1); ctx.scale(1, 0.07);
-    gr = ctx.createRadialGradient(0, 0, 2, 0, 0, 80);
-    gr.addColorStop(0, `rgba(255,210,110,${0.8 * k})`); gr.addColorStop(0.5, `rgba(${r},${g},${b},${0.35 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = gr; ctx.fillRect(-80, -80, 160, 160);
+    gr = ctx.createRadialGradient(0, 0, 2, 0, 0, 90);
+    gr.addColorStop(0, `rgba(255,210,110,${0.85 * k})`); gr.addColorStop(0.5, `rgba(${r},${g},${b},${0.38 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(-90, -90, 180, 180);
     ctx.restore();
   });
 }
