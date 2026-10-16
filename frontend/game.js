@@ -1848,33 +1848,35 @@ function drawLamps(now) {                                // corpo do poste (rece
   });
 }
 
-// sprite da luz (cone suave): feito uma vez e reaproveitado em todos os postes. 16 cones empilhados dão borda macia,
-// e o fade radial faz a luz enfraquecer com a distância da lanterna (como luz de verdade)
+// sprite da luz: calculado pixel a pixel (sem camadas, sem faixas). Física simples de um spot de luz:
+//  - perfil angular suave (gaussiana) = a luz sai da lanterna num feixe que se dissolve nas bordas, sem linha marcada
+//  - queda com a distância (aprox. 1/d²) = forte perto da lanterna, fraca longe
+//  - cor por intensidade: núcleo amarelo-claro e bordas/pontas mais alaranjadas (como uma lâmpada incandescente)
 let lampSpr = null;
 function lampSprite() {
   if (lampSpr && lampSpr.S === S) return lampSpr.cv;
-  const w = 180, h = LAMP_H + 4, N = 16, c = document.createElement("canvas");
-  c.width = w * S; c.height = h * S;
-  const x = c.getContext("2d"); x.scale(S, S);
-  for (let i = 0; i < N; i++) {                          // do cone mais aberto ao mais fechado
-    const hw = 84 - 70 * (i / (N - 1)) ** 0.9;
-    x.fillStyle = "rgba(255,255,255,0.06)";
-    x.beginPath(); x.moveTo(w / 2 - 3, 0); x.lineTo(w / 2 + 3, 0); x.lineTo(w / 2 + hw, h); x.lineTo(w / 2 - hw, h); x.closePath(); x.fill();
+  const LW2 = 180, h = LAMP_H + 4, c = document.createElement("canvas");
+  c.width = LW2 * S; c.height = h * S;
+  const x = c.getContext("2d"), im = x.createImageData(c.width, c.height), d = im.data, cx = c.width / 2;
+  const T0 = 0.62, GAIN = 1.9, D0 = 20;                 // T0: abertura do feixe (rad) | GAIN: força | D0: distância em que a luz cai pela metade
+  for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) {
+    const dx = (px - cx) / S, dy = py / S + 3, r = Math.hypot(dx, dy);
+    const th = Math.atan2(Math.abs(dx), dy);
+    const beam = Math.exp(-Math.pow(th / T0, 2.4));                     // perfil do feixe
+    const fall = 1 / (1 + (r / D0) * (r / D0));                         // queda com a distância
+    const edge = Math.min(1, Math.max(0, (LW2 / 2 - Math.abs(dx)) / 14));   // some antes da borda do sprite (sem corte)
+    const A = Math.min(1, beam * fall * GAIN) * edge;
+    const m = Math.min(1, A * 1.6), i = (py * c.width + px) * 4;
+    d[i] = 255; d[i + 1] = 160 + 70 * m; d[i + 2] = 55 + 100 * m * m;   // laranja (fraco) -> amarelo-claro (forte)
+    d[i + 3] = A * 255;
   }
-  x.globalCompositeOperation = "destination-in";         // enfraquece com a distância
-  const f = x.createRadialGradient(w / 2, 0, 2, w / 2, 0, h * 1.05);
-  f.addColorStop(0, "rgba(0,0,0,1)"); f.addColorStop(0.3, "rgba(0,0,0,.55)"); f.addColorStop(0.75, "rgba(0,0,0,.2)"); f.addColorStop(1, "rgba(0,0,0,.08)");
-  x.fillStyle = f; x.fillRect(0, 0, w, h);
-  x.globalCompositeOperation = "source-in";              // pinta com a cor quente
-  const t = x.createLinearGradient(0, 0, 0, h);
-  t.addColorStop(0, "rgb(255,214,120)"); t.addColorStop(1, "rgb(255,168,64)");
-  x.fillStyle = t; x.fillRect(0, 0, w, h);
+  x.putImageData(im, 0, 0);
   lampSpr = { S, cv: c };
   return c;
 }
 
-function drawLampGlow(now) {                             // luz: vidro aceso, cone suave para baixo, brilho na lanterna e poça nas tábuas
-  const L = DAY.lamp, [r, g, b] = LAMP_WARM, y0 = PIER_Y + 1, yt = y0 - LAMP_H, cy = yt - 5.5, yb = yt - 2, spr = lampSprite();
+function drawLampGlow(now) {                             // luz: vidro aceso, feixe suave para baixo, poeira no ar, bloom e poça nas tábuas
+  const L = DAY.lamp, [r, g, b] = LAMP_WARM, y0 = PIER_Y + 1, yt = y0 - LAMP_H, cy = yt - 5.5, yb = yt - 2, spr = lampSprite(), t = now / 1000;
   LAMPS.forEach(x => {
     if (!lampOn(x)) return;
     const k = L * lampFlick(x, now);
@@ -1882,18 +1884,27 @@ function drawLampGlow(now) {                             // luz: vidro aceso, co
     ctx.globalAlpha = Math.min(1, k * 1.1);              // vidro aceso: miolo quase branco, bordas amarelas
     rect("#f2b13c", x - 3, cy - 3.5, 6, 7); rect("#ffd36a", x - 2.3, cy - 2.8, 4.6, 5.6); rect("#fff6d6", x - 1.3, cy - 1.8, 2.6, 3.6);
     ctx.globalCompositeOperation = "lighter";            // somar luz: o que está atrás clareia e esquenta
-    ctx.globalAlpha = Math.min(1, 0.62 * k);
-    ctx.drawImage(spr, x - 90, yb, 180, LAMP_H + 4);     // cone de luz
+    ctx.globalAlpha = Math.min(1, 0.7 * k);
+    ctx.drawImage(spr, x - 90, yb, 180, LAMP_H + 4);     // feixe de luz
+    // poeira/insetos flutuando no feixe: pontinhos que brilham e apagam devagar
+    for (let i = 0; i < 9; i++) {
+      const u = (t * (0.025 + 0.012 * (i % 3)) + i * 0.173 + x * 0.0071) % 1, dy = 6 + u * (LAMP_H - 12);
+      const px = x + Math.sin(t * 0.45 + i * 2.3 + x) * 0.5 * dy * (0.4 + 0.6 * ((i * 37) % 10) / 10), tw = 0.5 + 0.5 * Math.sin(t * 1.7 + i * 5.1);
+      ctx.globalAlpha = Math.min(1, k * tw * 0.55 * Math.sin(u * 3.1416));
+      rect("#ffe2a0", px, yb + dy, 1, 1);
+    }
     ctx.globalAlpha = 1;
     ctx.save(); ctx.beginPath(); ctx.rect(x - 40, yt - 11, 80, 200); ctx.clip();   // o chapéu bloqueia a luz para cima
-    let gr = ctx.createRadialGradient(x, cy, 1, x, cy, 24);                          // bloom em volta da lanterna
-    gr.addColorStop(0, `rgba(255,225,150,${0.75 * k})`); gr.addColorStop(0.25, `rgba(${r},${g},${b},${0.32 * k})`); gr.addColorStop(1, `rgba(${r},${g - 20},${b - 20},0)`);
-    ctx.fillStyle = gr; ctx.fillRect(x - 24, cy - 24, 48, 48);
+    let gr = ctx.createRadialGradient(x, cy, 1, x, cy, 30);                          // bloom: núcleo + brilho largo (queda tipo 1/d²)
+    gr.addColorStop(0, `rgba(255,236,180,${0.85 * k})`); gr.addColorStop(0.1, `rgba(255,214,130,${0.5 * k})`); gr.addColorStop(0.28, `rgba(${r},${g + 5},${b},${0.2 * k})`);
+    gr.addColorStop(0.6, `rgba(${r},${g - 10},${b - 10},${0.06 * k})`); gr.addColorStop(1, `rgba(${r},${g - 20},${b - 20},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(x - 30, cy - 30, 60, 60);
     ctx.restore();
     ctx.beginPath(); ctx.rect(x - 110, PIER_Y, 220, 3.4); ctx.clip();                 // poça de luz só nas tábuas do deck
     ctx.translate(x, PIER_Y + 1); ctx.scale(1, 0.07);
-    gr = ctx.createRadialGradient(0, 0, 1, 0, 0, 100);   // miolo forte + espalhado largo
-    gr.addColorStop(0, `rgba(255,225,150,${0.95 * k})`); gr.addColorStop(0.18, `rgba(255,200,100,${0.55 * k})`); gr.addColorStop(0.55, `rgba(${r},${g - 8},${b},${0.18 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    gr = ctx.createRadialGradient(0, 0, 1, 0, 0, 100);   // miolo forte + espalhado largo (curva tipo 1/d²)
+    gr.addColorStop(0, `rgba(255,228,160,${0.95 * k})`); gr.addColorStop(0.08, `rgba(255,214,130,${0.7 * k})`); gr.addColorStop(0.2, `rgba(255,192,95,${0.4 * k})`);
+    gr.addColorStop(0.4, `rgba(${r},${g},${b},${0.17 * k})`); gr.addColorStop(0.7, `rgba(${r},${g - 10},${b},${0.05 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
     ctx.fillStyle = gr; ctx.fillRect(-100, -100, 200, 200);
     ctx.restore();
   });
