@@ -1717,27 +1717,39 @@ try { RESUME_KEY = localStorage.getItem("resumeKey") || "Escape"; } catch (e) {}
 const keyLabel = c => c === "Escape" ? "ESC" : c === "Space" ? "ESPAÇO" : c.replace(/^(Key|Digit)/, "").replace(/^Arrow/, "SETA ").toUpperCase();
 const pzEl = document.createElement("div"); pzEl.id = "pz";
 const pzStyle = document.createElement("style");
-pzStyle.textContent = `#pz{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(10,7,26,.74);
-  font-family:"DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none}
+pzStyle.textContent = `#pz{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);
+  font-family:Tahoma,"Segoe UI",Verdana,sans-serif;color:#000}
 #pz.on{display:flex}
-#pz .pz-box{width:min(420px,90vw);box-sizing:border-box;padding:22px 26px 26px;display:flex;flex-direction:column;align-items:stretch;gap:14px;
-  background:linear-gradient(#2d2160,#241a45 60%,#1c1438);border:4px solid #ffe0a8;
-  box-shadow:0 0 0 3px #241a45,0 0 0 7px #b83f6a,0 0 0 10px #241a45,0 18px 60px #000}
-#pz h1{margin:0 0 6px;text-align:center;font-weight:400;font-size:clamp(40px,11vw,60px);line-height:1;letter-spacing:.09em;padding-left:.09em;color:#ffe0a8;
-  text-shadow:0 .045em 0 #f4a261,0 .09em 0 #b83f6a,0 .135em 0 #5e3274}
-#pz .pz-line{height:4px;margin:0 0 4px;background:repeating-linear-gradient(90deg,#ffe0a8 0 8px,transparent 8px 12px);opacity:.55}
-#pz button{font:inherit;font-size:clamp(17px,4.6vw,24px);letter-spacing:.14em;padding:.5em 1em .5em 1.14em;cursor:pointer;text-transform:uppercase;
-  color:#ffe0a8;background:#241a45;border:3px solid #ffe0a8;box-shadow:0 .14em 0 #5e3274}
-#pz button:hover,#pz button:focus-visible{background:#3a2a66;outline:none}
-#pz button:active{transform:translateY(.1em);box-shadow:0 .04em 0 #5e3274}
-#pz button.main{color:#241a45;background:#ffe0a8;box-shadow:0 .14em 0 #b83f6a}
-#pz button.main:hover,#pz button.main:focus-visible{background:#fff6dc}
-#pz button.main:active{box-shadow:0 .04em 0 #b83f6a}`;
+#pz .xp-win{width:min(380px,92vw);box-sizing:border-box;padding:0 3px 3px;background:#0054e3;border-radius:8px 8px 0 0;
+  box-shadow:inset 0 0 0 1px #0831d9,inset 0 1px 0 1px #3d95ff,2px 4px 14px rgba(0,0,0,.7)}
+#pz .xp-title{display:flex;align-items:center;gap:7px;height:30px;padding:0 5px 0 7px;margin:0 -3px;border-radius:8px 8px 0 0;
+  background:linear-gradient(#0997ff 0%,#0053ee 8%,#0050ee 40%,#0066ff 88%,#0066ff 93%,#005bff 95%,#003dd7 96%,#003dd7 100%);user-select:none}
+#pz .xp-title b{flex:1;font:700 15px "Trebuchet MS",Tahoma,sans-serif;color:#fff;text-shadow:1px 1px #0f1089;letter-spacing:.02em}
+#pz .xp-ctl{display:flex;gap:2px}
+#pz .xp-ctl button{all:unset;box-sizing:border-box;width:22px;height:22px;display:grid;place-items:center;cursor:pointer;border:1px solid #fff;border-radius:3px;
+  background:radial-gradient(circle at 90% 90%,#0054e9 0%,#2263d5 55%,#4479e4 85%,#3d8aff 100%);box-shadow:inset 0 0 1px 1px rgba(255,255,255,.25)}
+#pz .xp-ctl button:hover{filter:brightness(1.15)}
+#pz .xp-ctl button.x{background:radial-gradient(circle at 90% 90%,#cc4600 0%,#dc5c28 55%,#e68b6e 85%,#e9a58c 100%)}
+#pz .xp-ctl button.dis{cursor:default;filter:none}
+#pz .xp-body{margin:0;padding:14px 16px 16px;background:#ece9d8;border:1px solid #0831d9;border-top:0;display:flex;flex-direction:column;gap:10px}
+#pz .xp-msg{display:flex;align-items:center;gap:12px;padding:2px 2px 8px;font-size:14px}
+#pz .xp-info{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 22px/1 Georgia,serif;font-style:italic;
+  background:radial-gradient(circle at 35% 30%,#8cc0ff,#1c5fd6 70%);border:2px solid #fff;box-shadow:0 0 0 1px #1a4ab5,1px 2px 3px rgba(0,0,0,.4)}
+#pz .xp-btn{all:unset;box-sizing:border-box;display:block;width:100%;text-align:center;font:14px Tahoma,"Segoe UI",sans-serif;padding:8px 12px;cursor:pointer;color:#000;
+  border:1px solid #003c74;border-radius:3px;background:linear-gradient(#fff 0%,#f4f3ee 45%,#ecebe5 86%,#d6d0c5 100%)}
+#pz .xp-btn:hover{box-shadow:inset -1px 1px #fff0cf,inset 1px 2px #fdd889,inset -2px 2px #fbc761,inset 2px -2px #e5a01a}
+#pz .xp-btn:focus-visible,#pz .xp-btn.def{box-shadow:inset -1px 1px #c1d2ee,inset 1px 2px #98b8ea,inset -2px -2px #7b9ee1,inset 2px -2px #7b9ee1}
+#pz .xp-btn.def:hover{box-shadow:inset -1px 1px #fff0cf,inset 1px 2px #fdd889,inset -2px 2px #fbc761,inset 2px -2px #e5a01a}
+#pz .xp-btn:active{background:#cdcac3;box-shadow:inset 1px 1px #aaa69b}`;
 document.head.appendChild(pzStyle);
-pzEl.innerHTML = `<div class="pz-box" role="dialog" aria-label="FISHTEC"><h1>FISHTEC</h1><div class="pz-line"></div>
-  <button class="main" id="pz-back" type="button">Voltar ao jogo</button>
-  <button id="pz-cfg" type="button">Configurações</button>
-  <button id="pz-home" type="button">Tela inicial</button></div>`;
+pzEl.innerHTML = `<div class="xp-win" role="dialog" aria-label="FISHTEC">
+  <div class="xp-title"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 9c3-5 8-5 11-1l3-3v8l-3-3c-3 4-8 4-11-1z" fill="#ffe0a8" stroke="#5e3274" stroke-width="1"/><circle cx="5.5" cy="8" r="1" fill="#241a45"/></svg>
+    <b>FISHTEC</b>
+    <div class="xp-ctl"><button class="dis" type="button" tabindex="-1" aria-hidden="true"><svg width="9" height="9"><rect x="0" y="6" width="7" height="3" fill="#fff"/></svg></button><button class="dis" type="button" tabindex="-1" aria-hidden="true"><svg width="9" height="9"><rect x="1" y="1" width="7" height="7" fill="none" stroke="#fff" stroke-width="1.5"/><rect x="1" y="1" width="7" height="2.5" fill="#fff"/></svg></button><button class="x" id="pz-x" type="button" aria-label="Fechar"><svg width="9" height="9"><path d="M1 1L8 8M8 1L1 8" stroke="#fff" stroke-width="2"/></svg></button></div></div>
+  <div class="xp-body"><div class="xp-msg"><span class="xp-info">i</span><span>O jogo está pausado.<br>O que você deseja fazer?</span></div>
+    <button class="xp-btn def" id="pz-back" type="button">Voltar ao jogo</button>
+    <button class="xp-btn" id="pz-cfg" type="button">Configurações</button>
+    <button class="xp-btn" id="pz-home" type="button">Tela inicial</button></div></div>`;
 document.body.appendChild(pzEl);
 const pzBack = pzEl.querySelector("#pz-back"), pzCfg = pzEl.querySelector("#pz-cfg"), pzHome = pzEl.querySelector("#pz-home");
 let rebinding = false;
@@ -1747,7 +1759,7 @@ function pauseGame() {
   pzEl.classList.add("on"); pzBack.focus();
 }
 function resumeGame() { PAUSED = false; rebinding = false; pzEl.classList.remove("on"); cv.focus(); }
-pzBack.onclick = resumeGame;
+pzBack.onclick = resumeGame; pzEl.querySelector("#pz-x").onclick = resumeGame;
 pzCfg.onclick = openCfg;
 pzHome.onclick = () => location.reload();               // recomeça do título (a aparência fica salva)
 pzEl.addEventListener("pointerdown", e => { if (e.target === pzEl) resumeGame(); });
