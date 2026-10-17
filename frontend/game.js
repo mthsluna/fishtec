@@ -2668,9 +2668,10 @@ function vInterior(x, y, w, h, arch, hs, lit) {
     } else if (type === 3) {                                                // quadro na parede + sofá
       vRR(x + w * .24, y + h * .14, w * .52, h * .22, .5, "#c8a050"); vRR(x + w * .24 + .6, y + h * .14 + .6, w * .52 - 1.2, h * .22 - 1.2, .3, pk(["#6a8aa8", "#a86a5a", "#7a9a6a"]));
       vRR(x + w * .08, bot - h * .3, w * .84, h * .3, 1.6, dk); vRR(x + w * .08, bot - h * .38, w * .2, h * .2, 1, dk);
-    } else {                                                                // pessoa de costas para a rua
-      const hr = Math.min(w, h) * .15;
-      vCirc(cx, bot - h * .5, hr, dk); vRR(cx - w * .23, bot - h * .4, w * .46, h * .5, w * .2, dk);
+    } else {                                                                // cortinas amarradas dos lados + vaso no peitoril
+      const cc = pk(["rgba(150,60,56,.5)", "rgba(70,100,140,.5)", "rgba(200,170,110,.5)"]);
+      ctx.fillStyle = cc; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w * .34, y); ctx.quadraticCurveTo(x + w * .16, y + h * .5, x + w * .26, bot); ctx.lineTo(x, bot); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(x + w * .66, y); ctx.quadraticCurveTo(x + w * .84, y + h * .5, x + w * .74, bot); ctx.lineTo(x + w, bot); ctx.closePath(); ctx.fill();
     }
   }
   vSoft(x, bot - 3, w, 3, .3, "10,6,14");
@@ -2684,19 +2685,26 @@ function vCafeInside(x, y, w, h) {                                           // 
     const lx = x + w * f, ly = y + 9; vLine(lx, y, lx, ly - 2, .35, dk);
     vPoly([[lx - 2.4, ly], [lx + 2.4, ly], [lx + 1.3, ly - 2.4], [lx - 1.3, ly - 2.4]], "#b8321f"); vBlot(lx, ly + 1.5, 9, "255,214,140", .5);
   });
-  [[.3, 7.4], [.66, 7.4]].forEach(([f, hh]) => {                                                          // gente nas mesinhas
-    const px0 = x + w * f, by = y + h - 7.2; vCirc(px0, by - hh * .6, 1.5, dk); vRR(px0 - 2.4, by - hh * .38, 4.8, hh * .8, 2, dk);
-    vRR(px0 + 2, by + .4, 1.2, 1, .3, "#f4ead2");
+  [.3, .7].forEach(f => {                                                                                // mesinhas redondas com xícara
+    const tx = x + w * f, ty = y + h - 9; vLine(tx, ty, tx, y + h - 6, .5, dk); vEll(tx, ty, 3.4, .9, "rgba(120,70,40,.7)"); vRR(tx - .6, ty - 1.8, 1.2, 1.4, .3, "#f4ead2");
   });
   vRR(x, y + h - 6, w, 6, 0, vLG(0, y + h - 6, 0, y + h, [[0, "rgba(120,70,40,.9)"], [1, "rgba(70,40,24,.95)"]])); ctx.fillStyle = "rgba(255,226,180,.4)"; ctx.fillRect(x, y + h - 6, w, .5);   // balcão
+}
+function vSheen(x, y, w, h, a) {                                              // brilho de vidro bem discreto: duas faixas diagonais + sombra no topo + fio de luz embaixo
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = "#fff"; const sk = h * .4;
+  ctx.beginPath(); ctx.moveTo(x + w * .12, y + h); ctx.lineTo(x + w * .12 + sk, y); ctx.lineTo(x + w * .12 + sk + w * .09, y); ctx.lineTo(x + w * .12 + w * .09, y + h); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = a * .55; ctx.beginPath(); ctx.moveTo(x + w * .27, y + h); ctx.lineTo(x + w * .27 + sk, y); ctx.lineTo(x + w * .27 + sk + w * .035, y); ctx.lineTo(x + w * .27 + w * .035, y + h); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  vSoft(x, y, w, Math.min(4, h * .22), .22, "10,20,40");
+  ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fillRect(x, y + h - .6, w, .6);
 }
 function vGlass(x, y, w, h, arch, cross) {
   const p = () => arch ? vArchP(x, y, w, h) : vRR(x, y, w, h, .7);
   p(); ctx.fillStyle = vLG(x, y, x, y + h, [[0, "#b4d6ec"], [.5, "#7aa3c6"], [1, "#46688f"]]); ctx.fill();
   ctx.save(); p(); ctx.clip();
   vInterior(x, y, w, h, arch, (((x * 73856093) ^ (y * 19349663)) >>> 0), false);                // o que há atrás do vidro
-  ctx.fillStyle = "rgba(255,255,255,.24)"; ctx.beginPath(); ctx.moveTo(x + w * .05, y + h); ctx.lineTo(x + w * .55, y); ctx.lineTo(x + w * .85, y); ctx.lineTo(x + w * .35, y + h); ctx.closePath(); ctx.fill();
-  vSoft(x, y, w, Math.min(3.5, h * .35), .5, "10,20,40");
+  vSheen(x, y, w, h, .13);
   ctx.restore();
   if (cross) { ctx.fillStyle = "#f0e8d2"; ctx.fillRect(x + w / 2 - .42, y, .84, h); ctx.fillRect(x, y + h * .5 - .42, w, .84); }
 }
@@ -3336,7 +3344,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
       vRR(q, B - 26.6, 3.4, 4.6, 1.2, pk(["#c0392b", "#f2c94c", "#2f6b4f", "#e8e0c8", "#2d5a8a"]));
       vRR(q, B - 17.6, 3.4, 4.6, 1.2, pk(["#d9b26a", "#c0392b", "#e8e0c8", "#8a4a2a"]));
     }
-    ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.moveTo(sx0 + 3, B - 5); ctx.lineTo(sx0 + 14, B - 31); ctx.lineTo(sx0 + 24, B - 31); ctx.lineTo(sx0 + 13, B - 5); ctx.closePath(); ctx.fill();
+    vSheen(sx0, B - 31, ww2, 26.6, .1);
     ctx.restore();
     D.wins.push({ x: sx0, y: B - 31, w: ww2, h: 26.6, lit: true, soft: true });
     awning(sx0 - 2, sw + 4, awn, B - 41, 7);
@@ -3359,7 +3367,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     vText("CAFFÈ", cx0, B - 45, "#a32a1c", 8.6, 38, "rgba(80,20,10,.25)");
     vRR(x + 9, B - 29, 22, 25.6, 1.6, "#4a3020"); vRR(x + 10, B - 28, 20, 23.6, 1, vLG(0, B - 28, 0, B - 4, [[0, "#f6d68a"], [1, "#c88a44"]]));
     ctx.save(); vRR(x + 10, B - 28, 20, 23.6, 1); ctx.clip(); vCafeInside(x + 10, B - 28, 20, 23.6); ctx.restore();
-    ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.beginPath(); ctx.moveTo(x + 12, B - 5); ctx.lineTo(x + 20, B - 28); ctx.lineTo(x + 27, B - 28); ctx.lineTo(x + 19, B - 5); ctx.closePath(); ctx.fill();
+    vSheen(x + 10, B - 28, 20, 23.6, .1);
     D.wins.push({ x: x + 10, y: B - 28, w: 20, h: 23.6, lit: true, soft: true });
     awning(x + 3, w - 6, "#b8321f", B - 41, 8);
     doorAt(x + w - 26, false, "cafe");
@@ -3862,22 +3870,18 @@ function cityGlass(now, l, r) {
   c.setTransform(3, 0, 0, 3, (32 - px) * 3, (68 - PIER_Y) * 3);
   ctx = c;
   try { drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) }); } finally { ctx = main; }
-  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = "rgba(150,190,228,.32)"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = "rgba(150,190,228,.4)"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
   ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
   for (const o of c0) {
     const w = o.w, hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0), bot = w.y + w.h, la = 1 - (w.lit ? .5 * DAY.lamp : 0);
     ctx.save();
     if (w.round) { ctx.beginPath(); ctx.arc(o.cx, w.y + w.h / 2, w.w / 2, 0, 6.2832); } else if (w.arch) vArchP(w.x, w.y, w.w, w.h); else vRR(w.x, w.y, w.w, w.h, .7);
     ctx.clip();
-    if (o.ground && hs % 4 === 0 && w.h >= 12 && !w.round) {                  // alguém se mexendo atrás do vidro
-      const hh = Math.min(w.h * .72, 20), pxx = w.x + w.w * (.5 + .27 * Math.sin(now / 2800 + hs)), dk = "rgba(24,12,18,.55)";
-      vCirc(pxx, bot - hh * .86, hh * .11, dk); vRR(pxx - hh * .17, bot - hh * .74, hh * .34, hh * .74, hh * .12, dk);
-    }
     const s = o.ground ? 1.15 * K : .5 * K, fy = o.ground ? B - 3 : bot - 1;
-    ctx.globalAlpha = (o.ground ? (w.soft ? .46 : .4) : .15) * la;
+    ctx.globalAlpha = (o.ground ? (w.soft ? .27 : .15) : .05) * la;
     ctx.drawImage(reflexRS.cv, px - 32 * s, fy - 68 * s, 64 * s, 76 * s);
     if (Math.abs(o.dx) < 70) {                                                // brilho passando junto com o pescador
-      const a = (1 - Math.abs(o.dx) / 70) * .3 * la, gx = w.x + w.w * (.5 + o.dx / 90), bw = Math.max(1.6, w.w * .16);
+      const a = (1 - Math.abs(o.dx) / 70) * .08 * la, gx = w.x + w.w * (.5 + o.dx / 90), bw = Math.max(1.6, w.w * .16);
       ctx.globalAlpha = a; ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.moveTo(gx - bw, bot); ctx.lineTo(gx, bot); ctx.lineTo(gx + w.h * .35, w.y); ctx.lineTo(gx + w.h * .35 - bw, w.y); ctx.closePath(); ctx.fill();
     }
