@@ -34,7 +34,7 @@ const gl = (() => {
 const out = gl ? null : cv.getContext("2d");
 const buf = document.createElement("canvas");
 let DITHER_CELL = 1;
-let glTex, liftLoc, texelLoc, cellLoc;
+let glTex, liftLoc, texelLoc, cellLoc, stepsLoc;
 if (gl) {
   const VS = "attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}";
   const FS = `#ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -65,7 +65,7 @@ void main(){
   glTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, glTex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.uniform1f(gl.getUniformLocation(pg, "steps"), LEVELS);
+  stepsLoc = gl.getUniformLocation(pg, "steps"); gl.uniform1f(stepsLoc, LEVELS);
   liftLoc = gl.getUniformLocation(pg, "lift");
   texelLoc = gl.getUniformLocation(pg, "texel"); cellLoc = gl.getUniformLocation(pg, "cell");
 }
@@ -99,6 +99,7 @@ function buildLUT(lift) {                              // lift < 1 clareia as so
 }
 const nightLift = () => 1 - NIGHT_LIFT * Math.max(0, Math.min(1, DAY.starA));   // 1 de dia, até 1-NIGHT_LIFT com o céu estrelado
 function dither() {
+  if (CITY_HD && CITY.on) { out.drawImage(buf, 0, 0); return; }
   const lf = Math.round(nightLift() * 50) / 50; if (lf !== lutLift) buildLUT(lf);
   const w = cv.width, h = cv.height, im = ctx.getImageData(0, 0, w, h), d = im.data;
   for (let y = 0; y < h; y++) {
@@ -114,6 +115,7 @@ function present() {
   if (!gl) return dither();
   gl.viewport(0, 0, cv.width, cv.height);
   gl.uniform1f(liftLoc, nightLift());
+  gl.uniform1f(stepsLoc, CITY_HD && CITY.on ? 256 : LEVELS);          // cidade em modo HD: sem posterização/dithering (degradês suaves)
   gl.uniform2f(texelLoc, 1 / buf.width, 1 / buf.height); gl.uniform1f(cellLoc, DITHER_CELL);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, buf);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -2338,9 +2340,10 @@ function startTrans(to) {
   TR.ph = "out"; TR.t = 0; TR.to = to; TR.lock = true; spd = 0; keys.Space = false;
 }
 function swapScene() {
-  if (TR.to === "city") { CITY.on = true; px = CITY.MAX - 24; dir = -1; cityCamX = null; cityT0 = 0; cityEnsure(); }   // monta a cidade enquanto a tela está preta
+  if (TR.to === "city") { CITY.on = true; px = CITY.MAX - 24; dir = -1; cityCamX = null; cityT0 = 0; if (CITY_HD && S >= 2 && S < CITY_S) { cityPierS = S; setScale(CITY_S); } cityEnsure(); }   // monta a cidade enquanto a tela está preta
   else {
     CITY.on = false; px = 24; dir = 1;
+    if (cityPierS) { setScale(Math.min(cityPierS, S)); cityPierS = 0; }
     const cu = Math.max(0, Math.min(1, (px - CAM_FAR) / (PX_MAX - CAM_FAR)));
     camX = -(px - WORLD / 2) * CAM_K - CAM_EXTRA * cu * cu * (3 - 2 * cu);   // câmera já no lugar (sem deslizar durante o fade)
   }
@@ -2368,6 +2371,9 @@ function drawTrans() {
 // Fachadas e chão são pintados UMA vez num canvas (cityCache) e só o pedaço visível é copiado a cada quadro; o que se mexe (varais, gatos, fonte, portas abrindo) é desenhado por cima.
 // Portas: perto de uma porta aparece o "E"; ao apertar ela abre/ou está trancada (veja cityUse). Para ligar uma porta a algo (ex.: um interior), use window.onCityDoor = d => {...}.
 let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
+const CITY_HD = true;                                                    // false = volta ao visual pixel art de antes (dithering, sem suavização)
+const CITY_S = 3, CITY_CS = 5;                                           // resolução interna na cidade (S) e do cenário pintado (pixels por unidade do mundo)
+let cityPierS = 0;                                                       // resolução que o cais tinha antes de entrar na cidade
 const CITY_Z = 1.5;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
 const CITY_B = PIER_Y - 14;                                              // chão das fachadas: agora recuado, com calçada entre elas e o pescador (que anda em PIER_Y)
 const CITY_CHAR = 0.82;                                                  // tamanho do pescador na cidade (1 = igual ao cais): menor = prédios e portas parecem maiores
@@ -2441,7 +2447,7 @@ function cityInit() {                                                    // o tr
 }
 
 function cityBuild() {                                                   // pinta tudo que não se mexe, uma vez só (refeito se a resolução mudar)
-  const D = cityData, B = CITY_B, FW = CITY_FW, CWD = CITY_FX1 - CITY_FW, GF = CITY_GF, FH = CITY_FH, cs = S * CITY_Z;
+  const D = cityData, B = CITY_B, FW = CITY_FW, CWD = CITY_FX1 - CITY_FW, GF = CITY_GF, FH = CITY_FH, cs = CITY_HD ? CITY_CS : S * CITY_Z;
   let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647, ri = (a, b) => a + (r() * (b - a + 1) | 0), pk = a => a[r() * a.length | 0];
   D.wins = []; D.lamps = []; D.bulbs = []; D.lines = []; D.doors = [];
   const cv2 = document.createElement("canvas"); cv2.width = Math.ceil(CWD * cs); cv2.height = Math.ceil(CITY_CH * cs);
@@ -2721,12 +2727,51 @@ function cityBuild() {                                                   // pint
     }
     g = c2.createLinearGradient(0, B + 30, 0, CITY_CH); g.addColorStop(0, "rgba(20,10,30,0)"); g.addColorStop(1, "rgba(20,10,30,.40)");
     ctx.fillStyle = g; ctx.fillRect(FW, B + 30, CWD, CITY_CH - B - 30);    // a beirada de baixo escurece, o pescador fica em destaque
+    if (CITY_HD) cityPolish(c2, cv2, D, cs, B, FW, CWD, sd);
   } finally { ctx = main; }
-  cityCache = { cv: cv2, s: S, cs, font: cityFontOK() };
+  cityCache = { cv: cv2, s: CITY_HD ? 0 : S, cs, font: cityFontOK() };
+}
+// Acabamento "HD" do cenário (roda uma vez, no cache): suaviza as escadinhas do pixel art, dá volume às fachadas (luz no alto, sombra no pé e nos cantos, beiral),
+// recesso e reflexo nas janelas e uma textura fina de reboco/pedra. Só pinta onde já existe cenário (source-atop).
+function cityPolish(c2, cv2, D, cs, B, FW, CWD, seed) {
+  const w = cv2.width, h = cv2.height;
+  if ("filter" in c2) {                                                   // 1) suavização: cópia levemente borrada + original por cima (cantos arredondam, bordas seguem definidas)
+    const cp = document.createElement("canvas"); cp.width = w; cp.height = h; cp.getContext("2d").drawImage(cv2, 0, 0);
+    c2.save(); c2.setTransform(1, 0, 0, 1, 0, 0); c2.globalCompositeOperation = "copy"; c2.filter = "blur(" + (cs * 0.45).toFixed(2) + "px)"; c2.drawImage(cp, 0, 0);
+    c2.filter = "none"; c2.globalCompositeOperation = "source-over"; c2.globalAlpha = .6; c2.drawImage(cp, 0, 0); c2.restore();
+  }
+  c2.save(); c2.setTransform(cs, 0, 0, cs, -FW * cs, 0); c2.globalCompositeOperation = "source-atop";
+  D.blds.forEach(b => {                                                   // 2) volume das fachadas
+    const y0 = b.top - 14, hh = B - y0;
+    let g = c2.createLinearGradient(0, b.top, 0, B);
+    g.addColorStop(0, "rgba(255,240,220,.12)"); g.addColorStop(.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,14,34,.26)");
+    c2.fillStyle = g; c2.fillRect(b.x, y0, b.w, hh);
+    g = c2.createLinearGradient(b.x, 0, b.x + b.w, 0);
+    g.addColorStop(0, "rgba(0,0,0,.16)"); g.addColorStop(.07, "rgba(0,0,0,0)"); g.addColorStop(.9, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.24)");
+    c2.fillStyle = g; c2.fillRect(b.x, y0, b.w, hh);
+    g = c2.createLinearGradient(0, b.top, 0, b.top + 12);                 // sombra do beiral
+    g.addColorStop(0, "rgba(20,8,26,.32)"); g.addColorStop(1, "rgba(20,8,26,0)");
+    c2.fillStyle = g; c2.fillRect(b.x, b.top, b.w, 12);
+  });
+  D.wins.forEach(wn => {                                                  // 3) janelas: recesso, reflexo e peitoril
+    c2.fillStyle = "rgba(10,5,20,.34)"; c2.fillRect(wn.x, wn.y, wn.w, 1.4); c2.fillRect(wn.x, wn.y, 1, wn.h);
+    const g = c2.createLinearGradient(wn.x, wn.y, wn.x + wn.w, wn.y + wn.h);
+    g.addColorStop(0, "rgba(255,255,255,.20)"); g.addColorStop(.45, "rgba(255,255,255,0)"); g.addColorStop(1, "rgba(10,10,50,.18)");
+    c2.fillStyle = g; c2.fillRect(wn.x, wn.y, wn.w, wn.h);
+    c2.fillStyle = "rgba(0,0,0,.2)"; c2.fillRect(wn.x - 1, wn.y + wn.h, wn.w + 2, 1.6);
+  });
+  let sd = seed || 91; const rr = () => (sd = sd * 16807 % 2147483647) / 2147483647;   // 4) grão de reboco e de pedra
+  const nz = document.createElement("canvas"); nz.width = nz.height = 192; const nx = nz.getContext("2d"), im = nx.createImageData(192, 192);
+  for (let i = 0; i < im.data.length; i += 4) { const v = rr() < .5 ? 0 : 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = rr() < .35 ? 4 + rr() * 22 : 0; }
+  nx.putImageData(im, 0, 0);
+  const pat = c2.createPattern(nz, "repeat");
+  if (pat && pat.setTransform) pat.setTransform(new DOMMatrix().scale(.5));
+  c2.fillStyle = pat; c2.fillRect(FW, 0, CWD, CITY_CH);
+  c2.restore();
 }
 function cityEnsure() {
   if (!cityData) cityInit();
-  if (!cityCache || cityCache.s !== S || (!cityCache.font && cityFontOK())) cityBuild();
+  if (!cityCache || cityCache.s !== (CITY_HD ? 0 : S) || (!cityCache.font && cityFontOK())) cityBuild();
 }
 
 const cityFarWinLit = (b, wx, wy) => ((((b.x * 73856093) ^ (wx * 19349663) ^ (wy * 83492791)) >>> 0) % 5) === 0;
@@ -2739,7 +2784,7 @@ function cityFarEach(arr, f, l, r, x0, y0, y1, sx, sy, fn) {              // per
   });
 }
 const cityHillH = x => 46 + 16 * Math.sin(x * .011 + 1) + 11 * Math.sin(x * .027 + 2) + 5 * Math.sin(x * .071);
-function cityFar(fog, l, r) {                                            // colinas, prédios distantes e campanários: cada camada anda numa velocidade (parallax) e recebe mais névoa quanto mais longe
+function cityFarDraw(fog, l, r) {                                        // colinas, prédios distantes e campanários: cada camada anda numa velocidade (parallax) e recebe mais névoa quanto mais longe
   const D = cityData, B = CITY_B, mx = (c, f = .5) => "rgb(" + c.map((v, i) => Math.round(v + (fog[i] - v) * f)) + ")";
   // 1) colinas lá no fundo (quase paradas)
   {
@@ -2787,8 +2832,24 @@ function cityFar(fog, l, r) {                                            // coli
   }
 }
 
+const cityBlurCv = {};
+function cityBlurred(K, fn) {                                             // desenha fn() numa tela menor (1/K) e amplia suavizando: desfoque barato (profundidade de campo)
+  if (!CITY_HD) { fn(); return; }
+  const main = ctx, tf = main.getTransform(), w = Math.ceil(buf.width / K), h = Math.ceil(buf.height / K);
+  let o = cityBlurCv[K];
+  if (!o || o.cv.width !== w || o.cv.height !== h) { const cvb = document.createElement("canvas"); cvb.width = w; cvb.height = h; o = cityBlurCv[K] = { cv: cvb, x: cvb.getContext("2d") }; }
+  o.x.setTransform(1, 0, 0, 1, 0, 0); o.x.clearRect(0, 0, w, h);
+  o.x.setTransform(tf.a / K, tf.b / K, tf.c / K, tf.d / K, tf.e / K, tf.f / K);
+  ctx = o.x;
+  try { fn(); } finally { ctx = main; }
+  main.save(); main.setTransform(1, 0, 0, 1, 0, 0); main.globalAlpha = 1; main.imageSmoothingEnabled = true; main.imageSmoothingQuality = "high";
+  main.drawImage(o.cv, 0, 0, w, h, 0, 0, buf.width, buf.height); main.restore();
+}
+const cityFar = (fog, l, r) => cityBlurred(2, () => cityFarDraw(fog, l, r));
+
 // primeiro plano: postes e vasos GRANDES na frente do pescador, passando mais rápido que o resto (dá a sensação de que o pescador está dentro da rua)
-function cityFront(now, l, r) {
+function cityFront(now, l, r) { cityBlurred(3, () => cityFrontDraw(now, l, r)); }          // primeiro plano fora de foco
+function cityFrontDraw(now, l, r) {
   const f = CITY_FRONT_F, s = l * (1 - f), GAP = CITY_FRONT_GAP, a = Math.floor((l - s - 40) / GAP), b = Math.ceil((r - s + 40) / GAP);
   const s0 = DAY.sky[0], tint = (c, k = .3) => "rgb(" + c.map((v, i) => Math.round(v + (s0[i] - v) * k)).join(",") + ")";
   const iron = tint([34, 26, 42]), potC = tint([108, 52, 34]), G = [tint([54, 110, 56]), tint([40, 88, 46]), tint([28, 64, 36])];
@@ -2851,8 +2912,11 @@ function cityLit(now, l, r) {                                            // à n
     D.gaps.forEach(gp => ctx.rect(gp.x, -60, gp.w, B - 12 - gp.hh - 8 + 60));
     ctx.rect(D.piazza.x, -60, D.piazza.w, B - 20 + 60);
     ctx.clip(); ctx.globalAlpha = DAY.lamp;
-    cityFarEach(D.far2, CITY_FARF[1], l, r, 4, 10, 30, 8, 12, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,205,130,.38)"; ctx.fillRect(wx, wy, 2, 4); } });
-    cityFarEach(D.far, CITY_FARF[2], l, r, 4, 8, 70, 9, 16, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,200,120,.55)"; ctx.fillRect(wx, wy, 3, 5); } });
+    ctx.globalCompositeOperation = "lighter";
+    const glow = (gx, gy, rr, al) => { const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, rr); g.addColorStop(0, "rgba(255,200,120," + al + ")"); g.addColorStop(1, "rgba(255,180,100,0)"); ctx.fillStyle = g; ctx.fillRect(gx - rr, gy - rr, rr * 2, rr * 2); };
+    cityFarEach(D.far2, CITY_FARF[1], l, r, 4, 10, 30, 8, 12, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) glow(wx + 1, wy + 2, 4.5, .5); });
+    cityFarEach(D.far, CITY_FARF[2], l, r, 4, 8, 70, 9, 16, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) glow(wx + 1.5, wy + 2.5, 5.5, .62); });
+    ctx.globalCompositeOperation = "source-over";
     ctx.restore();
   }
   ctx.save(); ctx.globalAlpha = DAY.lamp;
@@ -2889,7 +2953,7 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
   const D = cityData, B = CITY_B, t = now / 1000, cs = cityCache.cs;
   ctx.save();
   cityFar(DAY.sky[3], l, r);
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = CITY_HD; ctx.imageSmoothingQuality = "high";
   const sx = Math.max(0, Math.floor((l - 4 - CITY_FW) * cs)), ex = Math.min(cityCache.cv.width, Math.ceil((r + 4 - CITY_FW) * cs));
   if (ex > sx) ctx.drawImage(cityCache.cv, sx, 0, ex - sx, cityCache.cv.height, CITY_FW + sx / cs, 0, (ex - sx) / cs, cityCache.cv.height / cs);
   { // fonte: jatinhos de água caindo
