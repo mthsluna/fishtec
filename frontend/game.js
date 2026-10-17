@@ -1578,7 +1578,7 @@ function update(dt) {
     else { const r = Math.abs(aim) > Math.abs(spd) ? 700 : 430; spd += Math.max(-r * dt, Math.min(r * dt, aim - spd)); }   // correr: acelera e freia com inércia
     if (m) dir = m;
     const PXM = pxMax();
-    px = Math.max(16, Math.min(PXM, px + spd * dt));
+    px = Math.max(16, Math.min(PXM, px + spd * dt * (CITY.on ? CITY_CHAR : 1)));   // na cidade o pescador é menor, então anda proporcionalmente
     if ((px <= 16 && spd < 0) || (px >= PXM && spd > 0)) spd = 0;
     {                                                                            // empurrar a ponta do cais (esquerda) ou da cidade (direita) por um instante troca de cenário
       const atEdge = !CITY.on ? px <= 16 && m < 0 : px >= CITY.MAX && m > 0;
@@ -1586,7 +1586,7 @@ function update(dt) {
       if (TR.edge > 0.3) { TR.edge = 0; startTrans(CITY.on ? "pier" : "city"); }
     }
     moving = Math.abs(spd) > 1;
-    gaitPh += Math.abs(px - ox) / (11 + 3 * (runK > 0.05 ? runK : 0) + (hScale(me.h) - 1) * FISHER_TOP * LEG_SHARE * 0.5);   // mesma conta do desenho das pernas
+    gaitPh += Math.abs(px - ox) / (CITY.on ? CITY_CHAR : 1) / (11 + 3 * (runK > 0.05 ? runK : 0) + (hScale(me.h) - 1) * FISHER_TOP * LEG_SHARE * 0.5);   // mesma conta do desenho das pernas
     const si = Math.floor((gaitPh - Math.PI / 2) / Math.PI);          // o pé toca o chão quando as pernas estão mais abertas (a cada meia volta da fase)
     if (si > stepIdx) { stepIdx = si; SND.step(); }
     const braking = Math.abs(spd) > WALK + 20 && Math.abs(aim) < Math.abs(spd) - 20;   // vinha correndo e soltou: está freando
@@ -2369,7 +2369,10 @@ function drawTrans() {
 // Portas: perto de uma porta aparece o "E"; ao apertar ela abre/ou está trancada (veja cityUse). Para ligar uma porta a algo (ex.: um interior), use window.onCityDoor = d => {...}.
 let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
 const CITY_Z = 1.5;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
-const CITY_B = PIER_Y - 8;                                               // chão das fachadas (o pescador anda logo na frente, em PIER_Y)
+const CITY_B = PIER_Y - 14;                                              // chão das fachadas: agora recuado, com calçada entre elas e o pescador (que anda em PIER_Y)
+const CITY_CHAR = 0.64;                                                  // tamanho do pescador na cidade (1 = igual ao cais): menor = prédios e portas parecem maiores
+const CITY_FARF = [0.18, 0.38, 0.62];                                    // parallax das camadas do fundo (0 = parada no céu, 1 = anda junto com o cenário): colinas, prédios longe, prédios do meio
+const CITY_FRONT_F = 1.55, CITY_FRONT_GAP = 430;                         // primeiro plano (postes e vasos na frente do pescador): anda mais rápido que o cenário
 const CITY_FW = -200, CITY_FX1 = CITY.MAX + 260;                         // trecho do mundo que é desenhado
 const CITY_CAM_MIN = -50, CITY_CAM_PAD = 90;                             // até onde a câmera pode ir (esquerda / depois do fim da cidade)
 const CITY_CH = 200;                                                     // altura (px do mundo) do que a câmera chega a ver
@@ -2431,7 +2434,9 @@ function cityInit() {                                                    // o tr
   const far = [];
   for (let fx = CITY_FW; fx < CITY_FX1; ) { const w = ri(20, 36), h = ri(44, 100); far.push({ x: fx, w, h, c: ri(0, CITY_FARC.length - 1) }); fx += w + ri(0, 2); }
   const towers = []; for (let tx = 60; tx < CITY_FX1; tx += ri(430, 560)) towers.push(tx);
-  cityData = { blds, gaps, piazza, fountain: { x: piazza.x + 85 }, far, towers, wins: [], lamps: [], bulbs: [], lines: [], doors: [], cats: [] };
+  const far2 = [];                                                       // prédios bem longe: mais altos, mais largos e mais enevoados
+  for (let fx = CITY_FW; fx < CITY_FX1; ) { const w = ri(26, 46), h = ri(78, 140); far2.push({ x: fx, w, h, c: ri(0, CITY_FARC.length - 1) }); fx += w + ri(0, 6); }
+  cityData = { blds, gaps, piazza, fountain: { x: piazza.x + 85 }, far, far2, towers, wins: [], lamps: [], bulbs: [], lines: [], doors: [], cats: [] };
   gaps.forEach((gp, i) => { if (i % 3 === 1) cityData.cats.push(gp.x + (gp.w >> 1)); });
 }
 
@@ -2456,6 +2461,10 @@ function cityBuild() {                                                   // pint
     }
     rect("#5b5149", FW, B + 48, CWD, 3); rect("rgba(255,240,210,.16)", FW, B + 51, CWD, 1); rect("rgba(0,0,0,.25)", FW, B + 48, CWD, 1);   // sarjeta
     for (let gx0 = FW + 40; gx0 < CITY_FX1; gx0 += 130 + ri(0, 60)) { rect("#2f2a26", gx0, B + 47, 16, 5); for (let q = 1; q < 16; q += 3) rect("#6b6058", gx0 + q, B + 47, 1, 5); }   // bueiros
+    rect("#a39889", FW, B, CWD, 18); rect("#b4a999", FW, B, CWD, 1);                    // calçada de lajotas rente às fachadas
+    for (let lx = FW + 3; lx < CITY_FX1; lx += 15) rect("rgba(40,28,20,.16)", lx, B + 1, 1, 17);
+    rect("rgba(40,28,20,.12)", FW, B + 9, CWD, 1);
+    rect("#d2c8b6", FW, B + 18, CWD, 1); rect("#6a5f55", FW, B + 19, CWD, 2); rect("#3f3731", FW, B + 21, CWD, 1);   // meio-fio: quina clara, face e sombra no asfalto
     let g = c2.createLinearGradient(0, B, 0, B + 22); g.addColorStop(0, "rgba(28,16,40,.55)"); g.addColorStop(1, "rgba(28,16,40,0)");
     ctx.fillStyle = g; ctx.fillRect(FW, B, CWD, 22);                      // sombra das paredes no chão
 
@@ -2720,26 +2729,91 @@ function cityEnsure() {
   if (!cityCache || cityCache.s !== S || (!cityCache.font && cityFontOK())) cityBuild();
 }
 
-function cityFar(fog, l, r) {                                            // prédios distantes e campanários (recebem a névoa da hora)
-  const D = cityData, B = CITY_B, mx = (c, f = .5) => "rgb(" + c.map((v, i) => Math.round(v + (fog[i] - v) * f)) + ")";
-  const FC = CITY_FARC.map(c => mx(c)), RC = mx([150, 78, 58]), RL = mx([176, 98, 70]), WD = CITY_FARC.map(c => mx(c.map(v => v * .62), .4));
-  D.far.forEach(b => {
-    if (b.x > r || b.x + b.w < l) return;
+const cityFarWinLit = (b, wx, wy) => ((((b.x * 73856093) ^ (wx * 19349663) ^ (wy * 83492791)) >>> 0) % 5) === 0;
+function cityFarEach(arr, f, l, r, x0, y0, y1, sx, sy, fn) {              // percorre as janelas de uma camada (já em coordenadas do mundo, com o parallax aplicado)
+  const B = CITY_B, s = l * (1 - f);
+  arr.forEach(b => {
+    if (b.x + s > r + 4 || b.x + b.w + s < l - 4) return;
     const top = B - b.h;
-    rect(FC[b.c], b.x, top, b.w, b.h); rect("rgba(30,20,50,.12)", b.x + b.w - 4, top, 4, b.h);
-    rect(RC, b.x - 1, top - 3, b.w + 2, 3); rect(RL, b.x + 2, top - 6, b.w - 4, 3); if (b.w > 26) rect(RC, b.x + 6, top - 9, b.w - 12, 3);
-    for (let wy = top + 8; wy < B - 70; wy += 16) for (let wx = b.x + 4; wx < b.x + b.w - 5; wx += 9) rect(WD[b.c], wx, wy, 3, 5);
+    for (let wy = top + y0; wy < B - y1; wy += sy) for (let wx = b.x + x0; wx < b.x + b.w - x0 - 1; wx += sx) fn(b, wx + s, wy, wx);
   });
-  const tc = mx([232, 206, 160]), td = mx([150, 120, 100], .4), tb = mx([205, 190, 150]);
-  D.towers.forEach(tx => {
-    if (tx > r || tx + 16 < l) return;
-    const tt = B - 128;
-    rect(tc, tx, tt + 12, 15, 130); rect("rgba(30,20,50,.14)", tx + 11, tt + 12, 4, 130);
-    rect(tb, tx - 1, tt + 10, 17, 3); rect(tb, tx - 1, tt + 28, 17, 2);
-    cityArch(td, tx + 3, tt + 14, 4, 12); cityArch(td, tx + 8, tt + 14, 4, 12);
-    for (let i = 0; i < 12; i++) rect(i % 2 ? RC : RL, tx + 7 - (1 + i * .55 | 0), tt + i, 2 + 2 * (1 + i * .55 | 0) - 1, 1);
-    rect(RC, tx + 7, tt - 4, 1, 4);
-  });
+}
+const cityHillH = x => 46 + 16 * Math.sin(x * .011 + 1) + 11 * Math.sin(x * .027 + 2) + 5 * Math.sin(x * .071);
+function cityFar(fog, l, r) {                                            // colinas, prédios distantes e campanários: cada camada anda numa velocidade (parallax) e recebe mais névoa quanto mais longe
+  const D = cityData, B = CITY_B, mx = (c, f = .5) => "rgb(" + c.map((v, i) => Math.round(v + (fog[i] - v) * f)) + ")";
+  // 1) colinas lá no fundo (quase paradas)
+  {
+    const f = CITY_FARF[0], s = l * (1 - f), a = Math.floor((l - s - 6) / 3) * 3, b = r - s + 6;
+    ctx.save(); ctx.translate(s, 0);
+    const c1 = mx([118, 104, 142], .8), c2 = mx([96, 112, 120], .86);
+    for (let x = a; x < b; x += 3) { const h = cityHillH(x), h2 = cityHillH(x * .8 + 400) - 14; rect(c2, x, B - h2, 3, h2); rect(c1, x, B - h, 3, h); }
+    ctx.restore();
+  }
+  // 2) prédios bem longe + campanários
+  {
+    const f = CITY_FARF[1], s = l * (1 - f), FC = CITY_FARC.map(c => mx(c, .72)), RC = mx([150, 78, 58], .72), RL = mx([176, 98, 70], .72), WD = CITY_FARC.map(c => mx(c.map(v => v * .62), .55));
+    ctx.save(); ctx.translate(s, 0);
+    D.far2.forEach(b => {
+      if (b.x + s > r || b.x + b.w + s < l) return;
+      const top = B - b.h;
+      rect(FC[b.c], b.x, top, b.w, b.h); rect("rgba(30,20,50,.12)", b.x + b.w - 5, top, 5, b.h);
+      rect(RC, b.x - 1, top - 3, b.w + 2, 3); rect(RL, b.x + 3, top - 6, b.w - 6, 3);
+    });
+    const tc = mx([232, 206, 160], .72), td = mx([150, 120, 100], .7), tb = mx([205, 190, 150], .72);
+    D.towers.forEach(tx => {
+      if (tx + s > r || tx + 16 + s < l) return;
+      const tt = B - 128;
+      rect(tc, tx, tt + 12, 15, 130); rect("rgba(30,20,50,.14)", tx + 11, tt + 12, 4, 130);
+      rect(tb, tx - 1, tt + 10, 17, 3); rect(tb, tx - 1, tt + 28, 17, 2);
+      cityArch(td, tx + 3, tt + 14, 4, 12); cityArch(td, tx + 8, tt + 14, 4, 12);
+      for (let i = 0; i < 12; i++) rect(i % 2 ? RC : RL, tx + 7 - (1 + i * .55 | 0), tt + i, 2 + 2 * (1 + i * .55 | 0) - 1, 1);
+      rect(RC, tx + 7, tt - 4, 1, 4);
+    });
+    ctx.restore();
+    cityFarEach(D.far2, f, l, r, 4, 10, 30, 8, 12, (b, wx, wy) => rect(WD[b.c], wx, wy, 2, 4));
+  }
+  // 3) prédios do meio (os que aparecem pelas vielas)
+  {
+    const f = CITY_FARF[2], s = l * (1 - f), FC = CITY_FARC.map(c => mx(c)), RC = mx([150, 78, 58]), RL = mx([176, 98, 70]), WD = CITY_FARC.map(c => mx(c.map(v => v * .62), .4));
+    ctx.save(); ctx.translate(s, 0);
+    D.far.forEach(b => {
+      if (b.x + s > r || b.x + b.w + s < l) return;
+      const top = B - b.h;
+      rect(FC[b.c], b.x, top, b.w, b.h); rect("rgba(30,20,50,.12)", b.x + b.w - 4, top, 4, b.h);
+      rect(RC, b.x - 1, top - 3, b.w + 2, 3); rect(RL, b.x + 2, top - 6, b.w - 4, 3); if (b.w > 26) rect(RC, b.x + 6, top - 9, b.w - 12, 3);
+    });
+    ctx.restore();
+    cityFarEach(D.far, f, l, r, 4, 8, 70, 9, 16, (b, wx, wy) => rect(WD[b.c], wx, wy, 3, 5));
+  }
+}
+
+// primeiro plano: postes e vasos GRANDES na frente do pescador, passando mais rápido que o resto (dá a sensação de que o pescador está dentro da rua)
+function cityFront(now, l, r) {
+  const f = CITY_FRONT_F, s = l * (1 - f), GAP = CITY_FRONT_GAP, a = Math.floor((l - s - 40) / GAP), b = Math.ceil((r - s + 40) / GAP);
+  const s0 = DAY.sky[0], tint = (c, k = .3) => "rgb(" + c.map((v, i) => Math.round(v + (s0[i] - v) * k)).join(",") + ")";
+  const iron = tint([34, 26, 42]), potC = tint([108, 52, 34]), G = [tint([54, 110, 56]), tint([40, 88, 46]), tint([28, 64, 36])];
+  const base = PIER_Y + 40;
+  ctx.save(); ctx.translate(s, 0);
+  for (let i = a; i <= b; i++) {
+    const j = ((i * 2654435761) >>> 0) % 100, X = i * GAP + (j - 50);
+    if (X + s < l - 40 || X + s > r + 40) continue;
+    if (i % 2 === 0) {                                                  // poste
+      rect(iron, X - 2, 6, 4, base - 6); rect(iron, X - 4, base - 16, 8, 16); rect(iron, X - 3, base - 20, 6, 4);
+      rect(iron, X - 1, 6, 15, 2); rect(iron, X + 12, 8, 3, 3); rect(iron, X + 8, 10, 10, 2); rect(iron, X + 8, 11, 10, 11); rect(iron, X + 10, 22, 6, 2);
+      rect(tint([255, 214, 140], .1), X + 10, 12, 6, 9);
+      if (DAY.lamp > .01) {
+        ctx.globalAlpha = DAY.lamp;
+        const g = ctx.createRadialGradient(X + 13, 17, 2, X + 13, 17, 90); g.addColorStop(0, "rgba(255,225,150,.5)"); g.addColorStop(1, "rgba(255,225,150,0)");
+        ctx.fillStyle = g; ctx.fillRect(X - 80, -75, 186, 186); rect("#fff0b8", X + 11, 13, 4, 6);
+        ctx.globalAlpha = 1;
+      }
+    } else {                                                            // vaso com arbusto
+      rect(potC, X - 12, base - 24, 24, 24); rect("rgba(255,230,200,.18)", X - 12, base - 24, 24, 2); rect("rgba(0,0,0,.22)", X + 7, base - 22, 5, 22); rect(potC, X - 14, base - 28, 28, 5);
+      cityBlob(X, base - 38, 15, G); cityBlob(X - 11, base - 33, 8, G); cityBlob(X + 12, base - 34, 9, G);
+      for (let q = 0; q < 6; q++) rect(["#d6334a", "#f2c94c", "#e86aa0"][q % 3], X - 12 + ((q * 37 + j) % 24), base - 48 + ((q * 19 + j) % 18), 2, 2);
+    }
+  }
+  ctx.restore();
 }
 
 function cityNearDoor() {                                                // a porta (ou nicho) ao alcance do pescador
@@ -2771,6 +2845,8 @@ function cityLit(now, l, r) {                                            // à n
   if (DAY.lamp <= 0.01) return;
   const D = cityData;
   ctx.save(); ctx.globalAlpha = DAY.lamp;
+  cityFarEach(D.far2, CITY_FARF[1], l, r, 4, 10, 30, 8, 12, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,205,130,.38)"; ctx.fillRect(wx, wy, 2, 4); } });
+  cityFarEach(D.far, CITY_FARF[2], l, r, 4, 8, 70, 9, 16, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,200,120,.55)"; ctx.fillRect(wx, wy, 3, 5); } });
   D.wins.forEach(w => { if (w.x < l - 30 || w.x > r + 30 || !w.lit) return; ctx.fillStyle = "rgba(255,190,110,.13)"; ctx.fillRect(w.x - 2, w.y - 2, w.w + 4, w.h + 4); ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : "#ffd98a"; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2); });
   D.lamps.forEach(lp => {
     if (lp.x < l - 50 || lp.x > r + 50) return;
@@ -2835,7 +2911,7 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
 function drawCity(now) {
   cityEnsure();
   const dt = Math.min(0.1, Math.max(0, (now - (cityT0 || now)) / 1000)); cityT0 = now;
-  const Z = CITY_Z, vw = W / Z, vh = H / Z, vy = PIER_Y - vh * 0.77;     // o pescador fica no terço de baixo da tela
+  const Z = CITY_Z, vw = W / Z, vh = H / Z, vy = Math.max(0, PIER_Y - vh * 0.82);     // o pescador fica bem embaixo, sobra mais tela para os prédios
   const look = dir * vw * 0.06, tgt = Math.max(CITY_CAM_MIN, Math.min(CITY.MAX + CITY_CAM_PAD - vw, px + look - vw / 2));
   cityCamX = cityCamX == null ? tgt : cityCamX + (tgt - cityCamX) * Math.min(1, dt * 4.5);
   const cl = cityCamX, cr = cl + vw;
@@ -2845,16 +2921,20 @@ function drawCity(now) {
   DAY.scene(() => drawCityBack(now, dt, cl, cr), [0, H]);
   cityLit(now, cl, cr);
   DAY.scene(() => {                                                                      // o pescador (com a mesma lavagem da hora)
-    ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(px, PIER_Y + 1, 9, 2.2, 0, 0, 7); ctx.fill();
+    const CK = CITY_CHAR;
+    ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.beginPath(); ctx.ellipse(px, PIER_Y + 1, 9 * CK, 2.2 * CK, 0, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(px, PIER_Y); ctx.scale(CK, CK); ctx.translate(-px, -PIER_Y);      // pescador reduzido (pés continuam em PIER_Y)
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
-    text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
+    ctx.restore();
+    text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) * CK - 6, "#ffd166", "center");
   }, [PIER_Y - 70, PIER_Y + 12]);
   const dn = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open ? cityNearDoor() : null;
   if (dn) {                                                                              // "E" quando há uma porta ao alcance
-    const ky = PIER_Y - FISHER_TOP * hScale(me.h) - 30 + Math.round(Math.sin(now / 260) * 1.5), kx = Math.round(px) - 6;   // o "E" flutua em cima do nome do pescador
+    const ky = PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 30 + Math.round(Math.sin(now / 260) * 1.5), kx = Math.round(px) - 6;   // o "E" flutua em cima do nome do pescador
     rect("#1b2619", kx, ky, 12, 12); rect("#bccdac", kx + 1, ky + 1, 10, 9); rect("#7d8f71", kx + 1, ky + 10, 10, 1);
     ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = "center"; ctx.fillStyle = "#1b2619"; ctx.fillText("E", kx + 6, ky + 9);
   }
+  cityFront(now, cl, cr);                                                                // postes e vasos na frente de tudo
   ctx.restore();
 
   if (!INTRO.active) {
