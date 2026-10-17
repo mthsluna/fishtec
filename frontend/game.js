@@ -2370,7 +2370,7 @@ function drawTrans() {
 let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
 const CITY_Z = 1.5;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
 const CITY_B = PIER_Y - 14;                                              // chão das fachadas: agora recuado, com calçada entre elas e o pescador (que anda em PIER_Y)
-const CITY_CHAR = 0.64;                                                  // tamanho do pescador na cidade (1 = igual ao cais): menor = prédios e portas parecem maiores
+const CITY_CHAR = 0.82;                                                  // tamanho do pescador na cidade (1 = igual ao cais): menor = prédios e portas parecem maiores
 const CITY_FARF = [0.18, 0.38, 0.62];                                    // parallax das camadas do fundo (0 = parada no céu, 1 = anda junto com o cenário): colinas, prédios longe, prédios do meio
 const CITY_FRONT_F = 1.55, CITY_FRONT_GAP = 430;                         // primeiro plano (postes e vasos na frente do pescador): anda mais rápido que o cenário
 const CITY_FW = -200, CITY_FX1 = CITY.MAX + 260;                         // trecho do mundo que é desenhado
