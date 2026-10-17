@@ -99,7 +99,6 @@ function buildLUT(lift) {                              // lift < 1 clareia as so
 }
 const nightLift = () => 1 - NIGHT_LIFT * Math.max(0, Math.min(1, DAY.starA));   // 1 de dia, até 1-NIGHT_LIFT com o céu estrelado
 function dither() {
-  if (CITY_HD && CITY.on) { out.drawImage(buf, 0, 0); return; }
   const lf = Math.round(nightLift() * 50) / 50; if (lf !== lutLift) buildLUT(lf);
   const w = cv.width, h = cv.height, im = ctx.getImageData(0, 0, w, h), d = im.data;
   for (let y = 0; y < h; y++) {
@@ -115,7 +114,7 @@ function present() {
   if (!gl) return dither();
   gl.viewport(0, 0, cv.width, cv.height);
   gl.uniform1f(liftLoc, nightLift());
-  gl.uniform1f(stepsLoc, CITY_HD && CITY.on ? 256 : LEVELS);          // cidade em modo HD: sem posterização/dithering (degradês suaves)
+  gl.uniform1f(stepsLoc, LEVELS);
   gl.uniform2f(texelLoc, 1 / buf.width, 1 / buf.height); gl.uniform1f(cellLoc, DITHER_CELL);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, buf);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -2371,8 +2370,8 @@ function drawTrans() {
 // Fachadas e chão são pintados UMA vez num canvas (cityCache) e só o pedaço visível é copiado a cada quadro; o que se mexe (varais, gatos, fonte, portas abrindo) é desenhado por cima.
 // Portas: perto de uma porta aparece o "E"; ao apertar ela abre/ou está trancada (veja cityUse). Para ligar uma porta a algo (ex.: um interior), use window.onCityDoor = d => {...}.
 let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
-const CITY_HD = true;                                                    // true = ilustração suave (sem dithering, resolução maior na cidade); false = mantém o dithering do jogo
-const CITY_S = 3, CITY_CS = 5;                                           // resolução interna na cidade (S) e do cenário pintado (pixels por unidade do mundo)
+const CITY_HD = true;                                                    // true = cenário pintado em alta resolução e suavizado (o efeito bitmap/dithering continua ligado por cima); false = cenário na resolução normal
+const CITY_S = 2, CITY_CS = 5;                                           // resolução interna na cidade (S) e do cenário pintado (pixels por unidade do mundo)
 let cityPierS = 0;                                                       // resolução que o cais tinha antes de entrar na cidade
 const CITY_Z = 1.5;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
 const CITY_B = PIER_Y - 14;                                              // chão das fachadas: agora recuado, com calçada entre elas e o pescador (que anda em PIER_Y)
