@@ -125,7 +125,7 @@ const BOB_Y = WATER_Y + 22;                       // a boia fica mais longe do c
 // o cais ACABA em DECK_END (x do mundo); o pescador anda até PX_MAX, um pouco antes da ponta, e não passa dali
 const DECK_END = 600, PX_MAX = 584, CAM_K = 0.12;   // o cais acaba em 600 e o pescador anda até 584; depois do x=440 a câmera acompanha de perto para a ponta do cais aparecer na tela
 const CAM_FAR = 380, CAM_EXTRA = 110;   // a partir de CAM_FAR a câmera vai abrindo em curva suave (até CAM_EXTRA px a mais na ponta do cais), sem tranco
-const CITY = { on: false, MAX: 464 };                                  // cidade (cenário extra): MAX = até onde o pescador anda nela
+const CITY = { on: false, MAX: 1900 };                                  // cidade (cenário extra): MAX = até onde o pescador anda nela
 const TR = { ph: "none", t: 0, to: "city", lock: false, edge: 0 };      // transição: none | out (escurece) | hold (preto, troca o cenário) | in (clareia)
 const pxMax = () => CITY.on ? CITY.MAX : PX_MAX;
 // afasta a boia dos postes de madeira (um poste a cada 48px)
@@ -1393,7 +1393,7 @@ addEventListener("keydown", e => {
   if (e.code === "KeyM" && !e.repeat) say(SND.toggleMute() ? "Som desligado" : "Som ligado");
   if (e.code === "KeyF" && !e.repeat) togglePhone();
   if (e.code === "Escape" && PH.open) closePhone();
-  if (e.code === "KeyE" && !e.repeat) { if (PH.open) phoneSelect(); else if (!talkMalto()) talkTiao(); }   // com o celular aberto, E é do celular
+  if (e.code === "KeyE" && !e.repeat) { if (PH.open) phoneSelect(); else if (CITY.on) cityUse(); else if (!talkMalto()) talkTiao(); }   // com o celular aberto, E é do celular
   if (e.code === "Space") { e.preventDefault(); if (!e.repeat) press(); }
 });
 addEventListener("keyup", e => keys[e.code] = false);
@@ -2338,7 +2338,7 @@ function startTrans(to) {
   TR.ph = "out"; TR.t = 0; TR.to = to; TR.lock = true; spd = 0; keys.Space = false;
 }
 function swapScene() {
-  if (TR.to === "city") { CITY.on = true; px = CITY.MAX - 24; dir = -1; }
+  if (TR.to === "city") { CITY.on = true; px = CITY.MAX - 24; dir = -1; cityCamX = null; cityT0 = 0; cityEnsure(); }   // monta a cidade enquanto a tela está preta
   else {
     CITY.on = false; px = 24; dir = 1;
     const cu = Math.max(0, Math.min(1, (px - CAM_FAR) / (PX_MAX - CAM_FAR)));
@@ -2363,26 +2363,24 @@ function drawTrans() {
 }
 
 // ---------- Cidade: vielas italianas (vicoli) ----------
-// Fachadas altas e estreitas de reboco colorido, persianas, sacadas, roupas no varal, arcos, escadinhas, luzes de festa e trattorias.
-// O trecho de fachadas e chão é pintado UMA vez num canvas (cityCache) e só é copiado a cada quadro; o que se mexe (varais, gato, luzes à noite) é desenhado por cima.
-// Para mudar o desenho das ruas é só mexer em CITY_SEQ (largura, andares e tipo do térreo de cada prédio) e nas paletas logo abaixo.
-let cityData = null, cityCache = null;
+// A cidade é comprida (CITY.MAX px): a câmera segue o pescador com zoom (CITY_Z), então cada trecho só aparece quando ele chega perto.
+// Da direita (entrada, vindo do cais) para a esquerda: ruelas, cruzamentos, túneis, cafés e lojas, até a praça com fonte e a igreja.
+// Fachadas e chão são pintados UMA vez num canvas (cityCache) e só o pedaço visível é copiado a cada quadro; o que se mexe (varais, gatos, fonte, portas abrindo) é desenhado por cima.
+// Portas: perto de uma porta aparece o "E"; ao apertar ela abre/ou está trancada (veja cityUse). Para ligar uma porta a algo (ex.: um interior), use window.onCityDoor = d => {...}.
+let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
+const CITY_Z = 1.5;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
 const CITY_B = PIER_Y - 8;                                               // chão das fachadas (o pescador anda logo na frente, em PIER_Y)
-const CITY_FW = -200, CITY_FX1 = 860;                                    // trecho do mundo que é desenhado (telas largas enxergam de ~ -120 até ~ 600)
+const CITY_FW = -200, CITY_FX1 = CITY.MAX + 260;                         // trecho do mundo que é desenhado
+const CITY_CAM_MIN = -50, CITY_CAM_PAD = 90;                             // até onde a câmera pode ir (esquerda / depois do fim da cidade)
+const CITY_CH = 200;                                                     // altura (px do mundo) do que a câmera chega a ver
 const CITY_GF = 54, CITY_FH = 28;                                        // altura do térreo e de cada andar de cima
-// [tipo, largura, andares, térreo]  térreo: door | shop | cafe | arch (túnel) | shrine (nicho de santa) | sign (placa do cais)
-const CITY_SEQ = [
-  ["b", 86, 3, "shop"], ["b", 64, 2, "door"], ["gap", 26], ["b", 88, 3, "arch"], ["b", 58, 2, "shrine"], ["b", 78, 3, "cafe"], ["gap", 24],
-  ["b", 64, 1, "door"], ["b", 72, 2, "shop"], ["gap", 22],
-  ["b", 100, 2, "sign"], ["b", 70, 3, "shop"], ["b", 84, 2, "door"], ["b", 84, 3, "door"], ["b", 70, 2, "shop"], ["b", 80, 3, "door"],
-];
 const CITY_WALLS = [                                                     // [parede, sombra, destaque]
   ["#e0a85a", "#b9843f", "#efc27c"], ["#d2704a", "#a9502f", "#e48a62"], ["#ecd9a4", "#c4ad78", "#f6e8c0"], ["#dd8f7a", "#b66a58", "#eba48f"],
   ["#efcf6e", "#c8a447", "#f8e08f"], ["#c97b86", "#a05963", "#dd949d"], ["#9cb7a3", "#76927f", "#b4cdb9"], ["#8fb0c4", "#6c8ea4", "#a9c6d8"],
 ];
 const CITY_SHUT = ["#4e7d5b", "#3c6a4c", "#4a6e96", "#7a4a2e", "#8e3b2e", "#5a7a8a", "#6b5a3a"];   // persianas
 const CITY_DOOR = ["#6b4426", "#3f5a48", "#7a3b2e", "#2f4a6a", "#5a4a3a", "#8a6a3a"];
-const CITY_SHOPS = ["TRATTORIA", "PESCE FRESCO", "GELATERIA", "PANETTERIA", "OSTERIA", "ENOTECA"];
+const CITY_SHOPS = ["TRATTORIA", "PESCE FRESCO", "GELATERIA", "PANETTERIA", "OSTERIA", "ENOTECA", "SALUMERIA", "PIZZERIA"];
 const CITY_FLOWER = ["#d6334a", "#e86aa0", "#f2c94c", "#f08a3c", "#f4efe0"];
 const CITY_STONES = ["#9a8f84", "#8c8177", "#a39889", "#85796f", "#978b7c", "#a08c78"];
 const CITY_GREENS = ["#5fa04a", "#468a3c", "#2f6a34"];
@@ -2400,34 +2398,54 @@ function cityArch(c, x, y, w, h) {                                       // ret�
 function cityBlob(cx, cy, rr, cols) {                                    // folhagem redondinha com 3 tons
   for (let dy = -rr; dy <= rr; dy++) { const hf = Math.round(Math.sqrt(rr * rr - dy * dy)); rect(cols[dy < -rr / 3 ? 0 : dy < rr / 3 ? 1 : 2], cx - hf, cy + dy, hf * 2, 1); }
 }
+function cityEll(cx, cy, rx, ry, c) {                                    // elipse cheia (de pixels)
+  for (let dy = -ry; dy <= ry; dy++) { const hf = Math.round(rx * Math.sqrt(1 - (dy / (ry + .5)) * (dy / (ry + .5)))); rect(c, cx - hf, cy + dy, hf * 2, 1); }
+}
 const cityWireY = (x1, y1, x2, y2, sag, x) => { const u = (x - x1) / (x2 - x1); return Math.round(y1 + (y2 - y1) * u + sag * 4 * u * (1 - u)); };
 
-function cityInit() {
+function cityInit() {                                                    // o traçado da cidade (mesmo para todo mundo): sorteado com semente fixa
   const B = CITY_B;
   let s = 4242; const r = () => (s = s * 16807 % 2147483647) / 2147483647, ri = (a, b) => a + (r() * (b - a + 1) | 0);
-  const blds = [], gaps = []; let x = CITY_FW, p = 0;
-  CITY_SEQ.forEach(it => {
-    if (it[0] === "gap") { gaps.push({ x, w: it[1], p: ri(0, CITY_WALLS.length - 1), hh: ri(60, 80) }); x += it[1]; return; }
-    p = (p + ri(2, 4)) % CITY_WALLS.length;                              // nunca repete a cor do vizinho
-    blds.push({ x, w: it[1], n: it[2], g: it[3], p, top: B - CITY_GF - it[2] * CITY_FH });
-    x += it[1];
-  });
+  const blds = [], gaps = []; let x = CITY_FW, p = 0, shopI = 0;
+  const addB = (w, n, g) => { p = (p + ri(2, 4)) % CITY_WALLS.length; const b = { x, w, n, g, p, top: B - CITY_GF - n * CITY_FH }; if (g === "shop") b.name = CITY_SHOPS[shopI++ % CITY_SHOPS.length]; blds.push(b); x += w; return b; };
+  const addG = w => { gaps.push({ x, w, p: ri(0, CITY_WALLS.length - 1), hh: ri(60, 80) }); x += w; };
+  addB(90, 2, "door");                                                   // lado esquerdo: igreja e praça com a fonte
+  const ch = addB(140, 0, "church"); ch.top = B - 128;
+  const piazza = { x, w: 170 }; x += piazza.w;
+  const xs = CITY.MAX - 84, WMIN = { cafe: 76, shop: 66, arch: 66, shrine: 58, door: 50 };      // xs: onde começa o prédio da placa do cais
+  let sinceGap = 0, sinceArch = 3, sinceCafe = 2, sinceShrine = 4, gapEvery = 3;
+  while (xs - x > 0) {
+    const rem = xs - x;
+    if (rem > 130 && sinceGap >= gapEvery) { addG(22 + 2 * ri(0, 2)); sinceGap = 0; gapEvery = ri(3, 4); continue; }
+    const wmax = Math.min(88, rem - 50);
+    let w = rem <= 104 ? rem : ri(Math.min(58, wmax), wmax), g = "door";
+    if (sinceArch >= 6) g = "arch"; else if (sinceCafe >= 5) g = "cafe"; else if (sinceShrine >= 7) g = "shrine"; else if (r() < .4) g = "shop";
+    if (w < WMIN[g]) g = "door";
+    if (g === "arch") sinceArch = 0; if (g === "cafe") sinceCafe = 0; if (g === "shrine") sinceShrine = 0;
+    const n = ri(0, 4) === 0 ? 1 : ri(2, 3);
+    addB(w, g === "cafe" || g === "arch" ? Math.max(2, n) : n, g);
+    sinceGap++; sinceArch++; sinceCafe++; sinceShrine++;
+  }
+  addB(116, 2, "sign");                                                  // prédio da placa "CAIS >" (a saída da cidade)
+  while (x < CITY_FX1 + 40) addB(ri(70, 90), ri(2, 3), r() < .4 ? "shop" : "door");
   const far = [];
-  for (let fx = -150; fx < 660;) { const w = ri(20, 36), h = ri(44, 100); far.push({ x: fx, w, h, c: ri(0, CITY_FARC.length - 1) }); fx += w + ri(0, 2); }
-  cityData = { blds, gaps, far, wins: [], lamps: [], bulbs: [], lines: [] };
+  for (let fx = CITY_FW; fx < CITY_FX1; ) { const w = ri(20, 36), h = ri(44, 100); far.push({ x: fx, w, h, c: ri(0, CITY_FARC.length - 1) }); fx += w + ri(0, 2); }
+  const towers = []; for (let tx = 60; tx < CITY_FX1; tx += ri(430, 560)) towers.push(tx);
+  cityData = { blds, gaps, piazza, fountain: { x: piazza.x + 85 }, far, towers, wins: [], lamps: [], bulbs: [], lines: [], doors: [], cats: [] };
+  gaps.forEach((gp, i) => { if (i % 3 === 1) cityData.cats.push(gp.x + (gp.w >> 1)); });
 }
 
 function cityBuild() {                                                   // pinta tudo que não se mexe, uma vez só (refeito se a resolução mudar)
-  const D = cityData, B = CITY_B, FW = CITY_FW, CWD = CITY_FX1 - CITY_FW, GF = CITY_GF, FH = CITY_FH;
+  const D = cityData, B = CITY_B, FW = CITY_FW, CWD = CITY_FX1 - CITY_FW, GF = CITY_GF, FH = CITY_FH, cs = S * CITY_Z;
   let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647, ri = (a, b) => a + (r() * (b - a + 1) | 0), pk = a => a[r() * a.length | 0];
-  D.wins = []; D.lamps = []; D.bulbs = []; D.lines = [];
-  const cv2 = document.createElement("canvas"); cv2.width = Math.ceil(CWD * S); cv2.height = Math.ceil(H * S);
-  const c2 = cv2.getContext("2d"); c2.setTransform(S, 0, 0, S, -FW * S, 0);
+  D.wins = []; D.lamps = []; D.bulbs = []; D.lines = []; D.doors = [];
+  const cv2 = document.createElement("canvas"); cv2.width = Math.ceil(CWD * cs); cv2.height = Math.ceil(CITY_CH * cs);
+  const c2 = cv2.getContext("2d"); c2.setTransform(cs, 0, 0, cs, -FW * cs, 0);
   const main = ctx; ctx = c2;
   try {
     // ---- chão de pedra (paralelepípedos que vão crescendo para a frente)
-    rect("#6d6259", FW, B, CWD, H - B);
-    for (let y = B; y < H;) {
+    rect("#6d6259", FW, B, CWD, CITY_CH - B);
+    for (let y = B; y < CITY_CH;) {
       const h = 3 + ((y - B) / 24 | 0);
       for (let sx = FW - r() * 10; sx < CITY_FX1;) {
         const sw = 7 + h * 1.5 + r() * 5 | 0;
@@ -2441,6 +2459,26 @@ function cityBuild() {                                                   // pint
     let g = c2.createLinearGradient(0, B, 0, B + 22); g.addColorStop(0, "rgba(28,16,40,.55)"); g.addColorStop(1, "rgba(28,16,40,0)");
     ctx.fillStyle = g; ctx.fillRect(FW, B, CWD, 22);                      // sombra das paredes no chão
 
+    // ---- praça: muretinha com balaústres, ciprestes e pinheiro, fonte, bancos e postes
+    {
+      const P = D.piazza, fx = D.fountain.x;
+      const cypress = (cx, hh) => { for (let i = 0; i < hh; i++) { const u = i / hh, hf = Math.max(1, Math.round(5 * Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.05)), .6) + .5)); rect(i % 5 < 2 ? "#2f5a34" : "#25482b", cx - hf, B - 10 - hh + i, hf * 2, 1); } rect("#1d3a22", cx - 1, B - 12, 2, 4); };
+      [P.x + 14, P.x + 52, P.x + 118, P.x + 158].forEach((cx, i) => cypress(cx, 54 + (i % 2) * 14));
+      const pn = P.x + 86; rect("#5a3a24", pn, B - 44, 3, 36); cityEll(pn + 1, B - 50, 24, 6, "#2f6a34"); cityEll(pn + 1, B - 53, 20, 4, "#468a3c"); cityEll(pn - 10, B - 47, 9, 4, "#2f6a34"); cityEll(pn + 12, B - 47, 9, 4, "#25482b");
+      rect("#cfc3a8", P.x - 2, B - 12, P.w + 4, 3); rect("#e0d5bc", P.x - 2, B - 12, P.w + 4, 1); rect("#b8aa98", P.x, B - 9, P.w, 9);
+      for (let bx = P.x; bx < P.x + P.w; bx += 6) { rect("#e0d5bc", bx, B - 9, 2, 8); rect("rgba(0,0,0,.2)", bx + 2, B - 9, 1, 8); }
+      for (let bx = P.x; bx < P.x + P.w; bx += 42) { rect("#cfc3a8", bx - 1, B - 14, 5, 14); rect("#e0d5bc", bx - 1, B - 14, 5, 1); }
+      rect("rgba(0,0,0,.25)", fx - 28, B + 2, 56, 3);                    // fonte
+      rect("#b8aa98", fx - 26, B - 3, 52, 6); rect("#8f8274", fx - 26, B + 1, 52, 2); cityEll(fx, B - 3, 26, 5, "#d8ccb0"); cityEll(fx, B - 3, 23, 4, "#6fb0d0"); cityEll(fx, B - 4, 17, 2, "#8fd0ea");
+      rect("#d8ccb0", fx - 3, B - 30, 6, 28); rect("#b8aa98", fx + 1, B - 30, 2, 28); cityEll(fx, B - 30, 12, 3, "#d8ccb0"); rect("#b8aa98", fx - 10, B - 30, 20, 2); cityEll(fx, B - 31, 9, 2, "#6fb0d0");
+      rect("#d8ccb0", fx - 1, B - 40, 2, 10); rect("#e8dcc0", fx - 2, B - 42, 4, 3);
+      [fx - 62, fx + 40].forEach(bx => {                                  // bancos
+        rect("rgba(0,0,0,.22)", bx, B + 4, 24, 2); rect("#2a2d35", bx + 1, B - 4, 2, 8); rect("#2a2d35", bx + 21, B - 4, 2, 8);
+        rect("#8a5a2e", bx, B - 5, 24, 3); rect("#a87238", bx, B - 5, 24, 1); rect("#6b4a30", bx, B - 13, 24, 2); rect("#6b4a30", bx, B - 10, 24, 2);
+      });
+      [P.x + 20, P.x + P.w - 22].forEach(lx => { rect("#2a2d35", lx, B - 46, 2, 46); rect("#2a2d35", lx - 3, B - 2, 8, 2); rect("#2a2d35", lx - 2, B - 50, 6, 1); rect("#e8c070", lx - 1, B - 49, 4, 5); rect("#2a2d35", lx - 2, B - 44, 6, 1); D.lamps.push({ x: lx + 1, y: B - 47, r: 42 }); });
+    }
+
     // ---- vielas que cortam a rua (ao fundo: escadinha, parede, portinha, lanterna)
     D.gaps.forEach(gp => {
       const wc = CITY_WALLS[gp.p], x = gp.x, w = gp.w, top = B - 12 - gp.hh;
@@ -2453,23 +2491,56 @@ function cityBuild() {                                                   // pint
       for (let q = 0; q < 2; q++) { const wx = x + 2 + q * (w - 10), wy = top + 8; rect("#3a4f66", wx, wy, 6, 9); rect("#5d85a6", wx + 1, wy + 1, 4, 7); rect(CITY_SHUT[(gp.p + q) % 7], wx - 2, wy, 2, 9); rect(CITY_SHUT[(gp.p + q) % 7], wx + 6, wy, 2, 9); }
       rect("#7a6c60", x, B - 12, w, 12);                                  // degraus
       for (let q = 0; q < 4; q++) { rect("#b8aa98", x, B - 12 + q * 3, w, 1); rect("#5a4e46", x, B - 11 + q * 3, w, 1); }
-      rect("#2a2d35", x + (w >> 1) - 1, top + 2, 2, 1); D.lamps.push({ x: x + (w >> 1), y: B - 44, r: 26 });
-      rect("#2a2d35", x + (w >> 1), top + 3, 1, B - 44 - top - 3 - 3); rect("#2a2d35", x + (w >> 1) - 2, B - 47 - 1, 5, 1); rect("#e8c070", x + (w >> 1) - 1, B - 46, 3, 4); rect("#2a2d35", x + (w >> 1) - 2, B - 42, 5, 1);
+      const lx = x + (w >> 1);
+      rect("#2a2d35", lx - 1, top + 2, 2, 1); rect("#2a2d35", lx, top + 3, 1, B - 44 - top - 6); rect("#2a2d35", lx - 2, B - 48, 5, 1); rect("#e8c070", lx - 1, B - 47, 3, 4); rect("#2a2d35", lx - 2, B - 43, 5, 1);
+      D.lamps.push({ x: lx, y: B - 45, r: 26 });
     });
 
     // ---- prédios
     D.blds.forEach((b, bi) => {
       const wc = CITY_WALLS[b.p], x = b.x, w = b.w, top = b.top, ht = B - top, shc = CITY_SHUT[(b.p * 3 + bi) % CITY_SHUT.length];
+      const lantern = (lx, ly) => { rect("#2a2d35", lx - 1, ly, 5, 1); rect("#e8c070", lx, ly + 1, 3, 4); rect("#2a2d35", lx - 1, ly + 5, 5, 1); rect("#2a2d35", lx + 1, ly - 3, 1, 3); D.lamps.push({ x: lx + 1.5, y: ly + 3, r: 34 }); };
+      const pot = (px0, big) => {
+        const hh = big ? 6 : 5; rect("#b4532f", px0, B - hh, 5, hh); rect("#cf6d3f", px0 - 1, B - hh, 7, 1); rect("#8a3c22", px0 + 4, B - hh + 1, 1, hh - 1);
+        cityBlob(px0 + 2, B - hh - 4, big ? 4 : 3, CITY_GREENS); if (r() < .7) { rect(pk(CITY_FLOWER), px0 + 1, B - hh - 6, 2, 2); rect(pk(CITY_FLOWER), px0 + 3, B - hh - 4, 1, 1); }
+      };
+      if (b.g === "church") {
+        const cx = x + (w >> 1), dh = 52, ry = top + 34;
+        rect("#e6d6a8", x, top, w, ht); rect("#c9b888", x + w - 5, top, 5, ht); rect("#f2e6c0", x + 1, top, 1, ht);
+        for (let i = 0, nn = w * ht / 50 | 0; i < nn; i++) rect(r() < .5 ? "rgba(90,40,20,.10)" : "rgba(255,245,220,.16)", x + ri(0, w - 3), top + ri(0, ht - 3), ri(1, 3), 1);
+        rect("#d8ccb0", x + 2, top, 7, ht); rect("#d8ccb0", x + w - 11, top, 7, ht); rect("#b8a888", x + 8, top, 1, ht); rect("#b8a888", x + w - 5, top, 1, ht);
+        rect("#cfc3a8", x - 2, top - 3, w + 4, 4);
+        for (let i = 0; i < 32; i++) { const hw = (w + 4) / 2 - i * 2.2; if (hw < 2) break; rect(i % 2 ? "#d8ccb0" : "#cfc3a8", Math.round(cx - hw), top - 4 - i, Math.round(hw * 2), 1); }
+        for (let i = 0; i < 26; i++) { const hw = (w - 18) / 2 - i * 2.2; if (hw < 2) break; rect("#e6d6a8", Math.round(cx - hw), top - 4 - i, Math.round(hw * 2), 1); }
+        rect("#cfc3a8", x, B - 78, w, 3); rect("rgba(0,0,0,.15)", x, B - 75, w, 1);
+        cityBlob(cx, ry, 13, ["#d8ccb0", "#d8ccb0", "#b8aa98"]); cityBlob(cx, ry, 10, ["#2a3a5a", "#2a3a5a", "#223050"]);
+        for (let a = 0; a < 8; a++) rect(["#c0392b", "#2d5a8a", "#f2c94c", "#2f6b4f"][a % 4], cx + Math.round(Math.cos(a * .785) * 6) - 1, ry + Math.round(Math.sin(a * .785) * 6) - 1, 3, 3);
+        rect("#d8ccb0", cx - 10, ry, 20, 1); rect("#d8ccb0", cx, ry - 10, 1, 20); rect("#e8d8a0", cx - 2, ry - 2, 4, 4);
+        D.wins.push({ x: cx - 7, y: ry - 7, w: 14, h: 14, lit: true, soft: true });
+        for (const sx of [cx - 50, cx + 40]) {                            // nichos com estátuas
+          cityArch("#d8ccb0", sx - 1, B - 74, 12, 32); cityArch("#3a2a26", sx, B - 73, 10, 30);
+          rect("#e8e0d0", sx + 3, B - 62, 4, 16); rect("#e8e0d0", sx + 3, B - 67, 4, 4); rect("#e8e0d0", sx + 1, B - 60, 8, 2); rect("#cfc3a8", sx - 1, B - 43, 12, 2);
+        }
+        cityArch("#d8ccb0", cx - 16, B - dh - 4, 32, dh + 4); cityArch("#a8987a", cx - 14, B - dh - 2, 28, dh + 2); cityArch("#5a3a24", cx - 12, B - dh, 24, dh - 2);
+        for (let xx = cx - 9; xx < cx + 12; xx += 4) rect("rgba(0,0,0,.25)", xx, B - dh + 8, 1, dh - 10);
+        rect("#2a2d35", cx - 12, B - 36, 24, 1); rect("#2a2d35", cx - 12, B - 18, 24, 1); rect("#d9b26a", cx - 4, B - 26, 2, 3); rect("#d9b26a", cx + 2, B - 26, 2, 3);
+        rect("#b8aa98", cx - 18, B - 2, 36, 2); rect("#cfc3a8", cx - 21, B - 4, 42, 2); rect("#e0d5bc", cx - 18, B - 4, 36, 1);
+        lantern(cx - 26, B - 40); lantern(cx + 24, B - 40);
+        D.doors.push({ cx, x: cx - 12, y: B - dh, w: 24, h: dh - 2, arch: true, col: "#5a3a24", kind: "church", o: 0, t: 0 });
+        g = c2.createLinearGradient(0, top, 0, B); g.addColorStop(0, "rgba(255,236,190,.14)"); g.addColorStop(.55, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,14,44,.28)");
+        ctx.fillStyle = g; ctx.fillRect(x, top, w, ht);
+        return;
+      }
       rect(wc[0], x, top, w, ht);
       for (let i = 0, nn = w * ht / 60 | 0; i < nn; i++) rect(r() < .5 ? "rgba(90,40,20,.10)" : "rgba(255,245,220,.16)", x + ri(0, w - 3), top + ri(0, ht - 3), ri(1, 3), 1);   // reboco manchado
       for (let q = 0, np = ri(1, 2); q < np; q++) {                       // reboco caído, aparecendo o tijolo
-        const bw = ri(6, 11), bh = ri(5, 9), bx = x + ri(3, w - 15), by = top + ri(8, ht - 34);
+        const bw = ri(6, 11), bh = ri(5, 9), bx = x + ri(3, w - 15), by = top + ri(8, Math.max(9, ht - 34));
         rect("#a8583a", bx, by, bw, bh); for (let yy = 1; yy < bh; yy += 2) rect("#8c4630", bx, by + yy, bw, 1);
         rect(wc[0], bx, by, 1, 1); rect(wc[0], bx + bw - 1, by + bh - 1, 1, 1);
       }
       rect(wc[1], x + w - 4, top, 4, ht); rect("rgba(30,14,44,.35)", x, top, 1, ht); rect(wc[2], x + 1, top, 1, ht);
       if (bi % 3 === 1) { rect("#6a5a4a", x + w - 5, top, 2, ht - 4); for (let yy = top + 6; yy < B - 6; yy += 14) rect("#9a8a78", x + w - 6, yy, 4, 1); rect("#6a5a4a", x + w - 7, B - 5, 4, 2); }   // calha
-      if (bi % 4 === 2) {                                                  // trepadeira com flores
+      if (bi % 4 === 2 && w > 56) {                                       // trepadeira com flores
         const vx = x + w - 28, vh = ri(46, 66);
         for (let i = 0; i < 80; i++) { const vy = B - 4 - vh * Math.pow(r(), 1.5), vxx = vx + ri(0, 22); rect(pk(CITY_GREENS), vxx, vy | 0, 3, 2); if (r() < .4) rect(pk(["#d6477f", "#e868a0", "#b8326a"]), vxx + 1, vy | 0, 1, 1); }
       }
@@ -2516,22 +2587,18 @@ function cityBuild() {                                                   // pint
 
       // térreo
       rect("#8f8274", x, B - 4, w, 4); rect("#a89a88", x, B - 4, w, 1);
-      const lantern = (lx, ly) => { rect("#2a2d35", lx - 1, ly, 5, 1); rect("#e8c070", lx, ly + 1, 3, 4); rect("#2a2d35", lx - 1, ly + 5, 5, 1); rect("#2a2d35", lx + 1, ly - 3, 1, 3); D.lamps.push({ x: lx + 1.5, y: ly + 3, r: 34 }); };
-      const pot = (px0, big) => {
-        const hh = big ? 6 : 5; rect("#b4532f", px0, B - hh, 5, hh); rect("#cf6d3f", px0 - 1, B - hh, 7, 1); rect("#8a3c22", px0 + 4, B - hh + 1, 1, hh - 1);
-        cityBlob(px0 + 2, B - hh - 4, big ? 4 : 3, CITY_GREENS); if (r() < .7) { rect(pk(CITY_FLOWER), px0 + 1, B - hh - 6, 2, 2); rect(pk(CITY_FLOWER), px0 + 3, B - hh - 4, 1, 1); }
-      };
-      const doorAt = (dx, withLamp) => {
+      const doorAt = (dx, withLamp, kind) => {
         const dcol = pk(CITY_DOOR);
         cityArch("#d8ccb0", dx - 2, B - 46, 18, 46); cityArch(dcol, dx, B - 44, 14, 42);
         for (let xx = dx + 3; xx < dx + 14; xx += 3) rect("rgba(0,0,0,.25)", xx, B - 28, 1, 26);
         cityArch("#3a4f66", dx + 4, B - 40, 6, 8); rect("#86aac4", dx + 5, B - 38, 2, 3); rect("#d9b26a", dx + 11, B - 18, 1, 2);
         rect("#b8aa98", dx - 3, B - 2, 20, 2); rect("#d8ccb0", dx - 3, B - 2, 20, 1);
         D.wins.push({ x: dx + 5, y: B - 38, w: 4, h: 6, lit: r() < .6 });
+        D.doors.push({ cx: dx + 7, x: dx, y: B - 44, w: 14, h: 42, arch: true, col: dcol, kind: kind || "house", locked: r() < .5, o: 0, t: 0 });
         if (withLamp) lantern(dx + 19, B - 38);
       };
       if (b.g === "door" || b.g === "sign" || b.g === "shrine") {
-        const dx = b.g === "door" ? x + ri(10, w - 30) : x + 8; doorAt(dx, true);
+        const dx = b.g === "door" ? x + ri(10, Math.max(10, w - 30)) : x + 8; doorAt(dx, true);
         if (b.g === "door") { if (dx - x > 18 && r() < .8) pot(dx - 9); if (x + w - dx > 40 && r() < .8) pot(dx + 24); }
         if (b.g === "sign") {                                              // placa azul do caminho do cais (a saída da cidade)
           const sx = CITY.MAX - 40; rect("#e8f0e0", sx - 1, B - 54, 48, 15); rect("#1f4f8a", sx, B - 53, 46, 13);
@@ -2543,11 +2610,12 @@ function cityBuild() {                                                   // pint
           cityArch("#d8ccb0", sx - 1, B - 54, 11, 19); cityArch("#2a1a1c", sx, B - 53, 9, 17);
           rect("#2f5a9a", sx + 2, B - 45, 5, 8); rect("#e8ecf4", sx + 3, B - 44, 3, 6); rect("#e8c9a0", sx + 3, B - 48, 3, 3);
           rect("#d8ccb0", sx - 2, B - 36, 13, 2); rect("rgba(30,15,30,.35)", sx - 2, B - 34, 13, 1);
-          rect("#f2e6c9", sx + 1, B - 40, 1, 3); rect("#f2e6c9", sx + 7, B - 40, 1, 3); rect("#ffd060", sx + 1, B - 41, 1, 1); rect("#ffd060", sx + 7, B - 41, 1, 1);
+          rect("#f2e6c9", sx + 1, B - 40, 1, 3); rect("#f2e6c9", sx + 7, B - 40, 1, 3);
+          D.doors.push({ cx: sx + 4.5, kind: "shrine", glow: 0, o: 0, t: 0 });
           D.lamps.push({ x: sx + 4.5, y: B - 40, r: 15 });
         }
       } else if (b.g === "shop") {
-        const sx0 = x + 6, sw = w - 12, awn = pk(["#c0392b", "#2f6b4f", "#2d5a8a", "#d98e04"]), nm = CITY_SHOPS[bi % CITY_SHOPS.length];
+        const sx0 = x + 6, sw = w - 12, awn = pk(["#c0392b", "#2f6b4f", "#2d5a8a", "#d98e04"]), nm = b.name;
         rect("#3a2414", x + 8, B - 54, w - 16, 13); rect("#5a3a24", x + 9, B - 53, w - 18, 11);
         text(nm, x + (w >> 1), B - 43, "#f3e3b5", "center");
         for (let i = 0; i < sw; i += 4) { const col = i / 4 % 2 ? "#f2e6c9" : awn; rect(col, sx0 + i, B - 40, 4, 7); rect(col, sx0 + i + 1, B - 33, 2, 1); }
@@ -2559,15 +2627,20 @@ function cityBuild() {                                                   // pint
         D.wins.push({ x: sx0 + 1, y: B - 30, w: ww2 - 2, h: 24, lit: true, soft: true });
         const dx = sx0 + ww2 + 2; rect("#4a3020", dx, B - 34, 12, 30); rect("#3a2a3a", dx + 2, B - 32, 8, 12); rect("#d9b26a", dx + 9, B - 16, 1, 2); rect("#b8aa98", dx - 1, B - 4, 14, 2);
         D.wins.push({ x: dx + 2, y: B - 32, w: 8, h: 12, lit: true });
-        lantern(x + w - 6, B - 52 + 20);
+        D.doors.push({ cx: dx + 6, x: dx, y: B - 34, w: 12, h: 30, arch: false, col: "#4a3020", kind: "shop", name: nm, o: 0, t: 0 });
+        lantern(x + w - 6, B - 32);
         if (r() < .7) pot(x + 1);
+        if (bi % 2 === 0) for (const cx of [x + w - 30, x + w - 16]) {      // caixotes de limão na calçada
+          rect("#a8763a", cx, B - 2, 12, 7); rect("#7a5028", cx, B + 1, 12, 1); rect("#7a5028", cx, B + 4, 12, 1);
+          for (let j = 0; j < 6; j++) { rect("#f2d03c", cx + 1 + j * 2, B - 4 + (j % 2), 2, 2); rect("#fff0a0", cx + 1 + j * 2, B - 4 + (j % 2), 1, 1); }
+        }
       } else if (b.g === "cafe") {
         rect("#2f4a3a", x + (w >> 1) - 23, B - 54, 46, 12); rect("#f2e6c9", x + (w >> 1) - 22, B - 53, 44, 10); text("CAFFE", x + (w >> 1), B - 44, "#a02a1c", "center");
         for (let i = 0; i < w - 8; i += 4) { const col = i / 4 % 2 ? "#f2e6c9" : "#b8321f"; rect(col, x + 4 + i, B - 40, 4, 8); rect(col, x + 5 + i, B - 32, 2, 1); }
         rect("rgba(20,10,20,.35)", x + 4, B - 31, w - 8, 4);
         rect("#4a3020", x + 10, B - 28, 20, 24); rect("#3a2a3a", x + 11, B - 27, 18, 22); rect("#e8c070", x + 11, B - 27, 18, 3);
         D.wins.push({ x: x + 11, y: B - 27, w: 18, h: 22, lit: true, soft: true });
-        doorAt(x + w - 26, false); rect("#222a26", x + 34, B - 24, 12, 14); rect("#e8e0c8", x + 36, B - 21, 6, 1); rect("#e8e0c8", x + 36, B - 18, 8, 1);   // lousa do cardápio
+        doorAt(x + w - 26, false, "cafe"); rect("#222a26", x + 34, B - 24, 12, 14); rect("#e8e0c8", x + 36, B - 21, 6, 1); rect("#e8e0c8", x + 36, B - 18, 8, 1);   // lousa do cardápio
         for (const tx of [x + 6, x + w - 34]) {                            // mesinhas e cadeiras vermelhas na calçada
           rect("#d9cdb0", tx, B - 3, 11, 2); rect("#a89c82", tx + 1, B - 1, 9, 1); rect("#3a3a42", tx + 5, B, 1, 5); rect("#3a3a42", tx + 3, B + 5, 5, 1);
           for (const cx of [tx - 7, tx + 13]) { rect("#b53a2c", cx, B, 5, 1); rect("#b53a2c", cx + (cx < tx ? 0 : 4), B - 6, 1, 6); rect("#3a3a42", cx, B + 1, 1, 4); rect("#3a3a42", cx + 4, B + 1, 1, 4); }
@@ -2579,6 +2652,15 @@ function cityBuild() {                                                   // pint
         rect("#7a6c60", tx, B - 3, tw, 3); rect("#b8aa98", tx, B - 3, tw, 1); rect("#e0d5bc", tx + (tw >> 1) - 2, B - th - 3, 4, 4);
         lantern(tx - 8, B - 36); lantern(tx + tw + 5, B - 36);
         D.lamps.push({ x: tx + (tw >> 1), y: B - 22, r: 18 });
+        if (bi % 2 === 0) {                                                // vespa estacionada na frente
+          const vx = x + 4, vy = B + 4;
+          rect("rgba(0,0,0,.28)", vx - 1, vy - 1, 30, 2);
+          [[vx + 5, vy - 4], [vx + 22, vy - 4]].forEach(([wx, wy]) => { cityBlob(wx, wy, 4, ["#2a2a32", "#23232a", "#1c1c22"]); rect("#9a9aa0", wx - 1, wy - 1, 2, 2); });
+          const vc = pk([["#8fd0c0", "#a9e0d2", "#6aa898"], ["#e8a0a8", "#f4bcc2", "#c07880"], ["#f2d070", "#f8e394", "#c8a448"]]);
+          rect(vc[0], vx + 1, vy - 13, 12, 8); rect(vc[1], vx + 2, vy - 13, 10, 1); rect(vc[2], vx + 1, vy - 7, 12, 2); rect(vc[0], vx + 10, vy - 8, 9, 2);
+          rect(vc[0], vx + 18, vy - 17, 3, 11); rect(vc[1], vx + 18, vy - 17, 1, 11); rect(vc[0], vx + 18, vy - 9, 8, 1);
+          rect("#4a3022", vx + 3, vy - 16, 9, 3); rect("#2a2d35", vx + 17, vy - 19, 6, 1); rect("#ffe9a0", vx + 22, vy - 17, 2, 2); rect("#c0392b", vx, vy - 10, 1, 2);
+        }
       }
       g = c2.createLinearGradient(0, top, 0, B); g.addColorStop(0, "rgba(255,236,190,.14)"); g.addColorStop(.55, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,14,44,.30)");
       ctx.fillStyle = g; ctx.fillRect(x, top, w, ht);                      // luz no alto, penumbra embaixo
@@ -2591,14 +2673,14 @@ function cityBuild() {                                                   // pint
           for (let tx = rx + i % 2; tx < rx + rw; tx += 3) rect("rgba(70,25,15,.35)", tx, ry, 1, 3);
           rect("rgba(255,200,150,.25)", rx, ry, rw, 1);
         });
-        if (bi % 2 === 0) { const cx = x + ri(6, w - 16); rect("#9a5a42", cx, top - 26, 6, 15); rect("#5a3022", cx - 1, top - 27, 8, 2); rect("rgba(0,0,0,.2)", cx + 4, top - 26, 2, 15); }
-        else { const ax = x + ri(10, w - 14); rect("#3a3d46", ax, top - 24, 1, 10); rect("#3a3d46", ax - 3, top - 24, 7, 1); rect("#3a3d46", ax - 2, top - 21, 5, 1); rect("#3a3d46", ax - 3, top - 18, 7, 1); }
+        if (bi % 2 === 0) { const cx = x + ri(6, Math.max(6, w - 16)); rect("#9a5a42", cx, top - 26, 6, 15); rect("#5a3022", cx - 1, top - 27, 8, 2); rect("rgba(0,0,0,.2)", cx + 4, top - 26, 2, 15); }
+        else { const ax = x + ri(10, Math.max(10, w - 14)); rect("#3a3d46", ax, top - 24, 1, 10); rect("#3a3d46", ax - 3, top - 24, 7, 1); rect("#3a3d46", ax - 2, top - 21, 5, 1); rect("#3a3d46", ax - 3, top - 18, 7, 1); }
       } else {                                                             // terraço com altana de madeira
         rect(wc[0], x, top - 6, w, 6); rect(wc[2], x, top - 7, w, 1); rect(wc[1], x + w - 4, top - 6, 4, 6);
-        const ax = x + ri(6, w - 30);
+        const ax = x + ri(6, Math.max(6, w - 30));
         rect("#8a6a48", ax, top - 22, 20, 15); rect("#b4532f", ax - 2, top - 25, 24, 3); rect("rgba(255,200,150,.25)", ax - 2, top - 25, 24, 1);
         rect("#2a1c18", ax + 3, top - 18, 5, 11); rect("#2a1c18", ax + 12, top - 18, 5, 11); rect("#6b4a30", ax, top - 22, 1, 15); rect("#6b4a30", ax + 19, top - 22, 1, 15);
-        for (let q = 0; q < 3; q++) { const ppx = x + ri(2, w - 6); if (ppx > ax - 4 && ppx < ax + 22) continue; rect("#b4532f", ppx, top - 10, 4, 3); cityBlob(ppx + 2, top - 13, 2, CITY_GREENS); }
+        for (let q = 0; q < 3; q++) { const ppx = x + ri(2, Math.max(2, w - 6)); if (ppx > ax - 4 && ppx < ax + 22) continue; rect("#b4532f", ppx, top - 10, 4, 3); cityBlob(ppx + 2, top - 13, 2, CITY_GREENS); }
       }
       // varal na fachada (só nos prédios de porta simples)
       if (b.g === "door" && bi % 2 === 1 && nc >= 2) {
@@ -2612,12 +2694,13 @@ function cityBuild() {                                                   // pint
     // ---- varais atravessando as vielas e festões de luzes
     D.gaps.forEach((gp, gi) => {
       const x1 = gp.x - 6, x2 = gp.x + gp.w + 6, y1 = B - GF - FH + 8, y2 = y1 + 1;
-      if (gi === 1) return;
+      if (gi % 3 === 1) return;
       rect("#2a2d35", x1 - 1, y1 - 1, 2, 3); rect("#2a2d35", x2, y2 - 1, 2, 3);
       const items = []; for (let cx = x1 + 7; cx < x2 - 6; cx += 9) items.push({ x: cx, kind: ri(0, 3), col: pk(["#f1ecdc", "#c0392b", "#2d5a8a", "#f2c94c", "#e8e0c8", "#2f6b4f"]), ph: r() * 6 });
       D.lines.push({ x1, y1, x2, y2, sag: 3, items });
     });
-    [[-110, B - 90, 60, B - 94, 9, "bulb"], [130, B - 86, 300, B - 88, 10, "flag"], [330, B - 92, 520, B - 88, 9, "bulb"], [540, B - 90, 700, B - 94, 9, "flag"]].forEach(([x1, y1, x2, y2, sag, kind]) => {
+    for (let x1 = -110, fi = 0; x1 < CITY_FX1 - 120; fi++) {
+      const x2 = x1 + 150 + ri(0, 30), y1 = B - 86 - ri(0, 8), y2 = B - 86 - ri(0, 8), sag = ri(8, 11), kind = fi % 2 ? "flag" : "bulb";
       for (let x = x1; x <= x2; x++) rect("#2a2d35", x, cityWireY(x1, y1, x2, y2, sag, x), 1, 1);
       rect("#2a2d35", x1 - 1, y1 - 2, 2, 5); rect("#2a2d35", x2 - 1, y2 - 2, 2, 5);
       for (let x = x1 + 8, q = 0; x < x2 - 4; x += kind === "bulb" ? 11 : 8, q++) {
@@ -2625,73 +2708,98 @@ function cityBuild() {                                                   // pint
         if (kind === "bulb") { rect("#2a2d35", x, y + 1, 1, 1); rect("#e8dcb0", x - 1, y + 2, 3, 3); rect("#fff6d8", x, y + 2, 1, 1); D.bulbs.push({ x, y: y + 3 }); }
         else { const col = ["#c0392b", "#f2e6c9", "#2f6b4f"][q % 3]; [5, 4, 2, 1].forEach((fw, j) => rect(col, x + ((5 - fw) >> 1) - 2, y + 1 + j, fw, 1)); }
       }
-    });
-
-    // ---- vespa, caixotes de limões e outros adereços na calçada
-    const vx = 76, vy = B + 4;
-    rect("rgba(0,0,0,.28)", vx - 1, vy - 1, 30, 2);
-    [[vx + 5, vy - 4], [vx + 22, vy - 4]].forEach(([wx, wy]) => { cityBlob(wx, wy, 4, ["#2a2a32", "#23232a", "#1c1c22"]); rect("#9a9aa0", wx - 1, wy - 1, 2, 2); });
-    rect("#8fd0c0", vx + 1, vy - 13, 12, 8); rect("#a9e0d2", vx + 2, vy - 13, 10, 1); rect("#6aa898", vx + 1, vy - 7, 12, 2); rect("#8fd0c0", vx + 10, vy - 8, 9, 2);
-    rect("#8fd0c0", vx + 18, vy - 17, 3, 11); rect("#a9e0d2", vx + 18, vy - 17, 1, 11); rect("#8fd0c0", vx + 18, vy - 9, 8, 1);
-    rect("#4a3022", vx + 3, vy - 16, 9, 3); rect("#2a2d35", vx + 17, vy - 19, 6, 1); rect("#ffe9a0", vx + 22, vy - 17, 2, 2); rect("#c0392b", vx, vy - 10, 1, 2);
-    for (const cx of [292, 306]) {
-      rect("#a8763a", cx, B - 2, 12, 7); rect("#7a5028", cx, B + 1, 12, 1); rect("#7a5028", cx, B + 4, 12, 1);
-      for (let j = 0; j < 6; j++) { rect("#f2d03c", cx + 1 + j * 2, B - 4 + (j % 2), 2, 2); rect("#fff0a0", cx + 1 + j * 2, B - 4 + (j % 2), 1, 1); }
+      x1 = x2 + ri(8, 30);
     }
-    rect("#a8763a", 299, B - 9, 12, 7); rect("#7a5028", 299, B - 6, 12, 1);
-    for (let j = 0; j < 6; j++) rect("#f2d03c", 300 + j * 2, B - 11 + (j % 2), 2, 2);
-
-    // ---- primeiro plano: muro de pedra com vasos (limoeiros, gerânios, agave) e buganvília caindo
-    const PY = 212;
-    rect("#4d423f", FW, PY, CWD, H - PY); rect("#6e6058", FW, PY, CWD, 3); rect("#2e2624", FW, PY + 3, CWD, 1);
-    for (let yy = PY + 4, row = 0; yy < H; yy += 8, row++) { for (let xx = FW - (row % 2 ? 8 : 0); xx < CITY_FX1; xx += 16) rect("rgba(0,0,0,.28)", xx + 15, yy, 1, 8); rect("rgba(0,0,0,.28)", FW, yy + 7, CWD, 1); }
-    for (let xv = -190; xv < CITY_FX1 - 20; xv += 52 + ri(0, 40)) {
-      for (let j = 0; j < 15; j++) { const ln = ri(2, 8); rect(pk(CITY_GREENS), xv + j, PY + 1, 1, ln); if (r() < .5) rect(pk(["#d6477f", "#e868a0", "#b8326a"]), xv + j, PY + ri(1, ln), 2, 2); }
-    }
-    for (let xp = -180, q = 0; xp < CITY_FX1 - 30; xp += 46 + ri(0, 48), q++) {
-      const kind = q % 3;
-      if (kind === 0) {
-        rect("#5a3a24", xp + 5, PY - 22, 2, 13); cityBlob(xp + 6, PY - 30, 11, CITY_GREENS); cityBlob(xp, PY - 24, 6, CITY_GREENS); cityBlob(xp + 12, PY - 25, 6, CITY_GREENS);
-        for (let j = 0; j < 8; j++) { const lx = xp + 6 + ri(-9, 9), ly = PY - 30 + ri(-8, 8); rect("#f4d03f", lx, ly, 2, 2); rect("#fff0a0", lx, ly, 1, 1); }
-      } else if (kind === 1) {
-        cityBlob(xp + 6, PY - 15, 7, CITY_GREENS); for (let j = 0; j < 9; j++) rect(pk(["#d6334a", "#e86aa0", "#f4efe0"]), xp + 6 + ri(-7, 7), PY - 15 + ri(-6, 5), 2, 2);
-      } else {
-        for (let i = -3; i <= 3; i++) { const hh = (4 - Math.abs(i)) * 2 + 2; rect(i % 2 ? "#6a9a74" : "#4f8260", xp + 6 + i * 2, PY - 9 - hh, 2, hh + 1); }
-      }
-      rect("#b4532f", xp, PY - 9, 12, 9); rect("#cf6d3f", xp - 1, PY - 9, 14, 2); rect("#8a3c22", xp + 9, PY - 7, 3, 7);
-    }
-    g = c2.createLinearGradient(0, B + 55, 0, H); g.addColorStop(0, "rgba(20,10,30,0)"); g.addColorStop(1, "rgba(20,10,30,.42)");
-    ctx.fillStyle = g; ctx.fillRect(FW, B + 55, CWD, H - B - 55);          // o primeiro plano escurece, o pescador fica em destaque
+    g = c2.createLinearGradient(0, B + 30, 0, CITY_CH); g.addColorStop(0, "rgba(20,10,30,0)"); g.addColorStop(1, "rgba(20,10,30,.40)");
+    ctx.fillStyle = g; ctx.fillRect(FW, B + 30, CWD, CITY_CH - B - 30);    // a beirada de baixo escurece, o pescador fica em destaque
   } finally { ctx = main; }
-  cityCache = { cv: cv2, s: S, font: cityFontOK() };
+  cityCache = { cv: cv2, s: S, cs, font: cityFontOK() };
+}
+function cityEnsure() {
+  if (!cityData) cityInit();
+  if (!cityCache || cityCache.s !== S || (!cityCache.font && cityFontOK())) cityBuild();
 }
 
-function cityFar(fog) {                                                  // prédios distantes e o campanário (recebem a névoa da hora)
+function cityFar(fog, l, r) {                                            // prédios distantes e campanários (recebem a névoa da hora)
   const D = cityData, B = CITY_B, mx = (c, f = .5) => "rgb(" + c.map((v, i) => Math.round(v + (fog[i] - v) * f)) + ")";
   const FC = CITY_FARC.map(c => mx(c)), RC = mx([150, 78, 58]), RL = mx([176, 98, 70]), WD = CITY_FARC.map(c => mx(c.map(v => v * .62), .4));
   D.far.forEach(b => {
+    if (b.x > r || b.x + b.w < l) return;
     const top = B - b.h;
     rect(FC[b.c], b.x, top, b.w, b.h); rect("rgba(30,20,50,.12)", b.x + b.w - 4, top, 4, b.h);
     rect(RC, b.x - 1, top - 3, b.w + 2, 3); rect(RL, b.x + 2, top - 6, b.w - 4, 3); if (b.w > 26) rect(RC, b.x + 6, top - 9, b.w - 12, 3);
     for (let wy = top + 8; wy < B - 70; wy += 16) for (let wx = b.x + 4; wx < b.x + b.w - 5; wx += 9) rect(WD[b.c], wx, wy, 3, 5);
   });
-  const tx = 255, tt = B - 128, tc = mx([232, 206, 160]), td = mx([150, 120, 100], .4);          // campanário
-  rect(tc, tx, tt + 12, 15, 130); rect("rgba(30,20,50,.14)", tx + 11, tt + 12, 4, 130);
-  rect(mx([205, 190, 150]), tx - 1, tt + 10, 17, 3); rect(mx([205, 190, 150]), tx - 1, tt + 28, 17, 2);
-  cityArch(td, tx + 3, tt + 14, 4, 12); cityArch(td, tx + 8, tt + 14, 4, 12);
-  for (let i = 0; i < 12; i++) rect(i % 2 ? RC : RL, tx + 7 - (1 + i * .55 | 0), tt + i, 2 + 2 * (1 + i * .55 | 0) - 1, 1);
-  rect(RC, tx + 7, tt - 4, 1, 4);
+  const tc = mx([232, 206, 160]), td = mx([150, 120, 100], .4), tb = mx([205, 190, 150]);
+  D.towers.forEach(tx => {
+    if (tx > r || tx + 16 < l) return;
+    const tt = B - 128;
+    rect(tc, tx, tt + 12, 15, 130); rect("rgba(30,20,50,.14)", tx + 11, tt + 12, 4, 130);
+    rect(tb, tx - 1, tt + 10, 17, 3); rect(tb, tx - 1, tt + 28, 17, 2);
+    cityArch(td, tx + 3, tt + 14, 4, 12); cityArch(td, tx + 8, tt + 14, 4, 12);
+    for (let i = 0; i < 12; i++) rect(i % 2 ? RC : RL, tx + 7 - (1 + i * .55 | 0), tt + i, 2 + 2 * (1 + i * .55 | 0) - 1, 1);
+    rect(RC, tx + 7, tt - 4, 1, 4);
+  });
 }
 
-function drawCityBack(ox, now) {                                         // tudo que recebe a lavagem de cor da hora
-  if (!cityData) cityInit();
-  if (!cityCache || cityCache.s !== S || (!cityCache.font && cityFontOK())) cityBuild();
-  const D = cityData, B = CITY_B, t = now / 1000;
-  ctx.save(); ctx.translate(ox, 0);
-  cityFar(DAY.sky[3]);
+function cityNearDoor() {                                                // a porta (ou nicho) ao alcance do pescador
+  if (!cityData || !CITY.on) return null;
+  let best = null, bd = 1e9;
+  for (const d of cityData.doors) { const dd = Math.abs(px - d.cx); if (dd < (d.kind === "shrine" ? 11 : 13) && dd < bd) { best = d; bd = dd; } }
+  return best;
+}
+const cityLabel = d => d.kind === "shrine" ? "acender vela" : d.locked === undefined && d.kind === "church" ? "entrar" : "abrir porta";
+const CITY_LOCKED = ["Trancada.", "Ninguém atende...", "Parece que não tem ninguém em casa.", "Você bate e só ouve um cachorro latindo lá dentro."];
+const CITY_HOUSE = ["Cheiro de molho de tomate vindo lá de dentro.", "Uma senhora acena da cozinha: \"Buongiorno!\"", "Lá dentro, um rádio antigo toca uma música lenta.", "Um menino espia pela fresta e some correndo."];
+function cityUse() {                                                     // tecla E na cidade: bate/abre a porta mais próxima
+  const d = cityNearDoor(); if (!d || TR.lock || state !== "walk") return false;
+  if (d.t > 0.3) return true;
+  const h = DAY.m / 60, pk = a => a[Math.random() * a.length | 0];
+  let open = false, m;
+  if (d.kind === "shrine") { d.glow = 5; say("Você acende uma velinha. Amém."); SND.play("catch_chime", { vol: .22, jitter: 0 }); return true; }
+  if (d.kind === "house") { open = !d.locked; m = open ? pk(CITY_HOUSE) : pk(CITY_LOCKED); }
+  else if (d.kind === "shop") { open = h >= 7 && h < 19; m = open ? "Bem-vindo à " + d.name + "!" : d.name + " está fechada agora."; }
+  else if (d.kind === "cafe") { open = h >= 6 && h < 23; m = open ? "Um espresso, per favore!" : "O café já fechou."; }
+  else { open = h >= 6 && h < 20; m = open ? "Silêncio... só o eco dos seus passos." : "A igreja está fechada."; }
+  say(m);
+  if (open) { d.t = 3; SND.play("pier_creak_2", { vol: .5, rate: .9 }); if (window.onCityDoor) try { window.onCityDoor(d); } catch (e) {} }
+  else SND.play("pier_creak_1", { vol: .35, rate: 1.3 });
+  return true;
+}
+
+function cityLit(now, l, r) {                                            // à noite: janelas acesas, lanternas, luzinhas de festa (por cima da lavagem escura)
+  if (DAY.lamp <= 0.01) return;
+  const D = cityData;
+  ctx.save(); ctx.globalAlpha = DAY.lamp;
+  D.wins.forEach(w => { if (w.x < l - 30 || w.x > r + 30 || !w.lit) return; ctx.fillStyle = "rgba(255,190,110,.13)"; ctx.fillRect(w.x - 2, w.y - 2, w.w + 4, w.h + 4); ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : "#ffd98a"; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2); });
+  D.lamps.forEach(lp => {
+    if (lp.x < l - 50 || lp.x > r + 50) return;
+    const g = ctx.createRadialGradient(lp.x, lp.y, 1, lp.x, lp.y, lp.r);
+    g.addColorStop(0, "rgba(255,225,150,.6)"); g.addColorStop(1, "rgba(255,225,150,0)");
+    ctx.fillStyle = g; ctx.fillRect(lp.x - lp.r, lp.y - lp.r, lp.r * 2, lp.r * 2);
+  });
+  D.bulbs.forEach((bu, i) => { if (bu.x < l - 10 || bu.x > r + 10) return; ctx.fillStyle = "rgba(255,220,140," + (0.2 + 0.05 * Math.sin(now / 400 + i)).toFixed(2) + ")"; ctx.fillRect(bu.x - 3, bu.y - 3, 6, 6); ctx.fillStyle = "#fff0b8"; ctx.fillRect(bu.x - 1, bu.y - 1, 2, 2); });
+  ctx.restore();
+}
+
+function drawCityBack(now, dt, l, r) {                                   // tudo que recebe a lavagem de cor da hora (l..r = trecho visível do mundo)
+  cityEnsure();
+  const D = cityData, B = CITY_B, t = now / 1000, cs = cityCache.cs;
+  ctx.save();
+  cityFar(DAY.sky[3], l, r);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(cityCache.cv, CITY_FW, 0, CITY_FX1 - CITY_FW, H);
+  const sx = Math.max(0, Math.floor((l - 4 - CITY_FW) * cs)), ex = Math.min(cityCache.cv.width, Math.ceil((r + 4 - CITY_FW) * cs));
+  if (ex > sx) ctx.drawImage(cityCache.cv, sx, 0, ex - sx, cityCache.cv.height, CITY_FW + sx / cs, 0, (ex - sx) / cs, cityCache.cv.height / cs);
+  { // fonte: jatinhos de água caindo
+    const fx = D.fountain.x;
+    if (fx > l - 40 && fx < r + 40) for (let i = 0; i < 10; i++) {
+      const u = (t * .9 + i / 10) % 1, vx = (i - 4.5) * 3.2, x = Math.round(fx + vx * u * 1.2), y = Math.round(B - 40 + (-14 * u + 40 * u * u));
+      rect("#bfe8f8", x, y, 1, 2);
+      if (u > .93) rect("rgba(220,245,255,.6)", x - 1, B - 6, 3, 1);
+    }
+  }
   D.lines.forEach(L => {                                                 // varais: fio e roupas balançando de leve
+    if (L.x2 < l - 12 || L.x1 > r + 12) return;
     for (let x = L.x1; x <= L.x2; x++) rect("#3a3440", x, cityWireY(L.x1, L.y1, L.x2, L.y2, L.sag, x), 1, 1);
     L.items.forEach(it => {
       const yy = cityWireY(L.x1, L.y1, L.x2, L.y2, L.sag, it.x) + 1, sn = Math.sin(t * 1.6 + it.ph), sh = sn > .6 ? 1 : sn < -.6 ? -1 : 0, c = it.col;
@@ -2702,42 +2810,57 @@ function drawCityBack(ox, now) {                                         // tudo
       else { rect(c, it.x + 1, yy, 5, 3); rect(c, it.x + 1 + sh, yy + 3, 5, 4); rect("rgba(255,255,255,.35)", it.x + 1 + sh, yy + 4, 5, 1); }
     });
   });
-  const cx = 212, cy = B - 6, tail = Math.sin(t * 3) > 0;               // gato sentado nos degraus
-  rect("#d98a3c", cx - 4, cy - 5, 8, 5); rect("#c0712a", cx - 4, cy - 2, 8, 2); rect("#8f4f1c", cx - 2, cy - 5, 1, 3); rect("#8f4f1c", cx, cy - 5, 1, 2);
-  rect("#d98a3c", cx + 2, cy - 9, 5, 5); rect("#d98a3c", cx + 2, cy - 11, 1, 2); rect("#d98a3c", cx + 6, cy - 11, 1, 2); rect("#2a2d35", cx + 5, cy - 7, 1, 1);
-  rect("#d98a3c", cx - 6, cy - 1, 3, 1); if (tail) { rect("#d98a3c", cx - 7, cy - 3, 1, 3); } else { rect("#d98a3c", cx - 7, cy - 2, 1, 2); rect("#d98a3c", cx - 8, cy - 3, 1, 1); }
+  D.doors.forEach(d => {                                                 // portas abrindo (e velinha acesa no nicho)
+    if (d.t > 0) d.t -= dt;
+    if (d.kind === "shrine") { if (d.glow > 0) { d.glow -= dt; if (d.cx > l - 10 && d.cx < r + 10) { const fl = Math.sin(t * 20) > 0 ? 1 : 0; rect("#ffd060", d.cx - 3.5, B - 41 - fl, 1, 1 + fl); rect("#ffd060", d.cx + 2.5, B - 41 - fl, 1, 1 + fl); rect("rgba(255,210,120,.35)", d.cx - 5, B - 45, 10, 8); } } return; }
+    d.o += ((d.t > 0 ? 1 : 0) - d.o) * Math.min(1, dt * 7);
+    if (d.o < .02 || d.cx < l - 20 || d.cx > r + 20) return;
+    const paint = (col, x, y, w, h) => d.arch ? cityArch(col, x, y, w, h) : rect(col, x, y, w, h);
+    paint("#2a1810", d.x, d.y, d.w, d.h); paint("#8a5a30", d.x + 1, d.y + 4, d.w - 2, d.h - 4); paint("#e0a860", d.x + 2, d.y + 9, d.w - 4, d.h - 9);
+    rect("#5a3a24", d.x + 2, d.y + d.h - 12, d.w - 4, 2); rect("#3a2418", d.x + 3, d.y + d.h - 10, 2, 10); rect("#3a2418", d.x + d.w - 5, d.y + d.h - 10, 2, 10);   // mesinha lá dentro
+    rect("#2a1810", d.x + (d.w >> 1) - 1, d.y + d.h - 24 - (Math.sin(t * 2) > .5 ? 1 : 0), 3, 11);                                                                  // alguém passando
+    const lw = Math.max(2, Math.round(d.w * (1 - d.o) * .9 + 2));
+    ctx.save(); ctx.beginPath(); ctx.rect(d.x, d.y - 1, lw, d.h + 2); ctx.clip(); paint(d.col, d.x, d.y, d.w, d.h); rect("rgba(0,0,0,.3)", d.x + lw - 1, d.y, 1, d.h); ctx.restore();
+  });
+  const drawCat = (cx, cy) => {
+    const tail = Math.sin(t * 3) > 0;
+    rect("#d98a3c", cx - 4, cy - 5, 8, 5); rect("#c0712a", cx - 4, cy - 2, 8, 2); rect("#8f4f1c", cx - 2, cy - 5, 1, 3); rect("#8f4f1c", cx, cy - 5, 1, 2);
+    rect("#d98a3c", cx + 2, cy - 9, 5, 5); rect("#d98a3c", cx + 2, cy - 11, 1, 2); rect("#d98a3c", cx + 6, cy - 11, 1, 2); rect("#2a2d35", cx + 5, cy - 7, 1, 1);
+    rect("#d98a3c", cx - 6, cy - 1, 3, 1); if (tail) rect("#d98a3c", cx - 7, cy - 3, 1, 3); else { rect("#d98a3c", cx - 7, cy - 2, 1, 2); rect("#d98a3c", cx - 8, cy - 3, 1, 1); }
+  };
+  D.cats.forEach(cx => { if (cx > l - 12 && cx < r + 12) drawCat(cx, B - 6); });   // gatos sentados nos degraus
   ctx.restore();
 }
 
 function drawCity(now) {
-  if (!cityData) cityInit();
-  lastView = { z: 1, sx: 0, sy: 0 };
-  const ox = (W - WORLD) / 2;
-  ctx.save(); ctx.translate(ox - EXT, 0); DAY.paintSky(ctx, now); ctx.restore();       // o mesmo céu do cais (sol, lua, estrelas) na mesma hora
-  DAY.scene(() => drawCityBack(ox, now), [0, H]);
-  if (DAY.lamp > 0.01) {                                                                 // à noite: janelas acesas, lanternas, luzinhas de festa (por cima da lavagem escura)
-    ctx.save(); ctx.translate(ox, 0); ctx.globalAlpha = DAY.lamp;
-    cityData.wins.forEach(w => { if (w.lit) { ctx.fillStyle = "rgba(255,190,110,.13)"; ctx.fillRect(w.x - 2, w.y - 2, w.w + 4, w.h + 4); ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : "#ffd98a"; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2); } });
-    cityData.lamps.forEach(l => {
-      const g = ctx.createRadialGradient(l.x, l.y, 1, l.x, l.y, l.r);
-      g.addColorStop(0, "rgba(255,225,150,.6)"); g.addColorStop(1, "rgba(255,225,150,0)");
-      ctx.fillStyle = g; ctx.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
-    });
-    cityData.bulbs.forEach((bu, i) => { ctx.fillStyle = "rgba(255,220,140," + (0.2 + 0.05 * Math.sin(now / 400 + i)).toFixed(2) + ")"; ctx.fillRect(bu.x - 3, bu.y - 3, 6, 6); ctx.fillStyle = "#fff0b8"; ctx.fillRect(bu.x - 1, bu.y - 1, 2, 2); });
-    ctx.restore();
-  }
+  cityEnsure();
+  const dt = Math.min(0.1, Math.max(0, (now - (cityT0 || now)) / 1000)); cityT0 = now;
+  const Z = CITY_Z, vw = W / Z, vh = H / Z, vy = PIER_Y - vh * 0.77;     // o pescador fica no terço de baixo da tela
+  const look = dir * vw * 0.06, tgt = Math.max(CITY_CAM_MIN, Math.min(CITY.MAX + CITY_CAM_PAD - vw, px + look - vw / 2));
+  cityCamX = cityCamX == null ? tgt : cityCamX + (tgt - cityCamX) * Math.min(1, dt * 4.5);
+  const cl = cityCamX, cr = cl + vw;
+  lastView = { z: Z, sx: cl, sy: vy };
+  ctx.save(); ctx.translate(W / 2, 0); ctx.scale(Z, Z); ctx.translate(-WORLD / 2 - EXT, 0); DAY.paintSky(ctx, now); ctx.restore();   // o mesmo céu do cais, na mesma hora
+  ctx.save(); ctx.scale(Z, Z); ctx.translate(-cl, -vy);
+  DAY.scene(() => drawCityBack(now, dt, cl, cr), [0, H]);
+  cityLit(now, cl, cr);
   DAY.scene(() => {                                                                      // o pescador (com a mesma lavagem da hora)
-    ctx.save(); ctx.translate(ox, 0);
     ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(px, PIER_Y + 1, 9, 2.2, 0, 0, 7); ctx.fill();
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
     text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) - 6, "#ffd166", "center");
-    ctx.restore();
   }, [PIER_Y - 70, PIER_Y + 12]);
+  const dn = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open ? cityNearDoor() : null;
+  if (dn) {                                                                              // "E" quando há uma porta ao alcance
+    const ky = PIER_Y - FISHER_TOP * hScale(me.h) - 30 + Math.round(Math.sin(now / 260) * 1.5), kx = Math.round(px) - 6;   // o "E" flutua em cima do nome do pescador
+    rect("#1b2619", kx, ky, 12, 12); rect("#bccdac", kx + 1, ky + 1, 10, 9); rect("#7d8f71", kx + 1, ky + 10, 10, 1);
+    ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = "center"; ctx.fillStyle = "#1b2619"; ctx.fillText("E", kx + 6, ky + 9);
+  }
+  ctx.restore();
 
   if (!INTRO.active) {
     text(fmtMoney(money), 10, 16, "#8be28b");
     if (invCount() > 0) text("Peixes: " + invCount(), 10, 28, "#ffd166");
-    if (!BAG.open) hintLine([PH.open ? "E selecionar   F ou ESC guardar o celular" : "I inventário"], 10, H - 10);
+    if (!BAG.open) hintLine([PH.open ? "E selecionar   F ou ESC guardar o celular" : (dn ? "E " + cityLabel(dn) + "   I inventário" : "I inventário")], 10, H - 10);
     if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   }
   drawBag(now);
