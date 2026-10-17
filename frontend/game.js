@@ -3877,7 +3877,7 @@ function cityGlass(now, l, r) {
     ctx.save();
     if (w.round) { ctx.beginPath(); ctx.arc(o.cx, w.y + w.h / 2, w.w / 2, 0, 6.2832); } else if (w.arch) vArchP(w.x, w.y, w.w, w.h); else vRR(w.x, w.y, w.w, w.h, .7);
     ctx.clip();
-    const s = o.ground ? 1.0 * K : .5 * K, fy = o.ground ? B - 5 : bot - 1;     // mais baixo/menor: parece estar dentro do vidro
+    const s = o.ground ? .66 * K : .4 * K, fy = o.ground ? B - 6 : bot - 1;     // mais baixo/menor: parece estar dentro do vidro
     ctx.globalAlpha = (o.ground ? (w.soft ? .62 : .4) : .12) * la;
     ctx.drawImage(reflexRS.cv, pxr - 32 * s, fy - 68 * s, 64 * s, 76 * s);
     if (Math.abs(o.dx) < 70) {                                                // brilho passando junto com o pescador
