@@ -3349,7 +3349,7 @@ function vBlockDoll(cx, fy, u, o) {                                            /
   vEll(0, .5, 8.6, 1.5, "rgba(20,8,26,.32)");
   [[-4.6, shade(o.pants, 0.75)], [0.6, o.pants]].forEach(([lx, col]) => { R(col, lx, -11, 4, 9); R("rgba(0,0,0,.14)", lx, -11, 1, 9); R("#15110e", lx - 0.5, -2.5, 5, 2.5); });   // pernas e sapatos
   R(shirt, -5, -24, 10, 14); R("rgba(0,0,0,.2)", -5, -24, 2.5, 14); R("rgba(255,255,255,.18)", 2.5, -24, 2.5, 14);                                                              // tronco
-  R("#5a3b22", -5, -12, 10, 2); R("#e8c34a", -1, -12, 2, 2);                                                                                                                     // cinto e fivela
+  R("#3e2a18", -5, -12, 10, 2);                                                                                                                     // cinto e fivela
   [-1, 1].forEach(sg => { const ax = sg * 6.75 - 1.75; R(sleeve, ax, -21.5, 3.5, 8); R("rgba(0,0,0,.2)", sg < 0 ? ax : ax + 2.7, -21.5, 0.8, 8); R(skin, ax, -14, 3.5, 3); R(sleeve, ax - 0.05, -24, 3.6, 4.6); R("rgba(255,255,255,.22)", ax + 0.75, -23.6, 2, 0.7); });   // braços caídos
   R(shade(shirt, 0.76), -2.7, -24.6, 5.4, 3.8); R("#e0ac69", -1.8, -24.8, 3.6, 2.5); R("#e0ac69", -2, -26, 4, 1.6);                                                              // gola e pescoço
   R(skin, -4.5, -33, 9, 8.5); R("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);                                                                                                            // cabeça
@@ -4555,7 +4555,7 @@ function cityGlass(now, l, r) {
       ctx.fillStyle = "rgba(20,14,44,.3)"; ctx.fillRect(bx + bw * .7, roof, bw * .3, bh);
       ctx.fillStyle = "rgba(255,244,226,.35)"; ctx.fillRect(bx, roof, bw, .4);
       for (let wy = roof + 2.2; wy < bot - 1; wy += 3.4) for (let wx = bx + 1.2; wx < bx + bw - 1.6; wx += 2.8) {
-        ctx.fillStyle = lampK > .3 && hs(k * 13.7 + wx * 1.3 + wy * .7) < .42 ? "rgba(255,206,120,.9)" : "rgba(26,34,66,.55)"; ctx.fillRect(wx, wy, 1.2, 1.8);
+        ctx.fillStyle = lampK > .3 && hs(k * 13.7 + wx * 1.3 + wy * .7) < (o.ground ? .12 : .42) ? "rgba(255,206,120," + (o.ground ? .3 : .9) + ")" : "rgba(26,34,66,.55)"; ctx.fillRect(wx, wy, 1.2, 1.8);
       }
     }
     ctx.globalAlpha = 1;
@@ -4638,7 +4638,7 @@ function cityRays(t, l, r) {                                                   /
 function cityRail(l, r, now) {
   const P = cityData && cityData.piazza; if (!P) return;
   const x0 = Math.max(l - 4, P.x - 4), x1 = Math.min(r + 4, P.x + P.w + 4); if (x1 <= x0) return;
-  const B = CITY_B, wt = B - 4.6, wb = B + .6, top = wt - 5.2, GAP = 2.4, IRON = "#1c2433";
+  const B = CITY_B, wt = B - 5.3, wb = B + .7, top = wt - 6, GAP = 2.4, IRON = "#1c2433";
   ctx.save();
   ctx.fillStyle = vLG(0, wt, 0, wb, [[0, "#9a9a9e"], [1, "#6a6a74"]]); ctx.fillRect(x0, wt, x1 - x0, wb - wt);                 // murinho de tijolo cinza (suporte)
   ctx.fillStyle = "rgba(40,36,52,.4)"; ctx.fillRect(x0, wt + (wb - wt) / 2 - .2, x1 - x0, .4);                                 // junta horizontal
