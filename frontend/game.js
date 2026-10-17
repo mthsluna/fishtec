@@ -3723,12 +3723,17 @@ function introView(now) {                               // longe (zoom < 1): cen
 }
 
 DAY.update(gameMinutes()); buildLayers(performance.now());     // pré-carrega o cenário inteiro antes do primeiro quadro
-let last = performance.now(), slow = 0;
+2.5.8let last = performance.now(), slow = 0, fast = 0, S_MAX = S, recoverNeed = 600, lastRecover = -1e9;
 (function loop(now) {
   const raw = (now - last) / 1000;
   update(Math.min(0.05, raw)); last = now;
-  slow = raw > 0.04 ? slow + 1 : Math.max(0, slow - 1);          // abaixo de ~25 fps por um tempo: reduz a resolução
-  if (slow > 60 && S > 1) { setScale(S > 1.5 ? 1.5 : 1); slow = 0; }
+  if (raw < 0.5) slow = raw > 0.04 ? slow + 1 : Math.max(0, slow - 1);   // abaixo de ~25 fps por um tempo: reduz a resolução (travadas enormes, como aba em segundo plano ou carregamento, não contam)
+  if (slow > 60 && S > 1) {
+    if (now - lastRecover < 30000) recoverNeed = Math.min(recoverNeed * 2, 9600);   // voltar à resolução alta deu errado há pouco: espera mais antes de tentar de novo
+    setScale(S > 1.5 ? 1.5 : 1); slow = 0; fast = 0;
+  }
+  fast = raw < 0.026 ? fast + 1 : 0;                              // ~10 s seguidos rodando bem (acima de ~38 fps): sobe a resolução de volta (antes ela só descia e o jogo ficava borrado para sempre)
+  if (fast > recoverNeed && S < S_MAX && !CITY.on) { setScale(S < 1.5 ? 1.5 : S_MAX); fast = 0; lastRecover = now; }
   net(now); draw(now); if (UI.open) drawPreview(now); requestAnimationFrame(loop);
 })(last);
 // (o personalizar agora abre pelo botão JOGAR, ver introPlay)
