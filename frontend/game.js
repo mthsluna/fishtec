@@ -2571,7 +2571,7 @@ const CITY_FW = -200, CITY_FX1 = CITY.MAX + 260;                         // trec
 const CITY_CAM_MIN = -50, CITY_CAM_PAD = 90;                             // até onde a câmera pode ir (esquerda / depois do fim da cidade)
 const CITY_CH = 200;                                                     // altura (px do mundo) do que a câmera chega a ver
 const CITY_GF = 54, CITY_FH = 28;
-const CLOTHES_K = 1.4;                                                   // BOUTIQUE: tamanho da loja (1 = original; 1.4 = 40% maior em tudo: manequins, vitrines, letreiro, porta; cresce para cima e para os lados)
+const CLOTHES_K = 1.6;                                                   // BOUTIQUE: tamanho da loja (1 = original; 1.4 = 40% maior em tudo: manequins, vitrines, letreiro, porta; cresce para cima e para os lados)
 const CLOTHES_W = Math.round(128 * CLOTHES_K), CLOTHES_GF = Math.round(CITY_GF * CLOTHES_K) + 4;   // largura do prédio e altura do térreo da loja                                        // altura do térreo e de cada andar de cima
 const CITY_WALLS = [                                                     // [parede, sombra, destaque]
   ["#e0a85a", "#b9843f", "#efc27c"], ["#d2704a", "#a9502f", "#e48a62"], ["#ecd9a4", "#c4ad78", "#f6e8c0"], ["#dd8f7a", "#b66a58", "#eba48f"],
@@ -3349,7 +3349,7 @@ function vBlockDoll(cx, fy, u, o) {                                            /
   const E = (MAX_H - 1) * FISHER_TOP, LX = E * LEG_SHARE, TX = E - LX, AL2 = 8 + TX, shirt = o.shirt, sleeve = shade(shirt, 0.84), skin = "#f1c27d";
   ctx.save(); ctx.translate(cx, fy); ctx.scale(u, u);
   vEll(0, .5, 8.6, 1.5, "rgba(20,8,26,.32)");
-  [[-4.6, shade(o.pants, 0.75)], [0.6, o.pants]].forEach(([lx, col]) => { R(col, lx, -11 - LX, 4, 9 + LX); R("rgba(0,0,0,.14)", lx, -11 - LX, 1, 9 + LX); R("#15110e", lx - 0.5, -2.5, 5, 2.5); });   // pernas longas e sapatos
+  [[-4.6, shade(o.pants, 0.75)], [0.6, o.pants]].forEach(([lx, col]) => { R(col, lx, -11 - LX, 4, 9 + LX); R("rgba(0,0,0,.14)", lx, -11 - LX, 1, 9 + LX); R(o.shoes || "#15110e", lx - 0.5, -2.5, 5, 2.5); });   // pernas longas e sapatos
   ctx.translate(0, -(LX + TX));                                                                                                                                                   // tudo de cima sobe
   R(shirt, -TW, -24, TW * 2, 14 + TX); R("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TX); R("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TX);                                      // tronco
   R("#3e2a18", -TW, -12 + TX, TW * 2, 2);                                                                                                                                         // cinto
@@ -3374,11 +3374,11 @@ function vClothes(D, b, bi, B) {                                              //
 }
 function vClothesBase(D, b, bi, B) {
   // Réplica minimalista da loja da Prada Marfa: caixa bege de um andar só, dois letreiros pretos com o nome (um sobre cada vitrine),
-  // toldos cor de areia logo abaixo, duas vitrines escuras com poucos sapatos em prateleiras iluminadas e uma porta de vidro estreita no meio.
-  const x = b.x, w = 128, q = vDetRng(5150);
+  // toldos cor de areia logo abaixo, duas vitrines escuras com dois manequins cada (mesmo corpo e tamanho do pescador, sem rosto) e porta de vidro no meio.
+  const x = b.x, w = 128, q = vDetRng(5150), K = b.w / 128;
   const NAME = "FINSHION", FONT = UI_FONT;                                              // nome da loja e fonte (a mesma do jogo)
-  const wy = B - 41, gh = 32, ww = 42, lx = x + 8, rx = x + 78;                         // vitrines: topo, altura, largura e posição
-  const dX = x + 58, dW = 12, dY = B - 40.2, dH = 36.5;                                 // vidro da porta
+  const wy = B - 44, gh = 37.5, ww = 42, lx = x + 8, rx = x + 78;                       // vitrines: topo (escondido atrás do toldo), altura, largura e posição
+  const dX = x + 58, dW = 12, dY = B - 40.6, dH = 37;                                   // vidro da porta
   const MET = "#2a2b2d";                                                                 // metal escuro das molduras
   const T = (s, tx, ty, col, size, o) => vTxt(s, tx, ty, col, size, Object.assign({ font: FONT, style: "normal" }, o));
 
@@ -3391,64 +3391,81 @@ function vClothesBase(D, b, bi, B) {
   ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fillRect(x - .8, B - 59.8, w + 1.6, .35); vSoft(x, B - 56.6, w, 3.2, .2, "70,50,24");
   ctx.fillStyle = "#c7b99a"; ctx.fillRect(x, B - 3.6, w, 3.6); ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillRect(x, B - 3.6, w, .3);
 
-  // ---- letreiros pretos (nome nos dois lados) e toldos cor de areia
+  // ---- letreiros pretos (nome nos dois lados) e toldos cor de areia com dobras, costuras e sombra projetada
   const sign = sx => {
     const sw = ww - 4, cx = sx + sw / 2;
-    vRR(sx + .3, B - 52.9, sw, 7.8, .3, "rgba(60,44,20,.28)"); vRR(sx, B - 53.2, sw, 7.8, .3, vLG(0, B - 53.2, 0, B - 45.4, [[0, "#1b1b1e"], [1, "#09090b"]]));
-    ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(sx, B - 53.2, sw, .3);
-    T(NAME, cx, B - 49, "#ffffff", 4.6, { ls: 1, maxW: sw - 6 });
-    T("BOUTIQUE", cx, B - 46.7, "rgba(255,255,255,.75)", 1.5, { ls: .6, maxW: 14 });
-    D.lamps.push({ x: cx, y: B - 49, r: 14 });
+    vRR(sx + .3, B - 54.9, sw, 6.8, .3, "rgba(60,44,20,.28)"); vRR(sx, B - 55.2, sw, 6.8, .3, vLG(0, B - 55.2, 0, B - 48.4, [[0, "#1b1b1e"], [1, "#09090b"]]));
+    ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(sx, B - 55.2, sw, .3);
+    T(NAME, cx, B - 51.3, "#ffffff", 4.2, { ls: 1, maxW: sw - 6 });
+    T("BOUTIQUE", cx, B - 49.3, "rgba(255,255,255,.75)", 1.4, { ls: .6, maxW: 14 });
+    D.lamps.push({ x: cx, y: B - 51, r: 14, nodot: true });
   };
   const awning = (ax, aw) => {
-    vPoly([[ax + 1.6, B - 44.6], [ax + aw - 1.6, B - 44.6], [ax + aw, B - 40.6], [ax, B - 40.6]], vLG(0, B - 44.6, 0, B - 40.6, [[0, "#d8ccb2"], [1, "#bdae92"]]));
-    vRR(ax, B - 40.6, aw, 3.2, .2, vLG(0, B - 40.6, 0, B - 37.4, [[0, "#b9aa8e"], [1, "#9d8f76"]]));
-    ctx.fillStyle = "rgba(255,255,255,.12)"; for (let sx = ax + 2.2; sx < ax + aw - 1; sx += 2.6) ctx.fillRect(sx, B - 44.4, .22, 7);
-    ctx.fillStyle = "rgba(60,48,30,.5)"; ctx.fillRect(ax, B - 37.6, aw, .3);
-    T(NAME, ax + aw / 2, B - 38.6, "#3a3125", 1.9, { ls: .5 });
-    vSoft(ax + 1, B - 37.4, aw - 2, 7, .5, "0,0,0");                                    // sombra do toldo no vidro
+    const ty0 = B - 48, ty1 = B - 44.4, vy1 = B - 41;
+    vSoft(ax - 1, ty0 - 1.4, aw + 2, 1.6, .22, "60,44,20");                                               // sombrinha na parede em cima do toldo
+    vPoly([[ax + 1.8, ty0], [ax + aw - 1.8, ty0], [ax + aw, ty1], [ax, ty1]], vLG(0, ty0, 0, ty1, [[0, "#e6dbc2"], [1, "#c4b599"]]));          // parte inclinada (pega luz)
+    ctx.save(); ctx.beginPath(); ctx.moveTo(ax + 1.8, ty0); ctx.lineTo(ax + aw - 1.8, ty0); ctx.lineTo(ax + aw, vy1); ctx.lineTo(ax, vy1); ctx.closePath(); ctx.clip();
+    for (let sx = ax, i = 0; sx < ax + aw; sx += 3.5, i++) {                                              // dobras da lona: faixas alternando luz e sombra
+      ctx.fillStyle = i % 2 ? "rgba(255,250,235,.16)" : "rgba(80,62,36,.12)"; ctx.fillRect(sx, ty0, 3.5, vy1 - ty0);
+      ctx.fillStyle = "rgba(80,62,36,.18)"; ctx.fillRect(sx, ty0, .22, vy1 - ty0);
+    }
+    ctx.restore();
+    vRR(ax - .6, ty1, aw + 1.2, vy1 - ty1, .3, vLG(0, ty1, 0, vy1, [[0, "#bfb094"], [.6, "#a99a7e"], [1, "#8f816a"]]));                         // bambolina (frente)
+    for (let sx = ax + 3.5; sx < ax + aw - 1; sx += 3.5) { ctx.fillStyle = "rgba(60,46,26,.2)"; ctx.fillRect(sx, ty1, .25, vy1 - ty1); ctx.fillStyle = "rgba(255,255,255,.14)"; ctx.fillRect(sx + .25, ty1, .2, vy1 - ty1); }
+    ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.fillRect(ax, ty1, aw, .3);                              // fio de luz na quina
+    ctx.fillStyle = "rgba(255,255,255,.3)"; ctx.fillRect(ax + 1.8, ty0, aw - 3.6, .3);
+    ctx.fillStyle = "rgba(50,38,22,.55)"; ctx.fillRect(ax - .6, vy1 - .3, aw + 1.2, .35);                // barra de baixo
+    ctx.strokeStyle = "rgba(60,46,26,.35)"; ctx.lineWidth = .18; ctx.setLineDash([.7, .5]); ctx.beginPath(); ctx.moveTo(ax + .2, ty1 + .9); ctx.lineTo(ax + aw - .2, ty1 + .9); ctx.moveTo(ax + .2, vy1 - .9); ctx.lineTo(ax + aw - .2, vy1 - .9); ctx.stroke(); ctx.setLineDash([]);   // costuras
+    T(NAME, ax + aw / 2, B - 42.3, "#3a3125", 1.8, { ls: .5 });
+    vLine(ax + .2, ty0, ax + .2, vy1 - .2, .5, MET); vLine(ax + aw - .2, ty0, ax + aw - .2, vy1 - .2, .5, MET);   // hastes de metal nas pontas
+    vSoft(ax + .6, vy1, aw - 1.2, 4.5, .4, "0,0,0");                                                     // sombra do toldo no vidro
   };
 
-  // ---- vitrines: vidro escuro esverdeado com prateleiras iluminadas e poucos sapatos
-  const shoe = (sx, sy, c) => {
-    vPoly([[sx, sy], [sx, sy - 2.4], [sx + 1.2, sy - 2.4], [sx + 1.6, sy - 1.1], [sx + 3.8, sy - .8], [sx + 4.1, sy - .3], [sx + 3.8, sy]], vFabric(sx, sx + 4.1, c));
-    ctx.fillStyle = "rgba(255,255,255,.4)"; ctx.fillRect(sx + 1.9, sy - 1, 1.5, .2);
-  };
+  // ---- vitrines: fundo escuro esverdeado, piso claro iluminado e dois manequins coloridos (corpo do pescador, SEM rosto)
+  const OUT = [[{ shirt: "#e63946", pants: "#1d3557", shoes: "#ffd166", hair: "#2a1a10" }, { shirt: "#ffd166", pants: "#6a4c93", shoes: "#2ec4b6", hat: "#e63946" }],
+               [{ shirt: "#3a86ff", pants: "#ff9f1c", shoes: "#80ed99", hat: "#17151b" }, { shirt: "#ff70a6", pants: "#2a9d8f", shoes: "#3a86ff", hair: "#d9a441" }]];
   const win = (wx, side) => {
     vRR(wx - 1, wy - 1, ww + 2, gh + 2, .4, MET);
     ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, gh); ctx.clip();
-    ctx.fillStyle = vLG(0, wy, 0, wy + gh, [[0, "#162826"], [1, "#0b1514"]]); ctx.fillRect(wx, wy, ww, gh);                    // fundo escuro verde-água
-    vBlot(wx + ww / 2, wy + 16, 30, "120,230,200", .16);
-    [wy + 11, wy + 20, wy + 29].forEach((sy, r) => {                                                                          // prateleiras de vidro com luz por baixo
-      if (r < 2) for (let i = 0; i < 3; i++) shoe(wx + 7 + i * 12 + (r ? 4 : 0) + side * (r ? -2 : 2), sy, [["#e9e4d8", "#1a1a1d", "#b5651d"], ["#1a1a1d", "#c9c2b0", "#7a1f2b"]][side][(i + r) % 3]);
-      ctx.fillStyle = "rgba(225,245,238,.8)"; ctx.fillRect(wx + 1.5, sy, ww - 3, .45);
-      ctx.fillStyle = vLG(0, sy + .45, 0, sy + 5, [[0, "rgba(160,255,225,.42)"], [1, "rgba(160,255,225,0)"]]); ctx.fillRect(wx + 1.5, sy + .45, ww - 3, 4.5);
+    ctx.fillStyle = vLG(0, wy, 0, wy + gh, [[0, "#1a2e2b"], [1, "#0d1917"]]); ctx.fillRect(wx, wy, ww, gh);                    // fundo escuro verde-água
+    vBlot(wx + ww / 2, wy + 22, 34, "130,235,205", .2);
+    ctx.fillStyle = vLG(0, wy, 0, wy + 8, [[0, "rgba(200,255,235,.55)"], [1, "rgba(200,255,235,0)"]]); ctx.fillRect(wx, wy, ww, 8);   // friso de luz no forro
+    const fy = B - 9;                                                                                                          // chão dos manequins (em cima do pódio)
+    ctx.fillStyle = vLG(0, fy, 0, fy + 2.5, [[0, "#e6f0eb"], [1, "#a9bdb5"]]); ctx.fillRect(wx, fy, ww, wy + gh - fy);
+    ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fillRect(wx, fy, ww, .4);
+    const xs = [wx + ww * .28, wx + ww * .72];
+    xs.forEach(sx => {                                                                                                         // spot de cima: cone de luz + poça no pódio
+      ctx.fillStyle = vLG(0, wy + 4, 0, fy, [[0, "rgba(220,255,240,.3)"], [1, "rgba(220,255,240,.04)"]]);
+      ctx.beginPath(); ctx.moveTo(sx - 1.4, wy + 4); ctx.lineTo(sx + 1.4, wy + 4); ctx.lineTo(sx + 11, fy); ctx.lineTo(sx - 11, fy); ctx.closePath(); ctx.fill();
+      vEll(sx, fy + 1.2, 9, 1.3, "rgba(255,255,255,.45)");
     });
-    ctx.fillStyle = vLG(0, wy, 0, wy + gh * .55, [[0, "rgba(176,208,236,.3)"], [1, "rgba(176,208,236,0)"]]); ctx.fillRect(wx, wy, ww, gh * .55);   // céu refletido
-    ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.beginPath(); ctx.moveTo(wx + 9, wy); ctx.lineTo(wx + 17, wy); ctx.lineTo(wx + 6, wy + gh); ctx.lineTo(wx - 2, wy + gh); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.06)"; ctx.beginPath(); ctx.moveTo(wx + 21, wy); ctx.lineTo(wx + 25, wy); ctx.lineTo(wx + 14, wy + gh); ctx.lineTo(wx + 10, wy + gh); ctx.closePath(); ctx.fill();
+    const u = 1 / K;                                                                                                           // 1 unidade do mundo = 1 do pescador: mesmo tamanho do personagem (corpo mais alto)
+    xs.forEach((sx, i) => vBlockDoll(sx, fy + .6, u, OUT[side][i]));
+    ctx.fillStyle = vLG(0, wy, 0, wy + gh * .55, [[0, "rgba(176,208,236,.26)"], [1, "rgba(176,208,236,0)"]]); ctx.fillRect(wx, wy, ww, gh * .55);   // céu refletido
+    ctx.fillStyle = "rgba(255,255,255,.09)"; ctx.beginPath(); ctx.moveTo(wx + 9, wy); ctx.lineTo(wx + 17, wy); ctx.lineTo(wx + 6, wy + gh); ctx.lineTo(wx - 2, wy + gh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.055)"; ctx.beginPath(); ctx.moveTo(wx + 21, wy); ctx.lineTo(wx + 25, wy); ctx.lineTo(wx + 14, wy + gh); ctx.lineTo(wx + 10, wy + gh); ctx.closePath(); ctx.fill();
     ctx.restore();
     ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = .25; ctx.strokeRect(wx, wy, ww, gh);
     sign(wx + 2); awning(wx - 1, ww + 2);
-    D.wins.push({ x: wx, y: wy, w: ww, h: gh, lit: true, soft: true, big: true, cols: 1, ga: .3 });
-    D.lamps.push({ x: wx + ww / 2, y: B - 26, r: 24 });
+    D.wins.push({ x: wx, y: wy + 3, w: ww, h: gh - 3, lit: true, soft: true, big: true, cols: 1, ga: .26 });
+    D.lamps.push({ x: wx + ww / 2, y: B - 26, r: 26, nodot: true });
   };
   win(lx, 0); win(rx, 1);
 
   // ---- porta de vidro estreita no meio, com moldura de metal, puxador e degrau de concreto
   vRR(dX - 2, dY - 1.4, dW + 4, dH + 1.4 + 3.4, .4, MET);
   ctx.save(); ctx.beginPath(); ctx.rect(dX, dY, dW, dH); ctx.clip();
-  ctx.fillStyle = vLG(0, dY, 0, dY + dH, [[0, "#162826"], [1, "#0b1514"]]); ctx.fillRect(dX, dY, dW, dH);
-  vBlot(dX + dW / 2, dY + 14, 14, "120,230,200", .2);
-  ctx.fillStyle = "rgba(225,245,238,.8)"; ctx.fillRect(dX + 1, dY + 17, dW - 2, .4); ctx.fillStyle = vLG(0, dY + 17.4, 0, dY + 22, [[0, "rgba(160,255,225,.4)"], [1, "rgba(160,255,225,0)"]]); ctx.fillRect(dX + 1, dY + 17.4, dW - 2, 4.6);
-  ctx.fillStyle = vLG(0, dY, 0, dY + dH * .55, [[0, "rgba(176,208,236,.32)"], [1, "rgba(176,208,236,0)"]]); ctx.fillRect(dX, dY, dW, dH * .55);
+  ctx.fillStyle = vLG(0, dY, 0, dY + dH, [[0, "#1a2e2b"], [1, "#0d1917"]]); ctx.fillRect(dX, dY, dW, dH);
+  vBlot(dX + dW / 2, dY + 16, 15, "130,235,205", .22);
+  ctx.fillStyle = vLG(0, dY, 0, dY + 7, [[0, "rgba(200,255,235,.5)"], [1, "rgba(200,255,235,0)"]]); ctx.fillRect(dX, dY, dW, 7);
+  ctx.fillStyle = vLG(0, dY, 0, dY + dH * .55, [[0, "rgba(176,208,236,.3)"], [1, "rgba(176,208,236,0)"]]); ctx.fillRect(dX, dY, dW, dH * .55);
   ctx.fillStyle = "rgba(255,255,255,.1)"; ctx.beginPath(); ctx.moveTo(dX + 3, dY); ctx.lineTo(dX + 7, dY); ctx.lineTo(dX + 1, dY + dH); ctx.lineTo(dX - 3, dY + dH); ctx.closePath(); ctx.fill();
   ctx.restore();
   vRR(dX + dW - 2.4, dY + 13, .8, 11, .4, vLG(dX + dW - 2.4, 0, dX + dW - 1.6, 0, [[0, "#f2f2f0"], [1, "#8d9194"]]));        // puxador de metal
   ctx.fillStyle = MET; ctx.fillRect(dX, dY + dH - 3, dW, 3);
   vRR(dX - 3.4, B - 2.2, dW + 6.8, 2.4, .3, vLG(0, B - 2.2, 0, B + .2, [[0, "#d4c8ad"], [1, "#a79b82"]])); vSoft(dX - 3.4, B + .2, dW + 6.8, 2.2, .22);   // degrau
   D.wins.push({ x: dX, y: dY, w: dW, h: dH - 3, lit: true, soft: true, ga: .3 });
-  D.lamps.push({ x: dX + dW / 2, y: B - 22, r: 14 });
+  D.lamps.push({ x: dX + dW / 2, y: B - 22, r: 14, nodot: true });
   D.doors.push({ cx: dX + dW / 2, x: dX, y: dY, w: dW, h: dH, arch: false, col: MET, kind: "clothes", name: b.name || "BOUTIQUE", o: 0, t: 0 });
 }
 
@@ -4341,7 +4358,7 @@ function cityLightBuild() {
       ctx.fillStyle = vRG(lp.x, lp.y, 1, R, [[0, "rgba(255,196,120,.26)"], [.3, "rgba(255,170,90,.08)"], [1, "rgba(255,160,80,0)"]]); ctx.fillRect(lp.x - R, lp.y - R, R * 2, R * 2);
       const PR = lp.r * 1.2; ctx.save(); ctx.translate(lp.x, CITY_B + 10); ctx.scale(1, .26);              // poça de luz no chão (achatada)
       ctx.fillStyle = vRG(0, 0, 2, PR, [[0, "rgba(255,200,120,.34)"], [.5, "rgba(255,170,90,.12)"], [1, "rgba(255,160,80,0)"]]); ctx.fillRect(-PR, -PR, PR * 2, PR * 2); ctx.restore();
-      vCirc(lp.x, lp.y, 1.1, "rgba(255,238,190,.85)");
+      if (!lp.nodot) vCirc(lp.x, lp.y, 1.1, "rgba(255,238,190,.85)");
     });
   } finally { ctx = main; }
   const spr = (w, f) => { const cv = document.createElement("canvas"); cv.width = cv.height = w; const c = cv.getContext("2d"); f(c, w); return cv; };
