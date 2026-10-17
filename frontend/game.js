@@ -2366,6 +2366,26 @@ function drawMotes(now, X) {
   ctx.restore();
 }
 
+// Raios e flare do sol são desenhados num canvas à parte e o relevo (montanhas, colinas, cais) é "recortado" deles:
+// a luz nasce ATRÁS das montanhas e só aparece no céu, em vez de atravessar a pedra.
+let sunFx = null;
+function sunLight(now, sX, sY, lx, view) {
+  if (DAY.sunA < 0.02) return;
+  const main = ctx, w = buf.width, h = buf.height;
+  if (!sunFx || sunFx.width !== w || sunFx.height !== h) { sunFx = document.createElement("canvas"); sunFx.width = w; sunFx.height = h; sunFx.c = sunFx.getContext("2d"); }
+  const sc = sunFx.c, tf = main.getTransform();
+  sc.setTransform(1, 0, 0, 1, 0, 0); sc.globalCompositeOperation = "source-over"; sc.globalAlpha = 1; sc.clearRect(0, 0, w, h);
+  sc.setTransform(tf);
+  ctx = sc;
+  try { drawSunShafts(now, sX, sY); drawSunFlare(now, sX, sY); } finally { ctx = main; }
+  sc.setTransform(tf);                                     // mesma câmera da cena (zoom incluído)
+  if (view.z > 1) { sc.scale(view.z, view.z); sc.translate(-view.sx, -view.sy); }
+  sc.globalCompositeOperation = "destination-out";
+  [["far", PAR.far], ["mid", PAR.mid], ["near", PAR.near], ["hills", PAR.hills], ["deck", PAR.pier]].forEach(([n, f]) => { if (layers[n]) sc.drawImage(layers[n], lx(f), 0, LW, H); });
+  sc.globalCompositeOperation = "source-over";
+  main.save(); main.setTransform(1, 0, 0, 1, 0, 0); main.globalCompositeOperation = "lighter"; main.drawImage(sunFx, 0, 0); main.restore();
+}
+
 function draw(now) {
   DAY.update(gameMinutes());
   if (!layers) buildLayers(now);
@@ -2446,8 +2466,8 @@ function draw(now) {
   ctx.restore();                                           // fim da câmera: a interface abaixo não é ampliada
   if (!INTRO.on) {
     const sX = (ox + camX * PAR.sky + DAY.sunX - lastView.sx) * lastView.z, sY = (DAY.sunY - lastView.sy) * lastView.z;
-    drawSunShafts(now, sX, sY); if (lastView.z === 1) drawMotes(now, sX);
-    drawSunFlare(now, sX, sY);
+    sunLight(now, sX, sY, lx, lastView);                  // raios + flare (bloqueados pelo relevo)
+    if (lastView.z === 1) drawMotes(now, sX);              // poeira fica na frente de tudo, perto da câmera
   }   // raios, poeira e flare do sol (em tela, por cima da cena)   // flare do sol (em tela, por cima da cena)
   if (INTRO.on) introView(now);
 
@@ -2690,30 +2710,81 @@ function vCafeInside(x, y, w, h) {                                           // 
   });
   vRR(x, y + h - 6, w, 6, 0, vLG(0, y + h - 6, 0, y + h, [[0, "rgba(120,70,40,.9)"], [1, "rgba(70,40,24,.95)"]])); ctx.fillStyle = "rgba(255,226,180,.4)"; ctx.fillRect(x, y + h - 6, w, .5);   // balcão
 }
-function vSheen(x, y, w, h, a) {                                              // brilho de vidro bem discreto: duas faixas diagonais + sombra no topo + fio de luz embaixo
-  ctx.save(); ctx.globalAlpha = a;
-  ctx.fillStyle = "#fff"; const sk = h * .4;
-  ctx.beginPath(); ctx.moveTo(x + w * .12, y + h); ctx.lineTo(x + w * .12 + sk, y); ctx.lineTo(x + w * .12 + sk + w * .09, y); ctx.lineTo(x + w * .12 + w * .09, y + h); ctx.closePath(); ctx.fill();
-  ctx.globalAlpha = a * .55; ctx.beginPath(); ctx.moveTo(x + w * .27, y + h); ctx.lineTo(x + w * .27 + sk, y); ctx.lineTo(x + w * .27 + sk + w * .035, y); ctx.lineTo(x + w * .27 + w * .035, y + h); ctx.closePath(); ctx.fill();
-  ctx.restore();
-  vSoft(x, y, w, Math.min(4, h * .22), .22, "10,20,40");
+// ---------- Vidros: painéis com caixilhos em relevo, bisel, batente fundo, bandeira em leque e (por quadro, em cityGlass) reflexo de céu, prédios e sol ----------
+function vPanes(x, y, w, h, arch, big) {                                     // divide o vidro em painéis (a pintura fixa e o reflexo por quadro usam a MESMA divisão)
+  const panes = [], bars = [], mt = w >= 14 ? .8 : .55;
+  const cols = big ? Math.max(1, Math.round(w / 15)) : w >= 14 ? 3 : w >= 5 ? 2 : 1;
+  let y0 = y, h0 = h;
+  if (arch) { const rr = w / 2; panes.push({ fan: true, x, y, w, h: rr }); bars.push({ x, y: y + rr - mt / 2, w, h: mt }); y0 = y + rr + mt / 2; h0 = h - rr - mt / 2; }
+  const rowsH = [];
+  if (big) { const th = Math.min(3.4, h * .13); rowsH.push(th, h0 - th - mt); }
+  else { const rows = h0 >= 15 ? 3 : h0 >= 7 ? 2 : 1, rh = (h0 - (rows - 1) * mt) / rows; for (let i = 0; i < rows; i++) rowsH.push(rh); }
+  const pw = (w - (cols - 1) * mt) / cols; let yy = y0;
+  rowsH.forEach((rh, ri) => {
+    for (let c = 0; c < cols; c++) panes.push({ x: x + c * (pw + mt), y: yy, w: pw, h: rh });
+    if (ri < rowsH.length - 1) bars.push({ x, y: yy + rh, w, h: mt });
+    yy += rh + mt;
+  });
+  for (let c = 1; c < cols; c++) bars.push({ x: x + c * pw + (c - 1) * mt, y: y0, w: mt, h: h0 });
+  return { panes, bars, mt };
+}
+function vPanePath(p) { ctx.beginPath(); if (p.fan) { ctx.moveTo(p.x, p.y + p.h); ctx.arc(p.x + p.w / 2, p.y + p.h, p.w / 2, Math.PI, 0); ctx.closePath(); } else ctx.rect(p.x, p.y, p.w, p.h); }
+function vBars(P) {                                                          // caixilhos de madeira pintada: sombra no vidro, degradê e fio de luz no topo
+  P.bars.forEach(b => {
+    const hor = b.w > b.h;
+    ctx.fillStyle = "rgba(14,24,44,.24)"; ctx.fillRect(b.x + .25, b.y + .35, b.w, b.h);
+    ctx.fillStyle = vLG(b.x, b.y, b.x + (hor ? 0 : b.w), b.y + (hor ? b.h : 0), [[0, "#fcf5e2"], [1, "#cdc1a4"]]); ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = "rgba(255,255,255,.55)"; if (hor) ctx.fillRect(b.x, b.y, b.w, .18); else ctx.fillRect(b.x, b.y, .18, b.h);
+  });
+}
+function vFan(x, y, w) {                                                     // bandeira em leque (raios + anel) dos arcos
+  const rr = w / 2, cx = x + rr, cy = y + rr, mt = w >= 14 ? .8 : .55;
+  (w >= 8 ? [.25, .5, .75] : [.5]).forEach(f => { const a = Math.PI * (1 - f); vLine(cx, cy, cx + Math.cos(a) * rr, cy - Math.sin(a) * rr, mt * .9, "#efe6cf"); });
+  ctx.beginPath(); ctx.arc(cx, cy, rr * .5, Math.PI, 0); ctx.lineWidth = mt * .7; ctx.strokeStyle = "#efe6cf"; ctx.stroke();
+}
+function vPaneFinish(p, i, k) {                                              // cada painel: luz no alto, escurece embaixo, bisel com borda ciano (dispersão) em cima e rosada embaixo
+  vPanePath(p); ctx.fillStyle = vLG(0, p.y, 0, p.y + p.h, [[0, "rgba(255,255,255," + (.07 + .07 * k).toFixed(3) + ")"], [.5, "rgba(255,255,255,.015)"], [1, "rgba(8,16,34,.16)"]]); ctx.fill();
+  if (p.fan) return;
+  ctx.fillStyle = "rgba(190,240,255,.34)"; ctx.fillRect(p.x, p.y, p.w, .3); ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.fillRect(p.x, p.y, .3, p.h);
+  ctx.fillStyle = "rgba(10,18,36,.38)"; ctx.fillRect(p.x, p.y + p.h - .3, p.w, .3); ctx.fillRect(p.x + p.w - .3, p.y, .3, p.h);
+  ctx.fillStyle = "rgba(255,170,200,.14)"; ctx.fillRect(p.x, p.y + p.h - .6, p.w, .3);
+}
+function vShopGlass(x, y, w, h) {                                            // vitrine grande (o chamador já fez o clip): bandeira no alto, caixilhos finos, bisel e sombra do batente
+  const P = vPanes(x, y, w, h, false, true), seed = (((x * 73856093) ^ (y * 19349663)) >>> 0);
+  P.panes.forEach((p, i) => vPaneFinish(p, i, ((seed >>> (i * 3)) & 7) / 7));
+  vSoft(x, y, w, Math.min(4, h * .2), .3, "10,20,40");
+  vBars(P);
   ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fillRect(x, y + h - .6, w, .6);
 }
 function vGlass(x, y, w, h, arch, cross) {
-  const p = () => arch ? vArchP(x, y, w, h) : vRR(x, y, w, h, .7);
-  p(); ctx.fillStyle = vLG(x, y, x, y + h, [[0, "#b4d6ec"], [.5, "#7aa3c6"], [1, "#46688f"]]); ctx.fill();
-  ctx.save(); p(); ctx.clip();
-  vInterior(x, y, w, h, arch, (((x * 73856093) ^ (y * 19349663)) >>> 0), false);                // o que há atrás do vidro
-  vSheen(x, y, w, h, .13);
+  const shape = () => arch ? vArchP(x, y, w, h) : vRR(x, y, w, h, .7);
+  const P = vPanes(x, y, w, h, arch, false), seed = (((x * 73856093) ^ (y * 19349663)) >>> 0);
+  shape(); ctx.fillStyle = vLG(x, y, x, y + h, [[0, "#9cc4e0"], [.45, "#5f88ae"], [1, "#2c4668"]]); ctx.fill();
+  ctx.save(); shape(); ctx.clip();
+  vInterior(x, y, w, h, arch, seed, false);                                  // o que há atrás do vidro
+  P.panes.forEach((p, i) => vPaneFinish(p, i, ((seed >>> (i * 3)) & 7) / 7));
+  vSoft(x, y, w, Math.min(3.4, h * .22), .36, "10,20,40");                   // batente fundo: sombra no alto e à esquerda, luz na direita
+  ctx.fillStyle = vLG(x, 0, x + 1.7, 0, [[0, "rgba(10,16,34,.32)"], [1, "rgba(10,16,34,0)"]]); ctx.fillRect(x, y, 1.7, h);
+  ctx.fillStyle = vLG(x + w - 1, 0, x + w, 0, [[0, "rgba(255,255,255,0)"], [1, "rgba(255,255,255,.12)"]]); ctx.fillRect(x + w - 1, y, 1, h);
   ctx.restore();
-  if (cross) { ctx.fillStyle = "#f0e8d2"; ctx.fillRect(x + w / 2 - .42, y, .84, h); ctx.fillRect(x, y + h * .5 - .42, w, .84); }
+  if (cross) { vBars(P); if (arch) vFan(x, y, w); }
+  shape(); ctx.strokeStyle = "rgba(24,20,34,.4)"; ctx.lineWidth = .3; ctx.stroke();
 }
-function vWin(x, y, w, h, o) {                                              // janela: moldura de pedra, vidro com reflexo, caixilho e peitoril
-  const arch = !!o.arch, fr = o.frame || "#ebe1c8";
+function vWin(x, y, w, h, o) {                                              // janela: sombra na parede, moldura de pedra em dois níveis, verga/fecho, vidro com painéis, peitoril com mísulas
+  const arch = !!o.arch, fr = o.frame || "#ebe1c8", cxw = x + w / 2;
+  ctx.save(); ctx.translate(.7, 1); if (arch) vArchP(x - 1.4, y - 1.4, w + 2.8, h + 1.4); else vRR(x - 1.4, y - 1.4, w + 2.8, h + 2.8, 1.1); ctx.fillStyle = "rgba(44,22,86,.3)"; ctx.fill(); ctx.restore();
   if (arch) vArchP(x - 1.4, y - 1.4, w + 2.8, h + 1.4); else vRR(x - 1.4, y - 1.4, w + 2.8, h + 2.8, 1.1);
   ctx.fillStyle = vLG(x, 0, x + w, 0, [[0, vLight(fr, .15)], [1, vDark(fr, .12)]]); ctx.fill();
+  if (arch) vArchP(x - .7, y - .7, w + 1.4, h + .7); else vRR(x - .7, y - .7, w + 1.4, h + 1.4, .7);
+  ctx.fillStyle = vLG(x, y - 1, x + w, y + h, [[0, vDark(fr, .2)], [1, vLight(fr, .1)]]); ctx.fill();     // aresta interna em relevo
   vGlass(x, y, w, h, arch, o.cross !== false);
-  if (o.sill !== false) { vRR(x - 2, y + h + .8, w + 4, 1.7, .8, vLG(0, y + h, 0, y + h + 2.5, [[0, "#f0e7d0"], [1, "#cdc0a4"]])); vSoft(x - 1.5, y + h + 2.5, w + 3, 4.6, .4); }
+  if (arch) { vPoly([[cxw - 1.3, y - 2.2], [cxw + 1.3, y - 2.2], [cxw + 1, y + 1.2], [cxw - 1, y + 1.2]], vLG(cxw - 1.3, 0, cxw + 1.3, 0, [[0, vLight(fr, .3)], [1, vDark(fr, .05)]])); vSoft(cxw - 1.6, y + 1.2, 3.2, 2, .3, "30,18,40"); }   // fecho do arco
+  else { vRR(x - 1.8, y - 3.8, w + 3.6, 2.3, .7, vLG(0, y - 3.8, 0, y - 1.5, [[0, vLight(fr, .3)], [1, vDark(fr, .08)]])); ctx.fillStyle = "rgba(60,36,30,.28)"; ctx.fillRect(x - 1.8, y - 1.5, w + 3.6, .4); }   // verga
+  if (o.sill !== false) {
+    vRR(x - 2, y + h + .8, w + 4, 1.7, .8, vLG(0, y + h, 0, y + h + 2.5, [[0, "#f0e7d0"], [1, "#cdc0a4"]]));
+    vPoly([[x - 1, y + h + 2.5], [x + .9, y + h + 2.5], [x + .9, y + h + 4.8]], vDark(fr, .12)); vPoly([[x + w + 1, y + h + 2.5], [x + w - .9, y + h + 2.5], [x + w - .9, y + h + 4.8]], vDark(fr, .12));   // mísulas
+    vSoft(x - 1.5, y + h + 2.5, w + 3, 4.6, .4);
+  }
 }
 function vFlowerBox(x, y, w, r, pk) {
   vRR(x, y, w, 3.2, .8, vLG(0, y, 0, y + 3.2, [[0, "#9a6240"], [1, "#6a3e26"]]));
@@ -3344,9 +3415,9 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
       vRR(q, B - 26.6, 3.4, 4.6, 1.2, pk(["#c0392b", "#f2c94c", "#2f6b4f", "#e8e0c8", "#2d5a8a"]));
       vRR(q, B - 17.6, 3.4, 4.6, 1.2, pk(["#d9b26a", "#c0392b", "#e8e0c8", "#8a4a2a"]));
     }
-    vSheen(sx0, B - 31, ww2, 26.6, .1);
+    vShopGlass(sx0, B - 31, ww2, 26.6);
     ctx.restore();
-    D.wins.push({ x: sx0, y: B - 31, w: ww2, h: 26.6, lit: true, soft: true });
+    D.wins.push({ x: sx0, y: B - 31, w: ww2, h: 26.6, lit: true, soft: true, big: true });
     awning(sx0 - 2, sw + 4, awn, B - 41, 7);
     const dx = sx0 + ww2 + 2;
     vRR(dx - 1, B - 35, 14, 32, 1.6, "#4a3020"); vRR(dx, B - 34, 12, 30.4, 1, vLG(dx, 0, dx + 12, 0, [[0, "#6a4630"], [1, "#3e281a"]]));
@@ -3367,8 +3438,8 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     vText("CAFFÈ", cx0, B - 45, "#a32a1c", 8.6, 38, "rgba(80,20,10,.25)");
     vRR(x + 9, B - 29, 22, 25.6, 1.6, "#4a3020"); vRR(x + 10, B - 28, 20, 23.6, 1, vLG(0, B - 28, 0, B - 4, [[0, "#f6d68a"], [1, "#c88a44"]]));
     ctx.save(); vRR(x + 10, B - 28, 20, 23.6, 1); ctx.clip(); vCafeInside(x + 10, B - 28, 20, 23.6); ctx.restore();
-    vSheen(x + 10, B - 28, 20, 23.6, .1);
-    D.wins.push({ x: x + 10, y: B - 28, w: 20, h: 23.6, lit: true, soft: true });
+    vShopGlass(x + 10, B - 28, 20, 23.6);
+    D.wins.push({ x: x + 10, y: B - 28, w: 20, h: 23.6, lit: true, soft: true, big: true });
     awning(x + 3, w - 6, "#b8321f", B - 41, 8);
     doorAt(x + w - 26, false, "cafe");
     vRR(x + 33.4, B - 25, 13.2, 15.4, 1.4, "#5a3a22"); vRR(x + 34.4, B - 24, 11.2, 13.4, .9, "#26352e");
@@ -3523,9 +3594,37 @@ function cityClouds(t, l, r) {                                           // as M
   });
   ctx.globalAlpha = 1; ctx.restore();
 }
+// geometria das sombras das fachadas: o comprimento chega até a faixa onde o pescador anda (CITY_B -> PIER_Y), então a sombra o alcança de verdade
+const cityShadowGeom = () => { const sun = DAY.sunA, nx = Math.max(-1, Math.min(1, (DAY.sunX - 240) / 180)), len = 34 + 26 * (1 - DAY.sunE); return { sun, len, off: -nx * len, a: .4 * sun }; };
+// quanto (0 a 1) o ponto (x, y) está coberto pela sombra de algum prédio; as bordas são suaves
+function cityShadeAt(x, y) {
+  const D = cityData; if (!D) return 0;
+  const g = cityShadowGeom(); if (g.sun < .03) return 0;
+  const f = Math.max(0, y - CITY_B) / g.len; if (f >= 1) return 0;
+  const sh = g.off * f, E = 3.5, sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+  let c = 0;
+  for (const b of D.blds) {
+    const x0 = b.x + sh, x1 = b.x + b.w + sh;
+    if (x1 < x - 8 || x0 > x + 8) continue;
+    c += sm(x0 - E, x0 + E, x) * (1 - sm(x1 - E, x1 + E, x));
+  }
+  return Math.min(1, c) * (1 - f * .55);
+}
+// escurece o pescador quando ele está na sombra: mistura uma "lavagem" roxa à lavagem da hora (devolve a função que restaura)
+let cityShadeK = 0;
+function cityShadeBegin(dt) {
+  const tgt = DAY.sunA >= .03 ? cityShadeAt(px, PIER_Y) * Math.min(1, DAY.sunA * 1.3) : 0;
+  cityShadeK += (tgt - cityShadeK) * Math.min(1, dt * 8);
+  const a1 = .46 * cityShadeK, keepA = DAY.washA, keepC = DAY.washCss;
+  if (a1 > .01) {
+    const a0 = DAY.washA, ao = a1 + a0 * (1 - a1), c0 = DAY.washRGB || [0, 0, 0], c1 = [34, 22, 86];
+    const col = c1.map((v, i) => Math.round((v * a1 + c0[i] * a0 * (1 - a1)) / ao));
+    DAY.washA = ao; DAY.washCss = "rgba(" + col.join(",") + "," + ao.toFixed(3) + ")";
+  }
+  return () => { DAY.washA = keepA; DAY.washCss = keepC; };
+}
 function cityShadows(t, l, r) {
-  const D = cityData, B = CITY_B, sun = DAY.sunA; if (sun < .03) return;
-  const nx = Math.max(-1, Math.min(1, (DAY.sunX - 240) / 180)), len = 12 + 24 * (1 - DAY.sunE), off = -nx * len * 1.5, a = .4 * sun;
+  const D = cityData, B = CITY_B, { sun, len, off, a } = cityShadowGeom(); if (sun < .03) return;
   ctx.save();
   ctx.beginPath();                                                       // sombras das fachadas projetadas na calçada e na rua (todas numa só forma, sem escurecer duas vezes)
   D.blds.forEach(b => { if (b.x > r + 60 || b.x + b.w < l - 60) return; ctx.moveTo(b.x, B); ctx.lineTo(b.x + b.w, B); ctx.lineTo(b.x + b.w + off, B + len); ctx.lineTo(b.x + off, B + len); ctx.closePath(); });
@@ -3694,7 +3793,9 @@ function cityLightBuild() {
         vInterior(w.x, w.y, w.w, w.h, !!w.arch, hs, true);                       // móveis e gente com a luz acesa
         if (hs % 3 === 0) { ctx.fillStyle = "rgba(150,70,44,.34)"; ctx.beginPath(); ctx.moveTo(w.x, w.y); ctx.lineTo(w.x + w.w * .34, w.y); ctx.quadraticCurveTo(w.x + w.w * .2, w.y + w.h * .5, w.x + w.w * .3, w.y + w.h); ctx.lineTo(w.x, w.y + w.h); ctx.closePath(); ctx.fill(); }
         vSoft(w.x, w.y, w.w, Math.min(3.5, w.h * .3), .3, "130,60,26");
-        if (w.w >= 6 && w.h >= 8) { ctx.fillStyle = "rgba(80,44,28,.55)"; ctx.fillRect(cx - .4, w.y, .8, w.h); ctx.fillRect(w.x, cy - .4, w.w, .8); }
+        ctx.fillStyle = "rgba(80,44,28,.55)";                                     // caixilhos à noite (mesma divisão dos painéis)
+        if (w.round) { if (w.w >= 6 && w.h >= 8) { ctx.fillRect(cx - .4, w.y, .8, w.h); ctx.fillRect(w.x, cy - .4, w.w, .8); } }
+        else vPanes(w.x, w.y, w.w, w.h, !!w.arch, !!w.big).bars.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
       }
       ctx.restore();
     });
@@ -3849,43 +3950,119 @@ function cityFountain(t, fx, B) {
   for (let i = 0; i < 6; i++) { const u = (t * .34 + i / 6) % 1; vBlot(fx + (hsh(i, 5) - .5) * 14 + Math.sin(t + i) * 1.5, UP - 1 - u * 10, 2.4 + u * 3.4, "238,249,255", .13 * Math.sin(u * 3.1416) * (.6 + .4 * LA)); }
 }
 
-// ---------- Reflexo do personagem nos vidros (e gente se mexendo lá dentro) ----------
-// Por quadro: desenha o pescador num sprite pequeno e o copia (com transparência e tom azulado) dentro de cada vidro por onde ele passa.
-// Janelas do térreo mostram o corpo inteiro; as de cima mostram só um reflexo fraquinho. Uma faixa de brilho acompanha o pescador.
+// ---------- Reflexo nos vidros (feito por quadro) ----------
+// Cada janela recebe, recortada nos próprios painéis: 1) o CÉU da hora (forte no alto, mais fraco embaixo, como o efeito Fresnel);
+// 2) as FACHADAS do outro lado da rua, que deslizam ao andar (paralaxe); 3) variação de brilho entre painéis;
+// 4) o PESCADOR refletido; 5) o BRILHO DO SOL: faixas diagonais + ponto de luz que correm pelo vidro quando a câmera passa.
+// Com a luz acesa por dentro (noite) o reflexo enfraquece e aparecem as janelinhas acesas refletidas.
 const CITY_REFLEX = 1;                                                    // 1 = ligado, 0 = desligado
 let reflexRS = null;
 function cityGlass(now, l, r) {
   const D = cityData; if (!CITY_REFLEX || !D || !D.wins) return;
-  const B = CITY_B, K = CITY_CHAR, c0 = [], pxr = px - dir * 15;        // o reflexo aparece deslocado (como visto de lado), para não ficar atrás do boneco
+  const B = CITY_B, K = CITY_CHAR, c0 = [], pxr = px - dir * 15, camC = (l + r) / 2;   // o reflexo do pescador aparece deslocado (visto de lado), para não ficar atrás do boneco
   for (const w of D.wins) {
     if (w.x > r + 8 || w.x + w.w < l - 8) continue;
     const cx = w.x + w.w / 2, ground = w.y + w.h > B - 45, dx = pxr - cx;
-    if (Math.abs(dx) > w.w / 2 + (ground ? 16 : 8) + 40) continue;
-    c0.push({ w, cx, ground, dx });
+    c0.push({ w, cx, ground, dx, near: Math.abs(dx) <= w.w / 2 + (ground ? 16 : 8) + 40 });
   }
   if (!c0.length) return;
-  if (!reflexRS) { const cv = document.createElement("canvas"); cv.width = 64 * 3; cv.height = 76 * 3; reflexRS = { cv, c: cv.getContext("2d") }; }
-  const c = reflexRS.c, main = ctx;
-  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height);
-  c.setTransform(3, 0, 0, 3, (32 - px) * 3, (68 - PIER_Y) * 3);
-  ctx = c;
-  try { drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) }); } finally { ctx = main; }
-  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = "rgba(64,84,128,.5)"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
+  const sk = DAY.sky.map(c => c.map(v => Math.round(v))), rgba = (c, a) => "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + Math.max(0, a).toFixed(3) + ")";
+  const main = ctx;
+  if (c0.some(o => o.near)) {                                             // sprite do pescador (64x76 a 3x), tingido com a cor do céu
+    if (!reflexRS) { const cv = document.createElement("canvas"); cv.width = 64 * 3; cv.height = 76 * 3; reflexRS = { cv, c: cv.getContext("2d") }; }
+    const c = reflexRS.c;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    c.setTransform(3, 0, 0, 3, (32 - px) * 3, (68 - PIER_Y) * 3);
+    ctx = c;
+    try { drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) }); } finally { ctx = main; }
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = rgba([(64 + sk[2][0]) >> 1, (84 + sk[2][1]) >> 1, (128 + sk[2][2]) >> 1], .5); c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
+  }
+  const lampK = DAY.lamp, sunK = DAY.sunA, sNx = Math.max(-1, Math.min(1, (DAY.sunX - 240) / 180)), gl = DAY.lc.map(v => Math.round(v + (255 - v) * .55));
+  const hazeC = "rgb(" + sk[2].join(",") + ")", wallCols = CITY_WALLS.map(wc => vMix(wc[0], hazeC, .42));   // cor das fachadas refletidas, com a névoa do céu
   ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
   for (const o of c0) {
-    const w = o.w, hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0), bot = w.y + w.h, la = 1 - (w.lit ? .5 * DAY.lamp : 0);
-    ctx.save();
-    if (w.round) { ctx.beginPath(); ctx.arc(o.cx, w.y + w.h / 2, w.w / 2, 0, 6.2832); } else if (w.arch) vArchP(w.x, w.y, w.w, w.h); else vRR(w.x, w.y, w.w, w.h, .7);
-    ctx.clip();
-    const s = o.ground ? .66 * K : .4 * K, fy = o.ground ? B - 6 : bot - 1;     // mais baixo/menor: parece estar dentro do vidro
-    ctx.globalAlpha = (o.ground ? (w.soft ? .62 : .4) : .12) * la;
-    ctx.drawImage(reflexRS.cv, pxr - 32 * s, fy - 68 * s, 64 * s, 76 * s);
-    if (Math.abs(o.dx) < 70) {                                                // brilho passando junto com o pescador
-      const a = (1 - Math.abs(o.dx) / 70) * .08 * la, gx = w.x + w.w * (.5 + o.dx / 90), bw = Math.max(1.6, w.w * .16);
-      ctx.globalAlpha = a; ctx.fillStyle = "#fff";
-      ctx.beginPath(); ctx.moveTo(gx - bw, bot); ctx.lineTo(gx, bot); ctx.lineTo(gx + w.h * .35, w.y); ctx.lineTo(gx + w.h * .35 - bw, w.y); ctx.closePath(); ctx.fill();
+    const w = o.w, hs0 = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0), bot = w.y + w.h, lit = w.lit ? lampK : 0, la = 1 - .55 * lit;
+    const P = w.round ? null : vPanes(w.x, w.y, w.w, w.h, !!w.arch, !!w.big);
+    ctx.save(); ctx.beginPath();
+    if (w.round) ctx.arc(o.cx, w.y + w.h / 2, w.w / 2, 0, 6.2832);
+    else P.panes.forEach(p => { if (p.fan) { ctx.moveTo(p.x, p.y + p.h); ctx.arc(p.x + p.w / 2, p.y + p.h, p.w / 2, Math.PI, 0); ctx.closePath(); } else ctx.rect(p.x, p.y, p.w, p.h); });
+    ctx.clip();                                                           // tudo abaixo só aparece nos painéis (os caixilhos ficam por cima)
+    // 1) céu refletido
+    let g = ctx.createLinearGradient(0, w.y, 0, bot);
+    g.addColorStop(0, rgba(sk[1], .34 * la)); g.addColorStop(.55, rgba(sk[2], .24 * la)); g.addColorStop(1, rgba(sk[3], .13 * la));
+    ctx.fillStyle = g; ctx.fillRect(w.x - 1, w.y - 1, w.w + 2, w.h + 2);
+    // 2) fachadas do outro lado da rua (deslizam com a câmera)
+    const hor = w.y + w.h * (o.ground ? .5 : .8), sh = (camC - o.cx) * .2, SL = 11;
+    for (let k = Math.floor((w.x - sh) / SL) - 1, kEnd = Math.ceil((w.x + w.w - sh) / SL) + 1; k <= kEnd; k++) {
+      const bx = k * SL + sh, bw = 7 + hs(k * 1.7) * 3.6, roof = hor - 1 + hs(k * 3.3 + 5) * 6, bh = bot - roof;
+      if (bx > w.x + w.w || bx + bw < w.x || bh < 1) continue;
+      ctx.globalAlpha = .7 * la; ctx.fillStyle = wallCols[((k * 7 + 3) % 8 + 8) % 8]; ctx.fillRect(bx, roof, bw, bh);
+      ctx.fillStyle = "rgba(20,14,44,.3)"; ctx.fillRect(bx + bw * .7, roof, bw * .3, bh);
+      ctx.fillStyle = "rgba(255,244,226,.35)"; ctx.fillRect(bx, roof, bw, .4);
+      for (let wy = roof + 2.2; wy < bot - 1; wy += 3.4) for (let wx = bx + 1.2; wx < bx + bw - 1.6; wx += 2.8) {
+        ctx.fillStyle = lampK > .3 && hs(k * 13.7 + wx * 1.3 + wy * .7) < .42 ? "rgba(255,206,120,.9)" : "rgba(26,34,66,.55)"; ctx.fillRect(wx, wy, 1.2, 1.8);
+      }
+    }
+    ctx.globalAlpha = 1;
+    // 3) cada painel pega a luz um pouco diferente
+    if (P) P.panes.forEach((p, i) => { const v = (hs0 >>> (i * 3)) & 3; if (v) { ctx.fillStyle = "rgba(255,255,255," + (v * .014 * la).toFixed(3) + ")"; ctx.fillRect(p.x, p.y, p.w, p.h); } });
+    // 4) o pescador refletido
+    if (o.near) {
+      const s = o.ground ? .66 * K : .4 * K, fy = o.ground ? B - 6 : bot - 1;
+      ctx.globalAlpha = (o.ground ? (w.soft ? .62 : .4) : .12) * (1 - (w.lit ? .5 * lampK : 0));
+      ctx.drawImage(reflexRS.cv, pxr - 32 * s, fy - 68 * s, 64 * s, 76 * s); ctx.globalAlpha = 1;
+    }
+    // 5) brilho do sol correndo pelo vidro
+    if (sunK > .05) {
+      const d = (camC - o.cx) / 60 - sNx * .35 + Math.sin(now / 3500 + hs0 % 7) * .1, inten = sunK * (.12 + .88 * Math.max(0, 1 - Math.abs(d))) * (1 - .6 * lit);
+      if (inten > .03) {
+        const gx = o.cx + d * w.w * .9, bw2 = Math.max(1.6, w.w * .17), sk2 = w.h * .5, L = Math.hypot(w.h, sk2), nx2 = w.h / L, ny2 = sk2 / L;
+        ctx.globalCompositeOperation = "lighter";
+        const band = (off, wd, st) => {                                   // faixa diagonal com perfil suave (gradiente perpendicular à inclinação)
+          const cxb = gx + off, hw = wd * L / w.h, gr = ctx.createLinearGradient(cxb - nx2 * wd, bot - ny2 * wd, cxb + nx2 * wd, bot + ny2 * wd);
+          gr.addColorStop(0, rgba(gl, 0)); gr.addColorStop(.5, rgba(gl, .3 * inten * st)); gr.addColorStop(1, rgba(gl, 0));
+          ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(cxb - hw, bot); ctx.lineTo(cxb + hw, bot); ctx.lineTo(cxb + hw + sk2, w.y); ctx.lineTo(cxb - hw + sk2, w.y); ctx.closePath(); ctx.fill();
+        };
+        band(0, bw2, 1); band(bw2 * 2.8, bw2 * .45, .55);
+        const hr = Math.max(w.w, w.h) * .55, hx = gx + sk2 * .35, hy = w.y + w.h * .32;
+        g = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr); g.addColorStop(0, rgba(gl, .13 * inten)); g.addColorStop(1, rgba(gl, 0));
+        ctx.fillStyle = g; ctx.fillRect(hx - hr, hy - hr, hr * 2, hr * 2);
+      }
     }
     ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ---------- Partículas da cidade: poeira e pólen flutuando (brilham onde bate sol, apagam na sombra) e vaga-lumes à noite ----------
+const CITY_MOTES = Array.from({ length: 70 }, (_, i) => ({ x: hs(i * 3.1) * 700, y: hs(i * 7.7), z: .5 + hs(i * 5.3), ph: hs(i * 9.9) * 6.28, r: hs(i * 2.2) < .15 ? 1.05 : .65 }));
+const CITY_FLIES = Array.from({ length: 18 }, (_, i) => ({ x: hs(i * 4.7 + 100) * 700, y: hs(i * 6.1 + 100), z: .7 + hs(i * 2.9 + 100) * .6, ph: hs(i * 8.3 + 100) * 6.28 }));
+function cityMotes(now, l, r, vy, vh) {
+  const t = now / 1000, span = r - l + 60, B = CITY_B, day = DAY.sunA, night = DAY.lamp * (1 - day);
+  const y0 = vy + 8, ySpan = PIER_Y + 10 - y0;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  if (day > .04) {
+    const [cr, cg, cb] = DAY.lc.map(v => Math.round(v + (255 - v) * .35));
+    CITY_MOTES.forEach(m => {
+      const u = (((m.x + t * 2.6 * m.z + Math.sin(t * .7 + m.ph) * 5 - l * m.z) % span) + span) % span, x = l - 30 + u;
+      const y = y0 + m.y * ySpan + Math.sin(t * .9 + m.ph) * 4 + Math.cos(t * .5 + m.ph * 2) * 2;
+      const sun = 1 - Math.min(1, cityShadeAt(x, B + 6) * 2.4);                       // na sombra do prédio a poeira quase some
+      const a = day * (.08 + .42 * sun) * (.3 + .7 * Math.pow(Math.sin(t * 1.1 + m.ph * 3) * .5 + .5, 2));
+      if (a < .02) return;
+      ctx.fillStyle = "rgba(" + cr + "," + cg + "," + cb + "," + a.toFixed(3) + ")"; ctx.fillRect(x, y, m.r, m.r);
+    });
+  }
+  if (night > .05) {
+    CITY_FLIES.forEach((f, i) => {
+      const u = (((f.x + Math.sin(t * .35 + f.ph) * 16 - l * f.z) % span) + span) % span, x = l - 30 + u + Math.sin(t * .9 + f.ph * 2) * 5;
+      const y = B - 38 + f.y * 58 + Math.sin(t * .6 + f.ph) * 7 + Math.cos(t * 1.3 + f.ph * 3) * 2;
+      const bl = Math.pow(Math.sin(t * 1.5 + f.ph * 3) * .5 + .5, 3), a = night * (.15 + .85 * bl);
+      if (a < .04) return;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, 5);
+      g.addColorStop(0, "rgba(220,255,150," + (.85 * a).toFixed(3) + ")"); g.addColorStop(.3, "rgba(190,240,110," + (.28 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(160,220,90,0)");
+      ctx.fillStyle = g; ctx.fillRect(x - 5, y - 5, 10, 10);
+      ctx.fillStyle = "rgba(255,255,220," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(x - .4, y - .4, .9, .9);
+    });
   }
   ctx.restore();
 }
@@ -3974,14 +4151,16 @@ function drawCity(now) {
   cityLit(now, cl, cr);
   cityGlass(now, cl, cr);
   cityRays(now / 1000, cl, cr);
-  DAY.scene(() => {                                                                      // o pescador (com a mesma lavagem da hora)
+  cityMotes(now, cl, cr, vy, vh);
+  const shadeEnd = cityShadeBegin(dt);                                                   // na sombra dos prédios o pescador escurece
+  try { DAY.scene(() => {                                                                // o pescador (com a mesma lavagem da hora)
     const CK = CITY_CHAR;
     ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.beginPath(); ctx.ellipse(px, PIER_Y + 1, 9 * CK, 2.2 * CK, 0, 0, 7); ctx.fill();
     ctx.save(); ctx.translate(px, PIER_Y); ctx.scale(CK, CK); ctx.translate(-px, -PIER_Y);      // pescador reduzido (pés continuam em PIER_Y)
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
     ctx.restore();
     text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) * CK - 6, "#ffd166", "center");
-  }, [PIER_Y - 70, PIER_Y + 12]);
+  }, [PIER_Y - 70, PIER_Y + 12]); } finally { shadeEnd(); }
   const dn = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open ? cityNearDoor() : null;
   if (dn) {                                                                              // "E" quando há uma porta ao alcance
     const ky = PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 30 + Math.round(Math.sin(now / 260) * 1.5), kx = Math.round(px) - 6;   // o "E" flutua em cima do nome do pescador

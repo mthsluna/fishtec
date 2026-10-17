@@ -53,7 +53,7 @@ const DAY = (() => {
     force: null,                                            // minutos fixos para testar (null = segue o relógio)
     m: 0,
     sky: [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]],
-    topCss: "#241a45", washCss: "rgba(0,0,0,0)", washA: 0, waterCss: "rgba(0,0,0,0)", waterA: 0,
+    topCss: "#241a45", washCss: "rgba(0,0,0,0)", washA: 0, washRGB: [0, 0, 0], waterCss: "rgba(0,0,0,0)", waterA: 0,
     starA: 0,
     lamp: 0,                                                // 0 a 1: quão acesos estão os postes de luz (acendem no entardecer, apagam de manhã)
     sunX: 370, sunY: 62, sunA: 1, sunE: .4, moonX: 100, moonY: 60, moonA: 0,
@@ -68,7 +68,7 @@ const DAY = (() => {
       this.sky = a.sky.map((c, j) => mix(c, b.sky[j], f));
       this.topCss = "rgb(" + rgb(this.sky[0]) + ")";
       const w = mixW(a.wash, b.wash, f), v = mixW(a.water, b.water, f);
-      this.washA = w[3]; this.washCss = `rgba(${rgb(w.slice(0, 3))},${w[3].toFixed(3)})`;
+      this.washA = w[3]; this.washRGB = w.slice(0, 3); this.washCss = `rgba(${rgb(w.slice(0, 3))},${w[3].toFixed(3)})`;
       this.waterA = v[3]; this.waterCss = `rgba(${rgb(v.slice(0, 3))},${v[3].toFixed(3)})`;
       this.starA = lerp(a.stars, b.stars, f);
       this.lamp = m < 720 ? 1 - sm(345, 375, m) : sm(1020, 1045, m);   // apagam das 05:45 às 06:15; acendem das 17:00 às 17:25 (quando o céu já está alaranjado)
