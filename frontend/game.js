@@ -3856,10 +3856,10 @@ const CITY_REFLEX = 1;                                                    // 1 =
 let reflexRS = null;
 function cityGlass(now, l, r) {
   const D = cityData; if (!CITY_REFLEX || !D || !D.wins) return;
-  const B = CITY_B, K = CITY_CHAR, c0 = [];
+  const B = CITY_B, K = CITY_CHAR, c0 = [], pxr = px - dir * 15;        // o reflexo aparece deslocado (como visto de lado), para não ficar atrás do boneco
   for (const w of D.wins) {
     if (w.x > r + 8 || w.x + w.w < l - 8) continue;
-    const cx = w.x + w.w / 2, ground = w.y + w.h > B - 45, dx = px - cx;
+    const cx = w.x + w.w / 2, ground = w.y + w.h > B - 45, dx = pxr - cx;
     if (Math.abs(dx) > w.w / 2 + (ground ? 16 : 8) + 40) continue;
     c0.push({ w, cx, ground, dx });
   }
@@ -3870,16 +3870,16 @@ function cityGlass(now, l, r) {
   c.setTransform(3, 0, 0, 3, (32 - px) * 3, (68 - PIER_Y) * 3);
   ctx = c;
   try { drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) }); } finally { ctx = main; }
-  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = "rgba(150,190,228,.4)"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = "rgba(64,84,128,.5)"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
   ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
   for (const o of c0) {
     const w = o.w, hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0), bot = w.y + w.h, la = 1 - (w.lit ? .5 * DAY.lamp : 0);
     ctx.save();
     if (w.round) { ctx.beginPath(); ctx.arc(o.cx, w.y + w.h / 2, w.w / 2, 0, 6.2832); } else if (w.arch) vArchP(w.x, w.y, w.w, w.h); else vRR(w.x, w.y, w.w, w.h, .7);
     ctx.clip();
-    const s = o.ground ? 1.15 * K : .5 * K, fy = o.ground ? B - 3 : bot - 1;
-    ctx.globalAlpha = (o.ground ? (w.soft ? .27 : .15) : .05) * la;
-    ctx.drawImage(reflexRS.cv, px - 32 * s, fy - 68 * s, 64 * s, 76 * s);
+    const s = o.ground ? 1.0 * K : .5 * K, fy = o.ground ? B - 5 : bot - 1;     // mais baixo/menor: parece estar dentro do vidro
+    ctx.globalAlpha = (o.ground ? (w.soft ? .62 : .4) : .12) * la;
+    ctx.drawImage(reflexRS.cv, pxr - 32 * s, fy - 68 * s, 64 * s, 76 * s);
     if (Math.abs(o.dx) < 70) {                                                // brilho passando junto com o pescador
       const a = (1 - Math.abs(o.dx) / 70) * .08 * la, gx = w.x + w.w * (.5 + o.dx / 90), bw = Math.max(1.6, w.w * .16);
       ctx.globalAlpha = a; ctx.fillStyle = "#fff";
