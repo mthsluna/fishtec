@@ -2570,7 +2570,9 @@ const CITY_FRONT_F = 1.55, CITY_FRONT_GAP = 430;                         // prim
 const CITY_FW = -200, CITY_FX1 = CITY.MAX + 260;                         // trecho do mundo que é desenhado
 const CITY_CAM_MIN = -50, CITY_CAM_PAD = 90;                             // até onde a câmera pode ir (esquerda / depois do fim da cidade)
 const CITY_CH = 200;                                                     // altura (px do mundo) do que a câmera chega a ver
-const CITY_GF = 54, CITY_FH = 28;                                        // altura do térreo e de cada andar de cima
+const CITY_GF = 54, CITY_FH = 28;
+const CLOTHES_K = 1.4;                                                   // BOUTIQUE: tamanho da loja (1 = original; 1.4 = 40% maior em tudo: manequins, vitrines, letreiro, porta; cresce para cima e para os lados)
+const CLOTHES_W = Math.round(128 * CLOTHES_K), CLOTHES_GF = Math.round(CITY_GF * CLOTHES_K) + 4;   // largura do prédio e altura do térreo da loja                                        // altura do térreo e de cada andar de cima
 const CITY_WALLS = [                                                     // [parede, sombra, destaque]
   ["#e0a85a", "#b9843f", "#efc27c"], ["#d2704a", "#a9502f", "#e48a62"], ["#ecd9a4", "#c4ad78", "#f6e8c0"], ["#dd8f7a", "#b66a58", "#eba48f"],
   ["#efcf6e", "#c8a447", "#f8e08f"], ["#c97b86", "#a05963", "#dd949d"], ["#9cb7a3", "#76927f", "#b4cdb9"], ["#8fb0c4", "#6c8ea4", "#a9c6d8"],
@@ -2609,7 +2611,7 @@ function cityInit() {                                                    // o tr
   addB(90, 2, "door");                                                   // lado esquerdo: igreja e, ao lado, a orla (antiga praça): um vão aberto com o mar ao fundo
   const ch = addB(140, 0, "church"); ch.top = B - 128;
   const piazza = { x, w: 170 }; x += piazza.w;
-  const store = addB(128, 2, "clothes"); store.p = 6; store.name = "BOUTIQUE";   // loja de roupas (só o visual por enquanto), logo à direita da praça
+  const store = addB(CLOTHES_W, 2, "clothes"); store.p = 6; store.name = "BOUTIQUE"; store.gf = CLOTHES_GF; store.top = B - CLOTHES_GF - 2 * CITY_FH;   // loja de roupas (só o visual por enquanto), logo à direita da praça
   const xs = CITY.MAX - 84, WMIN = { cafe: 76, shop: 66, arch: 66, shrine: 58, door: 50 };      // xs: onde começa o prédio da placa do cais
   let sinceGap = 0, sinceArch = 3, sinceCafe = 2, sinceShrine = 4, gapEvery = 3;
   while (xs - x > 0) {
@@ -3279,7 +3281,7 @@ function vFacadePost(D, b, bi, B, wc, w0, d0) {                            // po
   }
   for (let i = d0; i < D.doors.length; i++) {                              // portas: capacho, número e campainha
     const d = D.doors[i]; if (!d.w || d.kind === "shrine") continue;
-    vRR(d.cx - 5.6, B + .1, 11.2, 1.9, .5, "#6a3a2c"); ctx.fillStyle = "rgba(240,220,170,.38)"; ctx.fillRect(d.cx - 4.6, B + .75, 9.2, .3);
+    { const mk = b.g === "clothes" ? b.w / 128 : 1; vRR(d.cx - 5.6 * mk, B + .1, 11.2 * mk, 1.9 * mk, .5, "#6a3a2c"); ctx.fillStyle = "rgba(240,220,170,.38)"; ctx.fillRect(d.cx - 4.6 * mk, B + .75 * mk, 9.2 * mk, .3 * mk); }
     if (d.kind === "house") {
       const nx = d.x - 6.5, ny = B - 31;
       vRR(nx + .3, ny + .5, 5.2, 3.3, .5, "rgba(30,16,40,.25)"); vRR(nx, ny, 5.2, 3.3, .5, "#eef0f2"); vRR(nx + .35, ny + .35, 4.5, 2.6, .35, "#2d5a8a");
@@ -3360,8 +3362,18 @@ function vBlockDoll(cx, fy, u, o) {                                            /
   ctx.restore();
 }
 
-function vClothes(D, b, bi, B) {
-  const x = b.x, w = b.w, q = vDetRng(5150), pc = a => a[q() * a.length | 0];
+function vClothes(D, b, bi, B) {                                              // desenha a fachada em tamanho original (128) escalada por CLOTHES_K, e converte as luzes/janelas/porta para o tamanho novo
+  const k = b.w / 128, x = b.x, nw = D.wins.length, nl = D.lamps.length, nd = D.doors.length;
+  ctx.save(); ctx.translate(x, B); ctx.scale(k, k); ctx.translate(-x, -B);
+  vClothesBase(D, b, bi, B);
+  ctx.restore();
+  const tx = v => x + (v - x) * k, ty = v => B + (v - B) * k;
+  for (let i = nw; i < D.wins.length; i++) { const o = D.wins[i]; o.x = tx(o.x); o.y = ty(o.y); o.w *= k; o.h *= k; }
+  for (let i = nl; i < D.lamps.length; i++) { const o = D.lamps[i]; o.x = tx(o.x); o.y = ty(o.y); o.r *= k; }
+  for (let i = nd; i < D.doors.length; i++) { const o = D.doors[i]; o.cx = tx(o.cx); o.x = tx(o.x); o.y = ty(o.y); o.w *= k; o.h *= k; }
+}
+function vClothesBase(D, b, bi, B) {
+  const x = b.x, w = 128, q = vDetRng(5150), pc = a => a[q() * a.length | 0];
   const GOLD = "#e6c27a", GOLD_D = "#9c6e28", CREAM = "#f4ead2", PLUM = "#17151b";
   const wy = B - 46, gh = 32, ww = 42, lx = x + 5, dX = x + 53, dW = 22, rx = x + 81, fl = B - 15.5;     // vitrines (topo, altura, largura), porta e o chão das vitrines
   const plumG = (y0, y1) => vLG(0, y0, 0, y1, [[0, "#2a272f"], [1, "#0e0d12"]]);
@@ -3480,7 +3492,7 @@ function vClothes(D, b, bi, B) {
 }
 
 function vBuilding(D, b, bi, B, r, ri, pk) {
-  const GF = CITY_GF, FH = CITY_FH, w0 = D.wins.length, d0 = D.doors.length;
+  const GF = b.gf || CITY_GF, FH = CITY_FH, w0 = D.wins.length, d0 = D.doors.length;
   const wc = CITY_WALLS[b.p], x = b.x, w = b.w, top = b.top, ht = B - top, shc = CITY_SHUT[(b.p * 3 + bi) % CITY_SHUT.length];
   // parede: degradê vertical, volume nas laterais e manchas de reboco
   ctx.fillStyle = vLG(0, top, 0, B, [[0, vLight(wc[0], .1)], [.35, wc[0]], [1, vMix(vMix(wc[0], wc[1], .7), "#3a2468", .2)]]); ctx.fillRect(x, top, w, ht);
