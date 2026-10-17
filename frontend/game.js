@@ -2467,7 +2467,7 @@ function vEll(x, y, rx, ry, fill) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0
 function vLine(x1, y1, x2, y2, w, col) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineCap = "round"; ctx.stroke(); }
 function vWire(x1, y1, x2, y2, sag, w, col) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo((x1 + x2) / 2, (y1 + y2) / 2 + sag * 2, x2, y2); ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineCap = "round"; ctx.stroke(); }
 function vPoly(pts, fill) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
-.5.8function vSoft(x, y, w, h, a = .3, col = "40,18,74") { ctx.fillStyle = vLG(0, y, 0, y + h, [[0, "rgba(" + col + "," + a + ")"], [1, "rgba(" + col + ",0)"]]); ctx.fillRect(x, y, w, h); }   // sombra que some para baixo
+function vSoft(x, y, w, h, a = .3, col = "40,18,74") { ctx.fillStyle = vLG(0, y, 0, y + h, [[0, "rgba(" + col + "," + a + ")"], [1, "rgba(" + col + ",0)"]]); ctx.fillRect(x, y, w, h); }   // sombra que some para baixo
 function vText(s, x, y, col, size, maxW, shadow) {
   ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
   ctx.font = "bold " + size + "px Georgia, 'Times New Roman', serif";
