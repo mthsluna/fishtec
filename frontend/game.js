@@ -3751,6 +3751,7 @@ function cityFront(now, l, r) {                                           // pos
 
 function cityNearDoor() {                                                // a porta (ou nicho) ao alcance do pescador
   if (!cityData || !CITY.on) return null;
+  return null;                                                           // interação com portas desligada (apague esta linha para religar)
   let best = null, bd = 1e9;
   for (const d of cityData.doors) { const dd = Math.abs(px - d.cx); if (dd < (d.kind === "shrine" ? 11 : 13) && dd < bd) { best = d; bd = dd; } }
   return best;
