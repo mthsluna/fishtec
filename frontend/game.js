@@ -2743,7 +2743,7 @@ function vFan(x, y, w) {                                                     // 
   ctx.beginPath(); ctx.arc(cx, cy, rr * .5, Math.PI, 0); ctx.lineWidth = mt * .7; ctx.strokeStyle = "#efe6cf"; ctx.stroke();
 }
 function vPaneFinish(p, i, k) {                                              // cada painel: luz no alto, escurece embaixo, bisel com borda ciano (dispersão) em cima e rosada embaixo
-  vPanePath(p); ctx.fillStyle = vLG(0, p.y, 0, p.y + p.h, [[0, "rgba(255,255,255," + (.07 + .07 * k).toFixed(3) + ")"], [.5, "rgba(255,255,255,.015)"], [1, "rgba(8,16,34,.16)"]]); ctx.fill();
+  vPanePath(p); ctx.fillStyle = vLG(0, p.y, 0, p.y + p.h, [[0, "rgba(255,255,255," + (.025 + .03 * k).toFixed(3) + ")"], [.5, "rgba(255,255,255,.015)"], [1, "rgba(8,16,34,.16)"]]); ctx.fill();
   if (p.fan) return;
   ctx.fillStyle = "rgba(190,240,255,.34)"; ctx.fillRect(p.x, p.y, p.w, .3); ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.fillRect(p.x, p.y, .3, p.h);
   ctx.fillStyle = "rgba(10,18,36,.38)"; ctx.fillRect(p.x, p.y + p.h - .3, p.w, .3); ctx.fillRect(p.x + p.w - .3, p.y, .3, p.h);
@@ -3955,7 +3955,7 @@ function cityFountain(t, fx, B) {
 // 2) as FACHADAS do outro lado da rua, que deslizam ao andar (paralaxe); 3) variação de brilho entre painéis;
 // 4) o PESCADOR refletido; 5) o BRILHO DO SOL: faixas diagonais + ponto de luz que correm pelo vidro quando a câmera passa.
 // Com a luz acesa por dentro (noite) o reflexo enfraquece e aparecem as janelinhas acesas refletidas.
-const CITY_REFLEX = 1;                                                    // 1 = ligado, 0 = desligado
+const CITY_REFLEX = 0;                                                    // 1 = ligado, 0 = desligado
 let reflexRS = null;
 function cityGlass(now, l, r) {
   const D = cityData; if (!CITY_REFLEX || !D || !D.wins) return;
@@ -4151,7 +4151,6 @@ function drawCity(now) {
   cityLit(now, cl, cr);
   cityGlass(now, cl, cr);
   cityRays(now / 1000, cl, cr);
-  cityMotes(now, cl, cr, vy, vh);
   const shadeEnd = cityShadeBegin(dt);                                                   // na sombra dos prédios o pescador escurece
   try { DAY.scene(() => {                                                                // o pescador (com a mesma lavagem da hora)
     const CK = CITY_CHAR;
