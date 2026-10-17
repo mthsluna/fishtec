@@ -2613,6 +2613,13 @@ function vPiazza(D, B, r, pk) {
   vRR(fx - 6, B - 20, 12, 3, 1.4, "#d8ccb0");
   vEll(fx, B - 31, 13, 3.6, "#e6dbc0"); vEll(fx, B - 31.2, 10.6, 2.6, vLG(0, B - 34, 0, B - 29, [[0, "#8fcce4"], [1, "#5aa0c0"]]));
   vRR(fx - 1.2, B - 41, 2.4, 10, 1.2, "#e6dcc2"); vCirc(fx, B - 42.4, 2.2, "#f2e9d2");
+  [fx - 32, fx + 32].forEach((pxx, n) => {                                   // vasos de flores
+    vEll(pxx, B + 3, 6, 1.2, "rgba(20,8,26,.26)");
+    vPoly([[pxx - 4.6, B - 6], [pxx + 4.6, B - 6], [pxx + 3.4, B + 2.4], [pxx - 3.4, B + 2.4]], vLG(pxx - 5, 0, pxx + 5, 0, [[0, "#cf7a4e"], [.6, "#a8532f"], [1, "#74361e"]]));
+    vRR(pxx - 5.4, B - 8, 10.8, 2.4, 1, "#dc8a5c");
+    [[0, -13, 4.4, "#2f6a34"], [-4, -10.4, 3.4, "#3b8040"], [4, -10.4, 3.6, "#2a5c30"], [0, -10, 3.6, "#4a9448"]].forEach(([dx, dy, q, c]) => vCirc(pxx + dx, B + dy, q, c));
+    for (let q = 0; q < 9; q++) vCirc(pxx - 5 + ((q * 29 + 7 + n * 5) % 10), B - 16 + ((q * 17 + 3) % 9), 1.1, ["#e04a68", "#f4d050", "#ee78b0", "#fff2d6"][(q + n) % 4]);
+  });
   [fx - 62, fx + 40].forEach(bx => {                                         // bancos
     vEll(bx + 12, B + 5, 14, 1.6, "rgba(20,8,26,.28)");
     ctx.strokeStyle = "#2a2d35"; ctx.lineWidth = .9; ctx.lineCap = "round";
@@ -3183,6 +3190,75 @@ function cityLit(now, l, r) {                                            // à n
   ctx.restore();
 }
 
+// Água da fonte: mesma ideia da água do cais (céu refletido, cristas de onda iluminadas pela luz da hora, brilhos, anéis e reflexo do pilar), tudo vivo a cada quadro
+function cityFountain(t, fx, B) {
+  const mixA = (a, b, f) => a.map((v, i) => v + (b[i] - v) * f), css = (c, a) => "rgba(" + c.map(Math.round).join(",") + "," + (a == null ? 1 : a) + ")";
+  const sk = DAY.sky, deep = [40, 108, 146], farC = mixA(sk[3], [150, 210, 228], .5), midC = mixA(sk[2], deep, .55), nearC = mixA(deep, sk[1], .2);
+  const LA = Math.max(DAY.lightA, DAY.lamp * .45), lcs = "rgba(" + DAY.lc.map(Math.round).join(",") + ",";
+  const pool = (cx, cy, rx, ry, rows, ringsN, pillar, spark) => {
+    ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 6.2832); ctx.clip();
+    const g = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
+    g.addColorStop(0, css(farC)); g.addColorStop(.45, css(midC)); g.addColorStop(1, css(nearC));
+    ctx.fillStyle = g; ctx.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
+    for (let j = 0; j < rows; j++) {                                          // cristas de onda: finas e juntas ao fundo, mais grossas perto
+      const yy = cy - ry + (j + .5) * (2 * ry / rows), hw = rx * Math.sqrt(Math.max(0, 1 - ((yy - cy) / ry) ** 2)), pe = j / rows;
+      for (let x = -hw; x < hw; x += 1.6) {
+        const w = Math.sin(x * .42 + j * 1.9 + t * 1.7) * Math.sin(x * .15 - t * .8 + j * .7);
+        if (w > .3) { ctx.fillStyle = lcs + Math.min(.6, (w - .3) * .95 * (.25 + .75 * LA)).toFixed(3) + ")"; ctx.fillRect(cx + x, yy, 1.8, .4 + .3 * pe); }
+        else if (w < -.45) { ctx.fillStyle = "rgba(14,40,70," + ((-w - .45) * .38).toFixed(3) + ")"; ctx.fillRect(cx + x, yy, 1.8, .5); }
+      }
+    }
+    if (pillar) for (let y = cy - ry * .8; y < cy + ry * .9; y += .7) {       // reflexo do pilar e da taça, balançando com a água
+      const k = (y - cy + ry) / (2 * ry), wob = Math.sin(y * 2.1 + t * 2.4) * .9 * (.4 + k), w = 5.5 + k * 3.5;
+      ctx.fillStyle = "rgba(236,226,200," + (.2 * (1 - k * .5)).toFixed(3) + ")"; ctx.fillRect(cx - w / 2 + wob, y, w, .55);
+    }
+    for (let q = 0; q < ringsN; q++) {                                         // anéis abrindo onde a água cai
+      const u = (t * .55 + q / ringsN) % 1, off = [-12, -5, 5, 12][q % 4] * (rx / 24), rr = 1 + u * rx * .3;
+      ctx.strokeStyle = "rgba(240,252,255," + ((1 - u) * .55).toFixed(3) + ")"; ctx.lineWidth = .45;
+      ctx.beginPath(); ctx.ellipse(cx + off, cy + ry * .15, rr, rr * ry / rx * 1.15, 0, 0, 6.2832); ctx.stroke();
+      if (u < .25) { ctx.fillStyle = "rgba(255,255,255," + ((.25 - u) * 1.6).toFixed(3) + ")"; ctx.fillRect(cx + off - 1.2, cy + ry * .15 - .3, 2.4, .6); }
+    }
+    for (let q = 0; q < spark; q++) {                                          // brilhos do sol/lua/lampiões
+      const a = Math.pow(Math.max(0, Math.sin(t * 2.3 + q * 5.7)), 10) * LA; if (a < .05) continue;
+      const ang = q * 2.399, rr = Math.sqrt((q + .5) / spark), sx = cx + Math.cos(ang) * rx * .88 * rr, sy = cy + Math.sin(ang) * ry * .78 * rr;
+      ctx.fillStyle = "rgba(255,252,235," + a.toFixed(2) + ")"; ctx.fillRect(sx - .9, sy - .2, 1.8, .5); ctx.fillRect(sx - .25, sy - .7, .5, 1.4);
+    }
+    const sh = ctx.createLinearGradient(0, cy - ry, 0, cy - ry * .35);       // sombra da borda de trás dentro da água
+    sh.addColorStop(0, "rgba(10,30,52,.42)"); sh.addColorStop(1, "rgba(10,30,52,0)");
+    ctx.fillStyle = sh; ctx.fillRect(cx - rx, cy - ry, rx * 2, ry * .65);
+    ctx.restore();
+    ctx.strokeStyle = "rgba(255,255,255,.38)"; ctx.lineWidth = .5;             // fio de luz na borda da frente
+    ctx.beginPath(); ctx.ellipse(cx, cy + .25, rx + .2, ry + .1, 0, .15, 3.0); ctx.stroke();
+  };
+  pool(fx, B - 3.6, 24, 4.4, 9, 4, true, 16);
+  pool(fx, B - 31.2, 10.6, 2.6, 4, 2, false, 6);
+  ctx.save(); ctx.lineWidth = .6; ctx.setLineDash([2.2, 2.8]);                 // água escorrendo da taça de cima para a bacia
+  [-10.5, -8, -5.5, -3, 3, 5.5, 8, 10.5].forEach((dx, i) => {
+    const sg = dx < 0 ? -1 : 1, y0 = B - 30 + 2.4 * Math.sqrt(Math.max(0, 1 - (dx / 10.6) ** 2));
+    ctx.lineDashOffset = -t * (15 + (i & 1) * 4);
+    ctx.strokeStyle = "rgba(228,246,255," + (.3 + .12 * Math.sin(t * 3 + i)).toFixed(3) + ")";
+    ctx.beginPath(); ctx.moveTo(fx + dx, y0); ctx.quadraticCurveTo(fx + dx + sg * 1.5, y0 + 9, fx + dx + sg * 3.2, B - 4.8); ctx.stroke();
+  });
+  ctx.restore();
+  for (let i = 0; i < 18; i++) {                                               // jato do topo: gotas em arco que caem na taça
+    const u = (t * .85 + i / 18) % 1, vx = (i - 8.5) * .5, x = fx + vx * u * 2, y = B - 42.4 + (-12 * u + 23.4 * u * u);
+    ctx.fillStyle = "rgba(228,246,255," + (.92 - u * .3).toFixed(2) + ")"; ctx.beginPath(); ctx.arc(x, y, .75 - u * .15, 0, 6.2832); ctx.fill();
+  }
+  vBlot(fx, B - 40, 13, "235,248,255", .16);                                    // neblina leve em volta do jato
+}
+
+function cityMotes(t, l, r) {                                                  // poeirinha/pólen dourado flutuando na luz (de dia ao sol, à noite perto dos lampiões)
+  const k = DAY.sunA * .9 + DAY.lamp * .6; if (k < .03) return;
+  const vw = r - l + 40, B = CITY_B, col = DAY.lamp > DAY.sunA ? "255,214,150" : "255,238,196";
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 36; i++) {
+    const x = l + ((((i * 97.3 + t * (2 + i % 5) - l * .35) % vw) + vw) % vw) - 20, y = B - 78 + (i * 53.7) % 96 + Math.sin(t * .7 + i * 2.3) * 6;
+    const a = k * .55 * (.3 + .7 * Math.pow(.5 + .5 * Math.sin(t * 1.6 + i * 3.1), 2));
+    ctx.fillStyle = "rgba(" + col + "," + a.toFixed(3) + ")"; ctx.fillRect(x, y, i % 4 ? 1 : 1.6, i % 4 ? 1 : 1.6);
+  }
+  ctx.restore();
+}
+
 function drawCityBack(now, dt, l, r) {                                   // tudo que recebe a lavagem de cor da hora (l..r = trecho visível do mundo)
   cityEnsure();
   const D = cityData, B = CITY_B, t = now / 1000, cs = cityCache.cs;
@@ -3193,14 +3269,7 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
   const sx = Math.max(0, Math.floor((l - 4 - CITY_FW) * cs)), ex = Math.min(cityCache.cv.width, Math.ceil((r + 4 - CITY_FW) * cs));
   if (ex > sx) ctx.drawImage(cityCache.cv, sx, 0, ex - sx, cityCache.cv.height, CITY_FW + sx / cs, 0, (ex - sx) / cs, cityCache.cv.height / cs);
   cityShadows(t, l, r);
-  { // fonte: jatinhos de água caindo
-    const fx = D.fountain.x;
-    if (fx > l - 40 && fx < r + 40) for (let i = 0; i < 16; i++) {
-      const u = (t * .9 + i / 16) % 1, vx = (i - 7.5) * 2.1, x = fx + vx * u * 1.2, y = B - 42 + (-14 * u + 40 * u * u);
-      ctx.fillStyle = "rgba(210,240,252," + (.9 - u * .3).toFixed(2) + ")"; ctx.beginPath(); ctx.arc(x, y, .8, 0, 6.2832); ctx.fill();
-      if (u > .93) { ctx.strokeStyle = "rgba(235,250,255,.65)"; ctx.lineWidth = .4; ctx.beginPath(); ctx.ellipse(x, B - 5.4, 2.6, .75, 0, 0, 6.2832); ctx.stroke(); }
-    }
-  }
+  if (D.fountain.x > l - 50 && D.fountain.x < r + 50) cityFountain(t, D.fountain.x, B);
   D.lines.forEach(L => {                                                 // varais: fio e roupas balançando de leve
     if (L.x2 < l - 12 || L.x1 > r + 12) return;
     vWire(L.x1, L.y1, L.x2, L.y2, L.sag, .45, "rgba(58,52,64,.95)");
@@ -3260,6 +3329,7 @@ function drawCity(now) {
   ctx.save(); ctx.scale(Z, Z); ctx.translate(-cl, -vy);
   DAY.scene(() => drawCityBack(now, dt, cl, cr), [0, H]);
   cityLit(now, cl, cr);
+  cityMotes(now / 1000, cl, cr);
   DAY.scene(() => {                                                                      // o pescador (com a mesma lavagem da hora)
     const CK = CITY_CHAR;
     ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.beginPath(); ctx.ellipse(px, PIER_Y + 1, 9 * CK, 2.2 * CK, 0, 0, 7); ctx.fill();
