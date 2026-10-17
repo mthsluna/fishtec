@@ -219,6 +219,7 @@ const lookPayload = () => ({ name: myName, shirt: me.shirt, pants: me.pants, h: 
 // A hora vem do relógio do SERVIDOR: medimos a diferença (clockOff) entre ele e o do aparelho, compensando a latência.
 const DAY_MS = 30 * 60 * 1000;
 let clockOff = 0;                                                               // servidor - aparelho, em ms (0 = sem servidor: usa o relógio local)
+try { clockOff = +localStorage.getItem("clockOff") || 0; } catch (e) {}          // última diferença medida: a hora já nasce certa, sem esperar o servidor (no Render grátis ele pode demorar a acordar)
 const gameMinutes = () => (((Date.now() + clockOff) % DAY_MS) / DAY_MS) * 1440;   // 0 a 1440 (00:00 a 24:00)
 function gameClock() {
   const m = Math.floor(gameMinutes()) % 1440;
@@ -232,6 +233,7 @@ if (socket) {
       if (err || !(serverNow > 0)) return;
       const t1 = Date.now();
       clockOff = serverNow + (t1 - t0) / 2 - t1;                                // supõe que a ida e a volta levaram o mesmo tempo
+      try { localStorage.setItem("clockOff", String(Math.round(clockOff))); } catch (e) {}
     });
   };
   setInterval(() => { if (socket.connected) syncClock(); }, 60000);             // reajusta de minuto em minuto (corrige deriva)
