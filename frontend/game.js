@@ -3917,21 +3917,50 @@ function seaEach(l, r, t, cb, pick) {
     });
   });
 }
-// pinta o grupo numa camada pequena (bl = pixels por unidade do mundo; menor = mais desfocado) e cola de volta; mode "light" soma luz
-const SEAL = {};
-function seaBlur(l, r, bl, pick, mode, t, a) {
-  const y0 = CITY_HZ - 50, hh = 92, x0 = l - 2, w = r - l + 4, cw = Math.ceil(w * bl), ch = Math.ceil(hh * bl), key = mode + bl;
-  let L = SEAL[key];
-  if (!L || L.cv.width !== cw || L.cv.height !== ch) { const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch; L = SEAL[key] = { cv, c: cv.getContext("2d") }; }
-  const c = L.c; c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-over"; c.clearRect(0, 0, cw, ch);
-  c.setTransform(bl, 0, 0, bl, -x0 * bl, -y0 * bl); c.imageSmoothingEnabled = true;
-  if (mode === "light") c.globalCompositeOperation = "lighter";
-  const prev = ctx; ctx = c;
-  try { seaEach(l, r, t, (el, tt, k) => { if (mode === "light") { if (SEA_LIGHT[el.id]) SEA_LIGHT[el.id](tt, a, k, el); } else SEA_BODY[el.id](tt, k, el); }, pick); } finally { ctx = prev; }
-  prev.save(); if (mode === "light") prev.globalCompositeOperation = "lighter";
-  prev.imageSmoothingEnabled = true; prev.imageSmoothingQuality = "high";
-  prev.drawImage(L.cv, 0, 0, cw, ch, x0, y0, cw / bl, ch / bl);
-  prev.restore();
+// Cada coisa distante vira um SPRITE próprio (pintado em coordenadas locais, sem depender da câmera) e desfocado de verdade (ctx.filter blur; sem suporte, cai num desfoque por reduzir/ampliar).
+// O sprite só é repintado ~15x por segundo (roda-gigante girando, fumaça, luzes piscando) e depois apenas MOVIDO na tela: andar não faz mais nada tremer, brilhar ou "nadar".
+const SEAB = { pxu: 2, pad: 10, sp: {}, filt: null, rad: { shore: 1.3, light: 1.1, park: 1.2, ship: 1.0, sail: .55 }, still: { shore: 1, light: 1 } };
+function seaBB(el) {
+  switch (el.id) {
+    case "shore": return { x0: -el.w / 2 - 4, x1: el.w / 2 + 4, y0: -14, y1: 5 };
+    case "light": return { x0: -126, x1: 126, y0: -52, y1: 9 };
+    case "park": return { x0: -96, x1: 104, y0: -96, y1: 14 };
+    case "ship": return { x0: -40, x1: 30, y0: -34, y1: 7 };
+    default: return { x0: -14, x1: 14, y0: -20, y1: 9 };
+  }
+}
+function seaBlurInto(raw, bc, rad) {                                      // rad em unidades do mundo
+  const w = raw.width, h = raw.height; bc.setTransform(1, 0, 0, 1, 0, 0); bc.globalCompositeOperation = "source-over"; bc.clearRect(0, 0, w, h);
+  if (SEAB.filt === null) SEAB.filt = typeof bc.filter === "string";
+  if (SEAB.filt) { bc.filter = "blur(" + (rad * SEAB.pxu).toFixed(2) + "px)"; bc.drawImage(raw, 0, 0); bc.filter = "none"; return; }
+  const f = Math.max(2, Math.round(rad * 1.8)), tw = Math.max(2, Math.ceil(w / f)), th = Math.max(2, Math.ceil(h / f));   // sem filter: reduz e amplia com suavização
+  if (!SEAB.tmp) SEAB.tmp = document.createElement("canvas");
+  const tc = SEAB.tmp; tc.width = tw; tc.height = th; const c2 = tc.getContext("2d"); c2.imageSmoothingEnabled = true; c2.imageSmoothingQuality = "high"; c2.drawImage(raw, 0, 0, tw, th);
+  bc.imageSmoothingEnabled = true; bc.imageSmoothingQuality = "high"; bc.drawImage(tc, 0, 0, w, h);
+}
+function seaSpr(el, t, mode, a, k) {                                      // desenha (no ctx já posicionado/escalado) o sprite desfocado da coisa
+  const key = mode + SEAPR.indexOf(el), bb = seaBB(el), pad = SEAB.pad, pxu = SEAB.pxu;
+  let sp = SEAB.sp[key];
+  if (!sp) {
+    const w = Math.ceil((bb.x1 - bb.x0 + pad * 2) * pxu), h = Math.ceil((bb.y1 - bb.y0 + pad * 2) * pxu), raw = document.createElement("canvas"), blr = document.createElement("canvas");
+    raw.width = blr.width = w; raw.height = blr.height = h;
+    sp = SEAB.sp[key] = { raw, rc: raw.getContext("2d"), blr, bc: blr.getContext("2d"), t: -1e9, w, h };
+  }
+  if (t - sp.t > (SEAB.still[el.id] && mode === "body" && sp.t > -1e8 ? 1e9 : .066)) {
+    sp.t = t; const c = sp.rc;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-over"; c.clearRect(0, 0, sp.w, sp.h);
+    c.setTransform(pxu, 0, 0, pxu, (pad - bb.x0) * pxu, (pad - bb.y0) * pxu); c.imageSmoothingEnabled = true;
+    if (mode === "light") c.globalCompositeOperation = "lighter";
+    const prev = ctx; ctx = c;
+    try { ctx.save(); if (mode === "light") { if (SEA_LIGHT[el.id]) SEA_LIGHT[el.id](t, a, 0, el); } else SEA_BODY[el.id](t, 0, el); ctx.restore(); } finally { ctx = prev; }
+    seaBlurInto(sp.raw, sp.bc, SEAB.rad[el.id] || 1);
+  }
+  ctx.save();
+  if (el.id === "sail" && mode === "body") ctx.rotate(Math.sin(t * .9 + k * 1.7) * .035);
+  else if (el.id === "sail") ctx.rotate(Math.sin(t * .9 + k * 1.7) * .035);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sp.blr, bb.x0 - pad, bb.y0 - pad, sp.w / pxu, sp.h / pxu);
+  ctx.restore();
 }
 const SEA_BODY = {
   shore(t, k, el) {                                                      // margens bem longe: dois morros baixos, quase só névoa
@@ -4002,7 +4031,6 @@ const SEA_BODY = {
     vLine(17, -5.8, 17, -9.4, .4, "#6a7d9b"); vLine(10, -12.4, 16.6, -5.9, .3, "#6a7d9b");     // guindaste e mastro de proa
   },
   sail(t, k) {
-    ctx.rotate(Math.sin(t * .9 + k * 1.7) * .035);
     vEll(0, 1.9, 8, .9, "rgba(10,40,80,.32)");
     vPoly([[-5.6, -1.2], [5.6, -1.2], [3.8, 1.6], [-3.6, 1.6]], "#f4efe2"); vPoly([[-5.5, -1.2], [5.5, -1.2], [5.1, -.2], [-5.1, -.2]], "#27385e");
     vLine(0, -1.2, 0, -13.4, .55, "#4a3a2c"); vLine(0, -2.6, -4.6, -2.2, .35, "#4a3a2c");
@@ -4020,21 +4048,45 @@ const SEA_BODY = {
     vLine(-1.3, -3.8, 0, -6.4, .35, "#33425c"); vLine(1.3, -3.8, 0, -6.4, .35, "#33425c"); vCirc(0, -6.6, .75, "#33425c");
   },
 };
+// ---------- Gaivotas: asas articuladas (ombro, cotovelo, ponta preta), batem e planam, voam atravessando o céu em alturas e tamanhos diferentes ----------
+const GULLS = [
+  { x: 0, v: 9, y: -50, s: 1.0, ph: 0 }, { x: 150, v: -7, y: -32, s: .8, ph: 2 }, { x: 270, v: 11, y: -62, s: .7, ph: 4 }, { x: 70, v: 6, y: -22, s: 1.15, ph: 1 },
+  { x: 215, v: -13, y: 15, s: 1.4, ph: 3, low: 1 }, { x: -90, v: 10, y: 24, s: 1.55, ph: 5, low: 1 },
+];
+function drawGull(x, y, s, dir, t, ph) {
+  const cyc = (t * .32 + ph * .37) % 1, flap = cyc < .6;                                           // bate asas por um tempo e depois plana
+  const th = flap ? Math.sin((t + ph) * 8.5) * .8 + .1 : .26 + .05 * Math.sin(t * 1.3 + ph);        // ângulo do ombro (rad, + = para cima)
+  const bob = flap ? Math.sin((t + ph) * 8.5 - 1.2) * .35 * s : Math.sin(t * 1.1 + ph) * .2 * s;
+  ctx.save(); ctx.translate(x, y + bob); ctx.scale(dir * s, s);
+  const wing = (ox, oy, col, tipCol, sc) => {
+    const L1 = 3.3 * sc, L2 = 3.7 * sc, ex = ox + Math.cos(th) * L1, ey = oy - Math.sin(th) * L1, tt = th * .3 - .42, tx = ex + Math.cos(tt) * L2, ty = ey - Math.sin(tt) * L2;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(ox + .5, oy); ctx.lineTo(ex + .3, ey - .15); ctx.lineTo(tx, ty); ctx.lineTo(tx - 1.7, ty + .4); ctx.lineTo(ex - 1.5, ey + .9); ctx.lineTo(ox - 1, oy + .6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = tipCol; ctx.beginPath(); ctx.moveTo(ex + (tx - ex) * .55, ey + (ty - ey) * .55); ctx.lineTo(tx, ty); ctx.lineTo(tx - 1.7, ty + .4); ctx.lineTo(ex + (tx - ex) * .55 - 1.1, ey + (ty - ey) * .55 + .5); ctx.closePath(); ctx.fill();   // ponta da asa escura
+  };
+  wing(-.5, -.3, "#c9ced6", "#3c4350", .92);                                                       // asa de trás (mais escura, um pouco menor)
+  ctx.fillStyle = "#f4f4f2"; ctx.beginPath(); ctx.ellipse(0, .4, 3.1, 1.15, 0, 0, 6.2832); ctx.fill();   // corpo
+  ctx.fillStyle = "#dfe2e6"; ctx.beginPath(); ctx.moveTo(-2.6, .2); ctx.lineTo(-5, .1); ctx.lineTo(-4.6, 1); ctx.lineTo(-2.4, 1.1); ctx.closePath(); ctx.fill();   // cauda
+  ctx.fillStyle = "#f7f7f5"; ctx.beginPath(); ctx.arc(3.2, -.1, .95, 0, 6.2832); ctx.fill();         // cabeça
+  ctx.fillStyle = "#e8b04a"; ctx.beginPath(); ctx.moveTo(3.9, -.2); ctx.lineTo(5.3, .25); ctx.lineTo(3.9, .55); ctx.closePath(); ctx.fill();   // bico
+  ctx.fillStyle = "#2a2f3a"; ctx.fillRect(3.4, -.45, .35, .35);                                      // olho
+  wing(.1, -.5, "#fbfbfa", "#2f3642", 1);                                                          // asa da frente
+  ctx.restore();
+}
 function citySeaProps(now, l, r) {                                       // dentro da lavagem de cor da hora
-  const t = now / 1000, HZ = CITY_HZ;
-  seaBlur(l, r, .5, el => SEA_FAR.includes(el.id), "body", t);           // longe: bem desfocado
-  const g = ctx.createLinearGradient(0, HZ - 18, 0, HZ + 20);            // neblina de distância: o que está longe se dissolve no horizonte
-  g.addColorStop(0, "rgba(255,206,178,0)"); g.addColorStop(.45, "rgba(255,206,178,.24)"); g.addColorStop(1, "rgba(255,206,178,0)");
+  const t = now / 1000, HZ = CITY_HZ, hz = "rgba(" + DAY.sky[3].map(v => Math.round(v)).join(",") + ",";
+  seaEach(l, r, t, (el, tt, k) => seaSpr(el, tt, "body", 0, k), el => SEA_FAR.includes(el.id));   // longe: desfocado bem forte
+  const g = ctx.createLinearGradient(0, HZ - 18, 0, HZ + 20);            // neblina de distância, na cor do horizonte da hora: o que está longe se dissolve
+  g.addColorStop(0, hz + "0)"); g.addColorStop(.5, hz + ".26)"); g.addColorStop(1, hz + "0)");
   ctx.fillStyle = g; ctx.fillRect(l - 4, HZ - 18, r - l + 8, 38);
-  seaBlur(l, r, .85, el => el.id === "sail", "body", t);                 // meio: levemente desfocado
-  seaEach(l, r, t, (el, tt, k) => SEA_BODY.buoy(tt, k, el), el => el.id === "buoy");   // perto: nítido
+  seaEach(l, r, t, (el, tt, k) => seaSpr(el, tt, "body", 0, k), el => el.id === "sail");          // meio: levemente desfocado
+  seaEach(l, r, t, (el, tt, k) => SEA_BODY.buoy(tt, k, el), el => el.id === "buoy");              // perto: nítido
   if (DAY.lamp < .35 && DAY.sunA > .15) {                                // gaivotas (só de dia)
-    const vw = r - l, cc = l + vw / 2, a = Math.min(1, DAY.sunA * 1.5) * (1 - DAY.lamp);
-    ctx.save(); ctx.globalAlpha = a; ctx.lineCap = "round"; ctx.strokeStyle = "#f2eee6"; ctx.lineWidth = .7;
-    for (let i = 0; i < 4; i++) {
-      const x = cc + (i - 1.5) * 62 + Math.sin(t * .17 + i * 2) * 26 - .05 * (cc - cityData.piazza.x - 85), y = HZ - 16 - i * 6.5 + Math.sin(t * .5 + i * 2.7) * 3, fl = Math.sin(t * 6 + i * 2.3) * 2.4;
-      ctx.beginPath(); ctx.moveTo(x - 3.4, y + fl * .5); ctx.quadraticCurveTo(x - 1.4, y - 1.2 - fl * .3, x, y); ctx.quadraticCurveTo(x + 1.4, y - 1.2 - fl * .3, x + 3.4, y + fl * .5); ctx.stroke();
-    }
+    const vw = r - l, span = vw + 140, a = Math.min(1, DAY.sunA * 1.5) * (1 - DAY.lamp);
+    ctx.save(); ctx.globalAlpha = a;
+    GULLS.forEach(gl => {
+      const x = l - 70 + ((((gl.x + t * gl.v - l * .1) % span) + span) % span), y = HZ + gl.y + Math.sin(t * .55 + gl.ph) * (gl.low ? 1.4 : 3.8);
+      drawGull(x, y, gl.s * .62, gl.v > 0 ? 1 : -1, t, gl.ph);
+    });
     ctx.restore();
   }
 }
@@ -4102,10 +4154,8 @@ const SEA_LIGHT = {
 function citySeaLights(now, l, r) {                                      // à noite: luzes do parque, farol, navio, veleiros e boias (soma luz; desfocadas como os objetos)
   const a = DAY.lamp; if (a <= .02) return;
   const t = now / 1000;
-  seaBlur(l, r, .5, el => SEA_FAR.includes(el.id), "light", t, a);
-  seaBlur(l, r, .85, el => el.id === "sail", "light", t, a);
   ctx.save(); ctx.globalCompositeOperation = "lighter";
-  seaEach(l, r, t, (el, tt, k) => SEA_LIGHT.buoy(tt, a, k, el), el => el.id === "buoy");
+  seaEach(l, r, t, (el, tt, k) => { if (el.id === "buoy") SEA_LIGHT.buoy(tt, a, k, el); else seaSpr(el, tt, "light", a, k); });
   ctx.restore();
 }
 
