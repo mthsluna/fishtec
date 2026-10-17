@@ -3023,7 +3023,7 @@ function vChurch(D, b, B, r, ri, pk) {
 const dx0 = (cx, o) => cx + o;
 
 // ---- prédios comuns (fachada, janelas, térreo, telhado)
-2.6.7// ---------- Detalhes extras das fachadas: reboco com grão e manchas, cantaria, rodapé de pedra, cornijas, lintéis, cortinas,
+// ---------- Detalhes extras das fachadas: reboco com grão e manchas, cantaria, rodapé de pedra, cornijas, lintéis, cortinas,
 // ar-condicionado, cartazes, caixa de luz, capachos e bicicletas. Usam um sorteio PRÓPRIO: não mudam o traçado nem a semente do resto da cidade.
 // Para desligar tudo: CITY_DETAIL = 0. Para mais/menos textura no reboco: CITY_TEX (1 = como está, 0 = liso).
 const CITY_DETAIL = 1, CITY_TEX = 1;
