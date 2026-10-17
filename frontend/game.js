@@ -2961,17 +2961,22 @@ function cityCloudBake() {                                               // pint
   } finally { ctx = main; }
   D.cloudKey = Math.round(DAY.m / 15);
 }
-function cityClouds(t, l, r) {
-  const D = cityData; if (!D.cloudSp || D.cloudKey !== Math.round(DAY.m / 15)) cityCloudBake();
-  const al = (1 - .62 * Math.min(1, DAY.starA)) * .95; if (al < .03) return;
-  const vw = r - l, SPAN = vw + 420;
-  ctx.save(); ctx.globalAlpha = al; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
-  CITY_CLOUDS.forEach(([k, y, sc, sp, f], i) => {
-    const sxn = ((i * 211 + t * sp - l * f) % SPAN + SPAN) % SPAN - 160;
-    if (sxn > vw + 20) return;
-    ctx.drawImage(D.cloudSp[k], l + sxn, y, 130 * sc, 50 * sc);
+function cityClouds(t, l, r) {                                           // as MESMAS nuvens do cais (CLOUDS / makeCloud), com a mesma transformação lenta de forma
+  if (!layers || !layers.clouds) return;
+  const vw = r - l;
+  ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
+  CLOUDS.forEach((c, i) => {
+    const cl = layers.clouds[i], u = (t + c.seed * 3.7) / c.m, n = Math.floor(u), f = u - n;
+    if (n !== cl.n) {
+      cl.a = n === cl.n + 1 ? cl.b : makeCloud(c.w, c.h, c.seed + n * 101, c.tone);
+      cl.b = makeCloud(c.w, c.h, c.seed + (n + 1) * 101, c.tone); cl.n = n;
+    }
+    const e = f * f * (3 - 2 * f), span = vw + c.w + 40, pf = c.back ? .06 : .12;       // pf: parallax (as de longe andam menos com a câmera)
+    const x = l + ((((c.x + t * c.v - l * pf) % span) + span) % span) - c.w, k = c.back ? 0.8 : 1;
+    ctx.globalAlpha = (1 - e) * k; ctx.drawImage(cl.a, x, c.y, c.w, c.h);
+    ctx.globalAlpha = e * k;       ctx.drawImage(cl.b, x, c.y, c.w, c.h);
   });
-  ctx.restore();
+  ctx.globalAlpha = 1; ctx.restore();
 }
 function cityShadows(t, l, r) {
   const D = cityData, B = CITY_B, sun = DAY.sunA; if (sun < .03) return;
@@ -3151,6 +3156,7 @@ function cityLightBuild() {
   } finally { ctx = main; }
   const spr = (w, f) => { const cv = document.createElement("canvas"); cv.width = cv.height = w; const c = cv.getContext("2d"); f(c, w); return cv; };
   D.lit = { Wn, Gw,
+    farWin: spr(8, (c, w) => { c.fillStyle = "rgb(255,214,140)"; c.fillRect(0, 0, w, w); }),
     bulb: spr(28, (c, w) => { const g = c.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); g.addColorStop(0, "rgba(255,220,140,.34)"); g.addColorStop(1, "rgba(255,200,110,0)"); c.fillStyle = g; c.fillRect(0, 0, w, w); }),
     far: spr(24, (c, w) => { const g = c.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); g.addColorStop(0, "rgba(255,200,120,1)"); g.addColorStop(1, "rgba(255,180,100,0)"); c.fillStyle = g; c.fillRect(0, 0, w, w); }) };
 }
@@ -3164,9 +3170,9 @@ function cityLit(now, l, r) {                                            // à n
     D.gaps.forEach(gp => { if (gp.x < r + 10 && gp.x + gp.w > l - 10) ctx.rect(gp.x, -60, gp.w, B - 12 - gp.hh - 8 + 60); });
     ctx.rect(D.piazza.x, -60, D.piazza.w, B - 20 + 60);
     ctx.clip(); ctx.globalCompositeOperation = "lighter";
-    [[1, .5, 9], [2, .62, 11]].forEach(([i, al, sz]) => {
+    [[1, .55, 2.4, 4.2], [2, .75, 3, 5]].forEach(([i, al, ww, wh]) => {                // janelinhas acesas (mesmo tamanho das janelas pintadas), sem brilho borrado
       const sh = l * (1 - CITY_FARF[i]); ctx.globalAlpha = a * al;
-      D.farLit[i].forEach(p => { const x = p.x + sh; if (x > l - 8 && x < r + 8) ctx.drawImage(L.far, x - sz / 2, p.y - sz / 2, sz, sz); });
+      D.farLit[i].forEach(p => { const x = p.x + sh; if (x > l - 8 && x < r + 8) ctx.drawImage(L.farWin, x - ww / 2, p.y - wh / 2, ww, wh); });
     });
     ctx.restore();
   }
