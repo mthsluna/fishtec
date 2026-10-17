@@ -2465,7 +2465,7 @@ function vEll(x, y, rx, ry, fill) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0
 function vLine(x1, y1, x2, y2, w, col) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineCap = "round"; ctx.stroke(); }
 function vWire(x1, y1, x2, y2, sag, w, col) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo((x1 + x2) / 2, (y1 + y2) / 2 + sag * 2, x2, y2); ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineCap = "round"; ctx.stroke(); }
 function vPoly(pts, fill) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
-function vSoft(x, y, w, h, a = .3, col = "20,8,26") { ctx.fillStyle = vLG(0, y, 0, y + h, [[0, "rgba(" + col + "," + a + ")"], [1, "rgba(" + col + ",0)"]]); ctx.fillRect(x, y, w, h); }   // sombra que some para baixo
+.5.8function vSoft(x, y, w, h, a = .3, col = "40,18,74") { ctx.fillStyle = vLG(0, y, 0, y + h, [[0, "rgba(" + col + "," + a + ")"], [1, "rgba(" + col + ",0)"]]); ctx.fillRect(x, y, w, h); }   // sombra que some para baixo
 function vText(s, x, y, col, size, maxW, shadow) {
   ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
   ctx.font = "bold " + size + "px Georgia, 'Times New Roman', serif";
@@ -2482,7 +2482,7 @@ function vBush(cx, cy, q, pk, r) {                                         // mo
 }
 
 function vShutter(x, y, w, h, col) {                                       // veneziana de madeira
-  vRR(x + .4, y + .7, w, h, .7, "rgba(20,8,26,.2)");
+  vRR(x + .5, y + .9, w, h, .7, "rgba(44,22,86,.34)");
   vRR(x, y, w, h, .7, vLG(x, 0, x + w, 0, [[0, vLight(col, .2)], [1, vDark(col, .22)]]));
   ctx.fillStyle = "rgba(0,0,0,.24)"; for (let q = 1.3; q < h - .6; q += 1.7) ctx.fillRect(x + .5, y + q, w - 1, .5);
   ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.fillRect(x + .35, y + .4, .6, h - .8);
@@ -2501,7 +2501,7 @@ function vWin(x, y, w, h, o) {                                              // j
   if (arch) vArchP(x - 1.4, y - 1.4, w + 2.8, h + 1.4); else vRR(x - 1.4, y - 1.4, w + 2.8, h + 2.8, 1.1);
   ctx.fillStyle = vLG(x, 0, x + w, 0, [[0, vLight(fr, .15)], [1, vDark(fr, .12)]]); ctx.fill();
   vGlass(x, y, w, h, arch, o.cross !== false);
-  if (o.sill !== false) { vRR(x - 2, y + h + .8, w + 4, 1.7, .8, vLG(0, y + h, 0, y + h + 2.5, [[0, "#f0e7d0"], [1, "#cdc0a4"]])); vSoft(x - 1.5, y + h + 2.5, w + 3, 3.4, .3); }
+  if (o.sill !== false) { vRR(x - 2, y + h + .8, w + 4, 1.7, .8, vLG(0, y + h, 0, y + h + 2.5, [[0, "#f0e7d0"], [1, "#cdc0a4"]])); vSoft(x - 1.5, y + h + 2.5, w + 3, 4.6, .4); }
 }
 function vFlowerBox(x, y, w, r, pk) {
   vRR(x, y, w, 3.2, .8, vLG(0, y, 0, y + 3.2, [[0, "#9a6240"], [1, "#6a3e26"]]));
@@ -2574,7 +2574,7 @@ function vGround(D, B, FW, CWD, r, ri, pk) {
   }
   ctx.fillStyle = vLG(0, B + 18, 0, B + 22, [[0, "#e6dcc8"], [.22, "#cfc4b0"], [.3, "#80756a"], [1, "#40372f"]]); ctx.fillRect(FW, B + 18, CWD, 4);   // meio-fio
   vSoft(FW, B + 22, CWD, 9, .38, "12,6,18");
-  vSoft(FW, B, CWD, 11, .5, "28,16,40");                                    // sombra das paredes na calçada
+  vSoft(FW, B, CWD, 18, .62, "44,22,86");                                    // sombra das paredes na calçada
 }
 
 // ---- praça: balaústres, ciprestes, pinheiro-manso, fonte, bancos e postes
@@ -2697,7 +2697,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
   const GF = CITY_GF, FH = CITY_FH;
   const wc = CITY_WALLS[b.p], x = b.x, w = b.w, top = b.top, ht = B - top, shc = CITY_SHUT[(b.p * 3 + bi) % CITY_SHUT.length];
   // parede: degradê vertical, volume nas laterais e manchas de reboco
-  ctx.fillStyle = vLG(0, top, 0, B, [[0, vLight(wc[0], .1)], [.35, wc[0]], [1, vMix(wc[0], wc[1], .55)]]); ctx.fillRect(x, top, w, ht);
+  ctx.fillStyle = vLG(0, top, 0, B, [[0, vLight(wc[0], .1)], [.35, wc[0]], [1, vMix(vMix(wc[0], wc[1], .7), "#3a2468", .2)]]); ctx.fillRect(x, top, w, ht);
   for (let i = 0, nn = w * ht / 150 | 0; i < nn; i++) vBlot(x + r() * w, top + r() * ht, 3 + r() * 7, r() < .5 ? "110,60,40" : "255,246,225", .06 + r() * .06);
   for (let q = 0, np = ri(1, 2); q < np; q++) {                              // reboco caído, aparecendo o tijolo
     const bw = ri(7, 12), bh = ri(6, 10), bx = x + ri(3, w - 15), by = top + ri(8, Math.max(9, ht - 34));
@@ -2705,7 +2705,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     ctx.fillStyle = "#b0603f"; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4); ctx.fillStyle = "rgba(60,20,12,.35)"; for (let yy = 1.4; yy < bh + 2; yy += 2.4) ctx.fillRect(bx - 2, by + yy, bw + 4, .45);
     ctx.restore();
   }
-  ctx.fillStyle = vLG(x, 0, x + w, 0, [[0, "rgba(255,246,225,.22)"], [.04, "rgba(255,246,225,0)"], [.84, "rgba(30,14,44,0)"], [1, "rgba(30,14,44,.34)"]]); ctx.fillRect(x, top, w, ht);
+  ctx.fillStyle = vLG(x, 0, x + w, 0, [[0, "rgba(255,246,225,.22)"], [.04, "rgba(255,246,225,0)"], [.84, "rgba(30,14,44,0)"], [1, "rgba(44,22,86,.5)"]]); ctx.fillRect(x, top, w, ht);
   if (bi % 3 === 1) {                                                        // calha
     vRR(x + w - 5.5, top + 2, 1.9, ht - 6, .9, vLG(x + w - 6, 0, x + w - 3, 0, [[0, "#8a7a68"], [1, "#4e4338"]]));
     for (let yy = top + 8; yy < B - 6; yy += 14) vRR(x + w - 6.2, yy, 3.3, 1, .4, "#a89886");
@@ -2716,9 +2716,9 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     for (let i = 0; i < 70; i++) { const vy = B - 4 - vh * Math.pow(r(), 1.5), vxx = vx + r() * 24, q = 1.2 + r() * 1.4; vCirc(vxx, vy, q, vMix(pk(CITY_GREENS), "#0a2010", r() * .3)); if (r() < .28) vCirc(vxx + .4, vy - .3, .65, pk(["#d6477f", "#e868a0", "#b8326a"])); }
   }
   for (let k = 0; k <= b.n; k++) {                                           // frisos entre os andares
-    const ly = B - GF - k * FH; vRR(x, ly - .9, w, 1.8, .7, vLG(0, ly - 1, 0, ly + 1, [[0, wc[2]], [1, vDark(wc[1], .1)]])); vSoft(x, ly + .9, w, 2.6, .2);
+    const ly = B - GF - k * FH; vRR(x, ly - .9, w, 1.8, .7, vLG(0, ly - 1, 0, ly + 1, [[0, wc[2]], [1, vDark(wc[1], .1)]])); vSoft(x, ly + .9, w, 3.6, .32);
   }
-  vRR(x - 1.2, top - .8, w + 2.4, 2.4, .9, vLG(0, top - .8, 0, top + 1.6, [[0, vLight(wc[2], .2)], [1, wc[1]]])); vSoft(x, top + 1.6, w, 5, .3);
+  vRR(x - 1.2, top - .8, w + 2.4, 2.4, .9, vLG(0, top - .8, 0, top + 1.6, [[0, vLight(wc[2], .2)], [1, wc[1]]])); vSoft(x, top + 1.6, w, 9, .45);
 
   // janelas dos andares de cima
   const nc = Math.max(1, w / 24 | 0), gx = (w - nc * 18) / (nc + 1), wxAt = i => x + gx * (i + 1) + 18 * i + 4;
@@ -2731,7 +2731,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
         const by = ty + 4, bh = 18;
         vShutter(wx - 4.2, by, 3.6, bh, shc); vShutter(wx + ww + .6, by, 3.6, bh, shc);
         vRR(wx - 1.3, by - 1.3, ww + 2.6, bh + 1.3, 1.1, wc[2]); vGlass(wx, by, ww, bh, false, true);
-        vRR(wx - 3.6, ty + 22, ww + 7.2, 2.3, 1, vLG(0, ty + 22, 0, ty + 24.3, [[0, "#f0e7d0"], [1, "#b8ab90"]])); vSoft(wx - 3, ty + 24.4, ww + 6, 4, .3);
+        vRR(wx - 3.6, ty + 22, ww + 7.2, 2.3, 1, vLG(0, ty + 22, 0, ty + 24.3, [[0, "#f0e7d0"], [1, "#b8ab90"]])); vSoft(wx - 3, ty + 24.4, ww + 6, 6, .42);
         [wx - 2, wx + ww].forEach(cx => vCirc(cx + 1, ty + 26, 1, wc[1]));
         ctx.strokeStyle = "#2a2d35"; ctx.lineCap = "round"; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(wx - 3, ty + 15.8); ctx.lineTo(wx + ww + 3, ty + 15.8); ctx.stroke();
         ctx.lineWidth = .4; for (let q = wx - 3; q <= wx + ww + 3; q += 1.9) { ctx.beginPath(); ctx.moveTo(q, ty + 16.2); ctx.lineTo(q, ty + 22); ctx.stroke(); }
@@ -2767,7 +2767,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
       ctx.beginPath(); ctx.moveTo(x0 + .6, y0); ctx.lineTo(x1 - .6, y0); ctx.lineTo(x1, y0 + hh); ctx.quadraticCurveTo((x0 + x1) / 2, y0 + hh + 2.4, x0, y0 + hh); ctx.closePath();
       ctx.fillStyle = vLG(0, y0, 0, y0 + hh + 2, [[0, vLight(c, .12)], [1, vDark(c, .16)]]); ctx.fill();
     }
-    vRR(ax - .5, y0 - 1.2, aw + 1, 1.8, .8, "#3a2a22"); vSoft(ax, y0 + hh + 2.4, aw, 6, .34);
+    vRR(ax - .5, y0 - 1.2, aw + 1, 1.8, .8, "#3a2a22"); vSoft(ax, y0 + hh + 2.4, aw, 10, .5);
   };
   if (b.g === "door" || b.g === "sign" || b.g === "shrine") {
     const dx = b.g === "door" ? x + ri(10, Math.max(10, w - 30)) : x + 8; doorAt(dx, true);
@@ -2935,6 +2935,56 @@ function cityBuild() {                                                     // pi
   } finally { ctx = main; }
   cityCache = { cv: cv2, s: CITY_HD ? 0 : S, cs, font: true };
   cityFarBake(); cityLightBuild(); cityFrontBake();
+}
+
+
+// ---------- nuvens no céu da cidade (parallax lento), sombras dos prédios que seguem o sol e sombras de nuvem passando pela rua ----------
+const CITY_CLOUDS = [[0, 14, 1.0, 1.6, .10], [1, 34, .8, 2.1, .13], [2, 8, 1.2, 1.2, .08], [3, 46, .7, 2.6, .15], [0, 58, .9, 1.9, .11], [1, 22, 1.1, 1.4, .09], [2, 52, .75, 2.3, .14], [3, 28, 1.3, 1.1, .07]];   // [formato, y, escala, velocidade (unid/s), parallax]
+function cityCloudBake() {                                               // pinta os 4 formatos de nuvem com as cores da hora (refaz de tempos em tempos)
+  const D = cityData, mixc = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f)).join(",");
+  const hi = mixc([255, 252, 248], DAY.lc, .4), mid = mixc([236, 232, 244], DAY.sky[2], .3), lo = mixc(DAY.sky[2], [120, 110, 170], .45);
+  const main = ctx; D.cloudSp = [];
+  try {
+    for (let k = 0; k < 4; k++) {
+      const cv = document.createElement("canvas"); cv.width = 260; cv.height = 100; const c = cv.getContext("2d"); c.setTransform(2, 0, 0, 2, 0, 0); ctx = c;
+      let sd = 31 + k * 17; const rr = () => (sd = sd * 16807 % 2147483647) / 2147483647, n = 6 + k % 3;
+      const pf = []; for (let i = 0; i < n; i++) { const u = i / (n - 1), q = 9 + rr() * 8 + 10 * Math.sin(u * Math.PI); pf.push([10 + u * 100 + (rr() - .5) * 6, 38 - q * .55, q]); }
+      c.save(); c.beginPath(); c.rect(0, 0, 130, 40); c.clip();
+      pf.forEach(([x, y, q]) => vCirc(x, y + 1.5, q, "rgb(" + lo + ")"));
+      pf.forEach(([x, y, q]) => vCirc(x - 1, y - 1, q * .93, "rgb(" + mid + ")"));
+      pf.forEach(([x, y, q]) => vCirc(x - 2.4, y - 3.4, q * .66, "rgb(" + hi + ")"));
+      c.restore();
+      D.cloudSp.push(cv);
+    }
+  } finally { ctx = main; }
+  D.cloudKey = Math.round(DAY.m / 15);
+}
+function cityClouds(t, l, r) {
+  const D = cityData; if (!D.cloudSp || D.cloudKey !== Math.round(DAY.m / 15)) cityCloudBake();
+  const al = (1 - .62 * Math.min(1, DAY.starA)) * .95; if (al < .03) return;
+  const vw = r - l, SPAN = vw + 420;
+  ctx.save(); ctx.globalAlpha = al; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
+  CITY_CLOUDS.forEach(([k, y, sc, sp, f], i) => {
+    const sxn = ((i * 211 + t * sp - l * f) % SPAN + SPAN) % SPAN - 160;
+    if (sxn > vw + 20) return;
+    ctx.drawImage(D.cloudSp[k], l + sxn, y, 130 * sc, 50 * sc);
+  });
+  ctx.restore();
+}
+function cityShadows(t, l, r) {
+  const D = cityData, B = CITY_B, sun = DAY.sunA; if (sun < .03) return;
+  const nx = Math.max(-1, Math.min(1, (DAY.sunX - 240) / 180)), len = 12 + 24 * (1 - DAY.sunE), off = -nx * len * 1.5, a = .4 * sun;
+  ctx.save();
+  ctx.beginPath();                                                       // sombras das fachadas projetadas na calçada e na rua (todas numa só forma, sem escurecer duas vezes)
+  D.blds.forEach(b => { if (b.x > r + 60 || b.x + b.w < l - 60) return; ctx.moveTo(b.x, B); ctx.lineTo(b.x + b.w, B); ctx.lineTo(b.x + b.w + off, B + len); ctx.lineTo(b.x + off, B + len); ctx.closePath(); });
+  ctx.fillStyle = vLG(0, B, 0, B + len, [[0, "rgba(46,22,92," + a.toFixed(3) + ")"], [1, "rgba(46,22,92,0)"]]); ctx.fill();
+  ctx.fillStyle = vRG(0, 0, 4, 110, [[0, "rgba(46,30,100," + (.2 * sun).toFixed(3) + ")"], [1, "rgba(46,30,100,0)"]]);   // sombras de nuvens deslizando pelo chão
+  for (let i = 0; i < 6; i++) {
+    const span = CITY_FX1 - CITY_FW + 300, x = ((i * 410 + t * 7) % span) + CITY_FW - 150, ww = 90 + (i % 3) * 30;
+    if (x < l - ww || x > r + ww) continue;
+    ctx.save(); ctx.translate(x, B + 16); ctx.scale(ww / 110, .34); ctx.fillRect(-110, -110, 220, 220); ctx.restore();
+  }
+  ctx.restore();
 }
 
 function cityEnsure() {
@@ -3129,10 +3179,12 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
   cityEnsure();
   const D = cityData, B = CITY_B, t = now / 1000, cs = cityCache.cs;
   ctx.save();
+  cityClouds(t, l, r);
   cityFar(DAY.sky[3], l, r);
   ctx.imageSmoothingEnabled = CITY_HD; ctx.imageSmoothingQuality = "low";
   const sx = Math.max(0, Math.floor((l - 4 - CITY_FW) * cs)), ex = Math.min(cityCache.cv.width, Math.ceil((r + 4 - CITY_FW) * cs));
   if (ex > sx) ctx.drawImage(cityCache.cv, sx, 0, ex - sx, cityCache.cv.height, CITY_FW + sx / cs, 0, (ex - sx) / cs, cityCache.cv.height / cs);
+  cityShadows(t, l, r);
   { // fonte: jatinhos de água caindo
     const fx = D.fountain.x;
     if (fx > l - 40 && fx < r + 40) for (let i = 0; i < 16; i++) {
@@ -3723,7 +3775,7 @@ function introView(now) {                               // longe (zoom < 1): cen
 }
 
 DAY.update(gameMinutes()); buildLayers(performance.now());     // pré-carrega o cenário inteiro antes do primeiro quadro
-2.5.8let last = performance.now(), slow = 0, fast = 0, S_MAX = S, recoverNeed = 600, lastRecover = -1e9;
+let last = performance.now(), slow = 0, fast = 0, S_MAX = S, recoverNeed = 600, lastRecover = -1e9;
 (function loop(now) {
   const raw = (now - last) / 1000;
   update(Math.min(0.05, raw)); last = now;
