@@ -2571,7 +2571,7 @@ const CITY_FW = -200, CITY_FX1 = CITY.MAX + 260;                         // trec
 const CITY_CAM_MIN = -50, CITY_CAM_PAD = 90;                             // até onde a câmera pode ir (esquerda / depois do fim da cidade)
 const CITY_CH = 200;                                                     // altura (px do mundo) do que a câmera chega a ver
 const CITY_GF = 54, CITY_FH = 28;
-const CLOTHES_K = 1.6;                                                   // BOUTIQUE: tamanho da loja (1 = original; 1.4 = 40% maior em tudo: manequins, vitrines, letreiro, porta; cresce para cima e para os lados)
+const CLOTHES_K = 1.3;                                                   // BOUTIQUE: tamanho da loja (1 = original; 1.4 = 40% maior em tudo: manequins, vitrines, letreiro, porta; cresce para cima e para os lados)
 const CLOTHES_W = Math.round(128 * CLOTHES_K), CLOTHES_GF = Math.round(CITY_GF * CLOTHES_K) + 4;   // largura do prédio e altura do térreo da loja                                        // altura do térreo e de cada andar de cima
 const CITY_WALLS = [                                                     // [parede, sombra, destaque]
   ["#e0a85a", "#b9843f", "#efc27c"], ["#d2704a", "#a9502f", "#e48a62"], ["#ecd9a4", "#c4ad78", "#f6e8c0"], ["#dd8f7a", "#b66a58", "#eba48f"],
@@ -3439,7 +3439,7 @@ function vClothesBase(D, b, bi, B) {
       ctx.beginPath(); ctx.moveTo(sx - 1.4, wy + 4); ctx.lineTo(sx + 1.4, wy + 4); ctx.lineTo(sx + 11, fy); ctx.lineTo(sx - 11, fy); ctx.closePath(); ctx.fill();
       vEll(sx, fy + 1.2, 9, 1.3, "rgba(255,255,255,.45)");
     });
-    const u = 1 / K;                                                                                                           // 1 unidade do mundo = 1 do pescador: mesmo tamanho do personagem (corpo mais alto)
+    const u = CITY_CHAR * hScale(me.h) / MAX_H / K;                                                                           // manequim com a MESMA altura do meu pescador na cidade (CITY_CHAR e a minha altura); o boneco é desenhado na altura do Malto, então divide por MAX_H, e por K porque a fachada inteira é escalada
     xs.forEach((sx, i) => vBlockDoll(sx, fy + .6, u, OUT[side][i]));
     ctx.fillStyle = vLG(0, wy, 0, wy + gh * .55, [[0, "rgba(176,208,236,.26)"], [1, "rgba(176,208,236,0)"]]); ctx.fillRect(wx, wy, ww, gh * .55);   // céu refletido
     ctx.fillStyle = "rgba(255,255,255,.09)"; ctx.beginPath(); ctx.moveTo(wx + 9, wy); ctx.lineTo(wx + 17, wy); ctx.lineTo(wx + 6, wy + gh); ctx.lineTo(wx - 2, wy + gh); ctx.closePath(); ctx.fill();
@@ -3681,7 +3681,7 @@ function cityBuild() {                                                     // pi
     ctx.fillStyle = vLG(0, B + 30, 0, CITY_CH, [[0, "rgba(20,10,30,0)"], [1, "rgba(20,10,30,.42)"]]); ctx.fillRect(FW, B + 30, CWD, CITY_CH - B - 30);   // a beirada de baixo escurece, o pescador fica em destaque
     cityGrain(c2, FW, CWD, cs, sd);
   } finally { ctx = main; }
-  cityCache = { cv: cv2, s: CITY_HD ? 0 : S, cs, font: true };
+  cityCache = { cv: cv2, s: CITY_HD ? 0 : S, cs, font: true, h: me.h };   // h: altura que os manequins tinham ao pintar (se mudar no personalizar, repinta)
   cityFarBake(); cityLightBuild(); cityFrontBake();
 }
 
@@ -3770,7 +3770,7 @@ function cityShadows(t, l, r) {
 
 function cityEnsure() {
   if (!cityData) cityInit();
-  if (!cityCache || cityCache.s !== (CITY_HD ? 0 : S) || (!cityCache.font && cityFontOK())) cityBuild();
+  if (!cityCache || cityCache.s !== (CITY_HD ? 0 : S) || cityCache.h !== me.h || (!cityCache.font && cityFontOK())) cityBuild();
 }
 
 const cityFarWinLit = (b, wx, wy) => ((((b.x * 73856093) ^ (wx * 19349663) ^ (wy * 83492791)) >>> 0) % 5) === 0;
