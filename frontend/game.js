@@ -87,7 +87,7 @@ void main(){
   vec3 c0=vec3(texture2D(t,uv+ab).r,texture2D(t,uv).g,texture2D(t,uv-ab).b);
   vec3 bl=(texture2D(t,uv+vec2(texel.x,0.)).rgb+texture2D(t,uv-vec2(texel.x,0.)).rgb+texture2D(t,uv+vec2(0.,texel.y)).rgb+texture2D(t,uv-vec2(0.,texel.y)).rgb)*.25;
   c0=clamp(c0+(c0-bl)*fb.z,0.,1.);                                   // nitidez
-  float nb=1.+night*.9;                                              // à noite as luzes brilham mais
+  float nb=1.+night*.2;                                              // à noite as luzes brilham mais
   vec3 g=texture2D(bt,uv).rgb*fa.x+texture2D(bw,uv).rgb*fa.y;
   g*=nb*mix(vec3(1.),vec3(1.08,.96,.80),golden*.7);                  // halo mais quente no nascer/pôr do sol
   vec3 c=1.-(1.-c0)*(1.-clamp(g,0.,1.));                             // bloom em "screen": só soma luz, nunca estoura de forma feia
@@ -207,7 +207,7 @@ function present() {
       gl.uniform1f(P.u.mode, mode); gl.uniform2f(P.u.dir, dx, dy);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
-    gl.uniform1f(P.u.thr, FX.bloomThr - 0.22 * night); gl.uniform2f(P.u.texel, 1 / buf.width, 1 / buf.height);
+    gl.uniform1f(P.u.thr, FX.bloomThr - 0.04 * night); gl.uniform2f(P.u.texel, 1 / buf.width, 1 / buf.height);
     pass(glTex, A, 0, 0, 0);
     pass(A.tex, B, 1, 1 / A.w, 0); pass(B.tex, A, 1, 0, 1 / A.h);
     pass(A.tex, B, 1, 3.5 / A.w, 0); pass(B.tex, C, 1, 0, 3.5 / A.h);
@@ -2260,7 +2260,7 @@ function drawLampGlow(now) {                             // luz: vidro aceso, fe
     ctx.globalAlpha = Math.min(1, k * 1.1);              // vidro aceso: miolo quase branco, bordas amarelas
     rect("#f2b13c", x - 3, cy - 3.5, 6, 7); rect("#ffd36a", x - 2.3, cy - 2.8, 4.6, 5.6); rect("#fff6d6", x - 1.3, cy - 1.8, 2.6, 3.6);
     ctx.globalCompositeOperation = "lighter";            // somar luz: o que está atrás clareia e esquenta
-    ctx.globalAlpha = Math.min(1, 0.7 * k);
+    ctx.globalAlpha = Math.min(1, 0.5 * k);
     ctx.drawImage(spr, x - 90, yb, 180, LAMP_H + 4);     // feixe de luz
     // poeira/insetos flutuando no feixe: pontinhos que brilham e apagam devagar
     for (let i = 0; i < 9; i++) {
@@ -2271,10 +2271,10 @@ function drawLampGlow(now) {                             // luz: vidro aceso, fe
     }
     ctx.globalAlpha = 1;
     ctx.save(); ctx.beginPath(); ctx.rect(x - 40, yt - 11, 80, 200); ctx.clip();   // o chapéu bloqueia a luz para cima
-    let gr = ctx.createRadialGradient(x, cy, 1, x, cy, 30);                          // bloom: núcleo + brilho largo (queda tipo 1/d²)
-    gr.addColorStop(0, `rgba(255,236,180,${0.85 * k})`); gr.addColorStop(0.1, `rgba(255,214,130,${0.5 * k})`); gr.addColorStop(0.28, `rgba(${r},${g + 5},${b},${0.2 * k})`);
-    gr.addColorStop(0.6, `rgba(${r},${g - 10},${b - 10},${0.06 * k})`); gr.addColorStop(1, `rgba(${r},${g - 20},${b - 20},0)`);
-    ctx.fillStyle = gr; ctx.fillRect(x - 30, cy - 30, 60, 60);
+    let gr = ctx.createRadialGradient(x, cy, 1, x, cy, 22);                          // bloom: núcleo + brilho largo (queda tipo 1/d²)
+    gr.addColorStop(0, `rgba(255,236,180,${0.5 * k})`); gr.addColorStop(0.1, `rgba(255,214,130,${0.3 * k})`); gr.addColorStop(0.28, `rgba(${r},${g + 5},${b},${0.1 * k})`);
+    gr.addColorStop(0.6, `rgba(${r},${g - 10},${b - 10},${0.025 * k})`); gr.addColorStop(1, `rgba(${r},${g - 20},${b - 20},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(x - 22, cy - 22, 44, 44);
     ctx.restore();
     ctx.beginPath(); ctx.rect(x - 110, PIER_Y, 220, 3.4); ctx.clip();                 // poça de luz só nas tábuas do deck
     ctx.translate(x, PIER_Y + 1); ctx.scale(1, 0.07);
