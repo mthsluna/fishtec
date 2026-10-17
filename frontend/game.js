@@ -3342,29 +3342,19 @@ function vHung(gx, top, h, w, col, kind) {                                     /
     ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fillRect(gx - .12, top + 1.8, .24, h * .5);
   }
 }
-function vBlockDoll(cx, fy, u, o) {                                            // manequim de vitrine de luxo: alto, esguio, sem rosto (cabeça oval lisa), fy = chão, u = escala
-  const SK = "#ece4d4", SKD = "#c9bfac", cl = o.shirt, clD = shade(cl, 0.72), pn = o.pants;
+function vBlockDoll(cx, fy, u, o) {                                            // manequim IGUAL ao pescador (de frente, quadradinho), só que SEM ROSTO: fy = chão, u = escala (1 = tamanho do pescador, ~40 de altura)
+  const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
+  const shirt = o.shirt, sleeve = shade(shirt, 0.84), skin = "#f1c27d";
   ctx.save(); ctx.translate(cx, fy); ctx.scale(u, u);
-  vEll(0, .4, 7, 1.3, "rgba(20,8,26,.34)");
-  vEll(0, -.6, 6.4, 1.1, "#2a262e"); vEll(0, -1.2, 6.4, 1, "#4a4552");                                          // base (disco)
-  vLine(0, -1.5, 0, -6, .8, "#5a5560");                                                                          // haste atrás
-  const dress = !!o.dress;
-  if (dress) {                                                                                                  // vestido longo
-    vPoly([[-3.2, -34], [3.2, -34], [3.6, -26], [2.4, -23], [6.4, -2.4], [-6.4, -2.4], [-2.4, -23], [-3.6, -26]], vLG(-6, 0, 6, 0, [[0, vLight(cl, .1)], [.55, cl], [1, clD]]));
-    ctx.strokeStyle = "rgba(0,0,0,.14)"; ctx.lineWidth = .4; [-3, 0, 3].forEach(k => { ctx.beginPath(); ctx.moveTo(k * .6, -22); ctx.lineTo(k * 1.9, -2.6); ctx.stroke(); });
-    vRR(-2.4, -26.6, 4.8, .7, .3, "#e2b65c");                                                                    // cinto dourado fino
-  } else {
-    [[-2.6, shade(pn, .8)], [.3, pn]].forEach(([lx, c]) => { vRR(lx, -22, 2.4, 20.4, .6, c); vRR(lx + .2, -2.6, 2, 1.8, .5, "#14110f"); });           // pernas longas
-    vPoly([[-4, -34], [4, -34], [3.4, -22], [-3.4, -22]], vLG(-4, 0, 4, 0, [[0, vLight(cl, .08)], [.6, cl], [1, clD]]));                          // torso/jaqueta
-    vLine(0, -34, 0, -22, .35, "rgba(0,0,0,.35)"); vRR(-3.5, -22.8, 7, .7, .3, "rgba(0,0,0,.35)");
-    ctx.fillStyle = "rgba(240,234,220,.9)"; ctx.beginPath(); ctx.moveTo(-1.2, -34); ctx.lineTo(1.2, -34); ctx.lineTo(0, -29.6); ctx.closePath(); ctx.fill();   // camisa no decote
-  }
-  [-1, 1].forEach(sg => {                                                                                       // braços finos, cabeça de lado
-    const ax = sg * 4.6; vPoly([[ax - sg * .9, -33.6], [ax + sg * 1.2, -33.6], [ax + sg * 1.9, -17], [ax + sg * .3, -17]], dress ? SK : vLG(0, -34, 0, -17, [[0, cl], [.82, clD], [.83, SK], [1, SKD]]));
-  });
-  vRR(-.9, -38.4, 1.8, 4.6, .6, SKD);                                                                           // pescoço
-  ctx.beginPath(); ctx.ellipse(0, -41.6, 2.9, 3.9, 0, 0, 6.2832); ctx.fillStyle = vLG(-3, 0, 3, 0, [[0, "#f7f0e2"], [.6, SK], [1, SKD]]); ctx.fill();   // cabeça oval lisa, sem rosto
-  ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.beginPath(); ctx.ellipse(-1, -43, .7, 1.6, 0, 0, 6.2832); ctx.fill();
+  vEll(0, .5, 8.6, 1.5, "rgba(20,8,26,.32)");
+  [[-4.6, shade(o.pants, 0.75)], [0.6, o.pants]].forEach(([lx, col]) => { R(col, lx, -11, 4, 9); R("rgba(0,0,0,.14)", lx, -11, 1, 9); R("#15110e", lx - 0.5, -2.5, 5, 2.5); });   // pernas e sapatos
+  R(shirt, -5, -24, 10, 14); R("rgba(0,0,0,.2)", -5, -24, 2.5, 14); R("rgba(255,255,255,.18)", 2.5, -24, 2.5, 14);                                                              // tronco
+  R("#3e2a18", -5, -12, 10, 2);                                                                                                                                                  // cinto
+  [-1, 1].forEach(sg => { const ax = sg * 6.75 - 1.75; R(sleeve, ax, -21.5, 3.5, 8); R("rgba(0,0,0,.2)", sg < 0 ? ax : ax + 2.7, -21.5, 0.8, 8); R(skin, ax, -14, 3.5, 3); R(sleeve, ax - 0.05, -24, 3.6, 4.6); R("rgba(255,255,255,.22)", ax + 0.75, -23.6, 2, 0.7); });
+  R(shade(shirt, 0.76), -2.7, -24.6, 5.4, 3.8); R("#e0ac69", -1.8, -24.8, 3.6, 2.5); R("#e0ac69", -2, -26, 4, 1.6);                                                              // gola e pescoço
+  R(skin, -4.5, -33, 9, 8.5); R("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);                                                                                                            // cabeça lisa (sem olhos, bochechas e boca)
+  if (o.hat) { R(o.hat, -7.5, -35.5, 15, 3); R(o.hat, -4.5, -40, 9, 5); R("rgba(0,0,0,.25)", -7.5, -34, 15, 1.2); R("rgba(255,255,255,.35)", -4.5, -36.5, 9, 1.2); }              // chapéu (igual ao do pescador)
+  else { R(o.hair, -4.5, -34.6, 9, 3.2); R(o.hair, -5, -33.4, 1.2, 3.4); R(o.hair, 3.8, -33.4, 1.2, 3.4); }                                                                         // ou só o cabelo
   ctx.restore();
 }
 
@@ -3373,8 +3363,8 @@ function vClothes(D, b, bi, B) {
   const GOLD = "#e6c27a", GOLD_D = "#9c6e28", CREAM = "#f4ead2", PLUM = "#17151b";
   const wy = B - 46, gh = 32, ww = 42, lx = x + 5, dX = x + 53, dW = 22, rx = x + 81, fl = B - 15.5;     // vitrines (topo, altura, largura), porta e o chão das vitrines
   const plumG = (y0, y1) => vLG(0, y0, 0, y1, [[0, "#2a272f"], [1, "#0e0d12"]]);
-  const OUT = [[{ shirt: "#1d1b22", pants: "#1d1b22" }, { shirt: "#f4eadb", dress: 1 }, { shirt: "#b88a58", pants: "#e9dfcc" }],
-               [{ shirt: "#efe5d2", dress: 1 }, { shirt: "#24222b", pants: "#24222b" }, { shirt: "#8a2a3a", dress: 1 }]];   // roupa de cada manequim (as mesmas cores do personalizar)
+  const OUT = [[{ shirt: "#1d1b22", pants: "#2a2830", hair: "#2a1a10" }, { shirt: "#f1c40f", pants: "#1a1a1f", hat: "#2c3e50" }, { shirt: "#16a085", pants: "#d9d2c0", hat: "#d98e04" }],
+               [{ shirt: "#c0392b", pants: "#26384a", hair: "#3a2414" }, { shirt: "#ecf0f1", pants: "#3a3d46", hair: "#1a1a1f" }, { shirt: "#8e44ad", pants: "#2f3a4a", hat: "#17151b" }]];   // roupa de cada manequim (mesmas cores do personalizar)
 
   // ---- pilastras de pedra com caneluras, capitel e base
   const pil = (px, pw) => {
@@ -3402,7 +3392,7 @@ function vClothes(D, b, bi, B) {
     const py = fl - 3.4, dx = [wx + 9, wx + 21, wx + 33];                                                                      // palquinho de madeira escura com friso dourado
     vRR(wx + 2, py + .5, ww - 4, 3.4, .5, "rgba(10,4,12,.35)"); vRR(wx + 2, py, ww - 4, 3.4, .5, plumG(py, py + 3.4)); ctx.fillStyle = GOLD; ctx.fillRect(wx + 2, py, ww - 4, .5);
     dx.forEach(sx => { ctx.fillStyle = vLG(0, wy + 4, 0, py, [[0, "rgba(255,238,190,.3)"], [1, "rgba(255,238,190,0)"]]); ctx.beginPath(); ctx.moveTo(sx - 1, wy + 4); ctx.lineTo(sx + 1, wy + 4); ctx.lineTo(sx + 7, py); ctx.lineTo(sx - 7, py); ctx.closePath(); ctx.fill(); });   // cones de luz dos spots
-    dx.forEach((sx, i) => vBlockDoll(sx, py, .55, OUT[side][i]));
+    dx.forEach((sx, i) => vBlockDoll(sx, py, .66, OUT[side][i]));
     for (let sx = wx, i = 0; sx < wx + ww; sx += 3.5, i++) {                                                                   // cortininha listrada no alto da vitrine
       const c = i % 2 ? CREAM : "#e6d5b4", x1 = Math.min(wx + ww, sx + 3.5);
       ctx.beginPath(); ctx.moveTo(sx, wy); ctx.lineTo(x1, wy); ctx.lineTo(x1, wy + 4.2); ctx.quadraticCurveTo((sx + x1) / 2, wy + 6.6, sx, wy + 4.2); ctx.closePath();
