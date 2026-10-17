@@ -3342,30 +3342,39 @@ function vHung(gx, top, h, w, col, kind) {                                     /
     ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fillRect(gx - .12, top + 1.8, .24, h * .5);
   }
 }
-function vBlockDoll(cx, fy, u, o) {                                            // manequim IGUAL ao pescador (de frente, quadradinho): fy = chão, u = escala (1 = tamanho do pescador, ~40 de altura)
-  const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
-  const shirt = o.shirt, sleeve = shade(shirt, 0.84), skin = "#f1c27d";
+function vBlockDoll(cx, fy, u, o) {                                            // manequim de vitrine de luxo: alto, esguio, sem rosto (cabeça oval lisa), fy = chão, u = escala
+  const SK = "#ece4d4", SKD = "#c9bfac", cl = o.shirt, clD = shade(cl, 0.72), pn = o.pants;
   ctx.save(); ctx.translate(cx, fy); ctx.scale(u, u);
-  vEll(0, .5, 8.6, 1.5, "rgba(20,8,26,.32)");
-  [[-4.6, shade(o.pants, 0.75)], [0.6, o.pants]].forEach(([lx, col]) => { R(col, lx, -11, 4, 9); R("rgba(0,0,0,.14)", lx, -11, 1, 9); R("#15110e", lx - 0.5, -2.5, 5, 2.5); });   // pernas e sapatos
-  R(shirt, -5, -24, 10, 14); R("rgba(0,0,0,.2)", -5, -24, 2.5, 14); R("rgba(255,255,255,.18)", 2.5, -24, 2.5, 14);                                                              // tronco
-  R("#3e2a18", -5, -12, 10, 2);                                                                                                                     // cinto e fivela
-  [-1, 1].forEach(sg => { const ax = sg * 6.75 - 1.75; R(sleeve, ax, -21.5, 3.5, 8); R("rgba(0,0,0,.2)", sg < 0 ? ax : ax + 2.7, -21.5, 0.8, 8); R(skin, ax, -14, 3.5, 3); R(sleeve, ax - 0.05, -24, 3.6, 4.6); R("rgba(255,255,255,.22)", ax + 0.75, -23.6, 2, 0.7); });   // braços caídos
-  R(shade(shirt, 0.76), -2.7, -24.6, 5.4, 3.8); R("#e0ac69", -1.8, -24.8, 3.6, 2.5); R("#e0ac69", -2, -26, 4, 1.6);                                                              // gola e pescoço
-  R(skin, -4.5, -33, 9, 8.5); R("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);                                                                                                            // cabeça
-  R("#2a1a10", -2.6, -30.2, 1.6, 1.8); R("#2a1a10", 1, -30.2, 1.6, 1.8); R("rgba(230,120,100,.45)", -3.8, -28.6, 1.4, 1.2); R("rgba(230,120,100,.45)", 2.4, -28.6, 1.4, 1.2); R("#a0583a", -1.4, -27.4, 2.8, 0.8);
-  if (o.hat) { R(o.hat, -7.5, -35.5, 15, 3); R(o.hat, -4.5, -40, 9, 5); R("rgba(0,0,0,.25)", -7.5, -34, 15, 1.2); R("rgba(255,255,255,.35)", -4.5, -36.5, 9, 1.2); }              // chapéu (igual ao do pescador)
-  else { R(o.hair, -4.5, -34.6, 9, 3.2); R(o.hair, -5, -33.4, 1.2, 3.4); R(o.hair, 3.8, -33.4, 1.2, 3.4); }                                                                         // ou só o cabelo
+  vEll(0, .4, 7, 1.3, "rgba(20,8,26,.34)");
+  vEll(0, -.6, 6.4, 1.1, "#2a262e"); vEll(0, -1.2, 6.4, 1, "#4a4552");                                          // base (disco)
+  vLine(0, -1.5, 0, -6, .8, "#5a5560");                                                                          // haste atrás
+  const dress = !!o.dress;
+  if (dress) {                                                                                                  // vestido longo
+    vPoly([[-3.2, -34], [3.2, -34], [3.6, -26], [2.4, -23], [6.4, -2.4], [-6.4, -2.4], [-2.4, -23], [-3.6, -26]], vLG(-6, 0, 6, 0, [[0, vLight(cl, .1)], [.55, cl], [1, clD]]));
+    ctx.strokeStyle = "rgba(0,0,0,.14)"; ctx.lineWidth = .4; [-3, 0, 3].forEach(k => { ctx.beginPath(); ctx.moveTo(k * .6, -22); ctx.lineTo(k * 1.9, -2.6); ctx.stroke(); });
+    vRR(-2.4, -26.6, 4.8, .7, .3, "#e2b65c");                                                                    // cinto dourado fino
+  } else {
+    [[-2.6, shade(pn, .8)], [.3, pn]].forEach(([lx, c]) => { vRR(lx, -22, 2.4, 20.4, .6, c); vRR(lx + .2, -2.6, 2, 1.8, .5, "#14110f"); });           // pernas longas
+    vPoly([[-4, -34], [4, -34], [3.4, -22], [-3.4, -22]], vLG(-4, 0, 4, 0, [[0, vLight(cl, .08)], [.6, cl], [1, clD]]));                          // torso/jaqueta
+    vLine(0, -34, 0, -22, .35, "rgba(0,0,0,.35)"); vRR(-3.5, -22.8, 7, .7, .3, "rgba(0,0,0,.35)");
+    ctx.fillStyle = "rgba(240,234,220,.9)"; ctx.beginPath(); ctx.moveTo(-1.2, -34); ctx.lineTo(1.2, -34); ctx.lineTo(0, -29.6); ctx.closePath(); ctx.fill();   // camisa no decote
+  }
+  [-1, 1].forEach(sg => {                                                                                       // braços finos, cabeça de lado
+    const ax = sg * 4.6; vPoly([[ax - sg * .9, -33.6], [ax + sg * 1.2, -33.6], [ax + sg * 1.9, -17], [ax + sg * .3, -17]], dress ? SK : vLG(0, -34, 0, -17, [[0, cl], [.82, clD], [.83, SK], [1, SKD]]));
+  });
+  vRR(-.9, -38.4, 1.8, 4.6, .6, SKD);                                                                           // pescoço
+  ctx.beginPath(); ctx.ellipse(0, -41.6, 2.9, 3.9, 0, 0, 6.2832); ctx.fillStyle = vLG(-3, 0, 3, 0, [[0, "#f7f0e2"], [.6, SK], [1, SKD]]); ctx.fill();   // cabeça oval lisa, sem rosto
+  ctx.fillStyle = "rgba(255,255,255,.5)"; ctx.beginPath(); ctx.ellipse(-1, -43, .7, 1.6, 0, 0, 6.2832); ctx.fill();
   ctx.restore();
 }
 
 function vClothes(D, b, bi, B) {
   const x = b.x, w = b.w, q = vDetRng(5150), pc = a => a[q() * a.length | 0];
-  const GOLD = "#e2b65c", GOLD_D = "#9c6e28", CREAM = "#f4ead2", PLUM = "#5a2440";
+  const GOLD = "#e6c27a", GOLD_D = "#9c6e28", CREAM = "#f4ead2", PLUM = "#17151b";
   const wy = B - 46, gh = 32, ww = 42, lx = x + 5, dX = x + 53, dW = 22, rx = x + 81, fl = B - 15.5;     // vitrines (topo, altura, largura), porta e o chão das vitrines
-  const plumG = (y0, y1) => vLG(0, y0, 0, y1, [[0, "#6e2e4c"], [1, "#3e1830"]]);
-  const OUT = [[{ shirt: "#c0392b", pants: "#26384a", hair: "#3a2414" }, { shirt: "#f1c40f", pants: "#1a1a1f", hat: "#8e44ad" }, { shirt: "#16a085", pants: "#d9d2c0", hat: "#d98e04" }],
-               [{ shirt: "#2980b9", pants: "#4a4e57", hat: "#2c3e50" }, { shirt: "#ecf0f1", pants: "#6b4a2f", hair: "#1a1a1f" }, { shirt: "#8e44ad", pants: "#2f5d3a", hat: "#c0392b" }]];   // roupa de cada manequim (as mesmas cores do personalizar)
+  const plumG = (y0, y1) => vLG(0, y0, 0, y1, [[0, "#2a272f"], [1, "#0e0d12"]]);
+  const OUT = [[{ shirt: "#1d1b22", pants: "#1d1b22" }, { shirt: "#f4eadb", dress: 1 }, { shirt: "#b88a58", pants: "#e9dfcc" }],
+               [{ shirt: "#efe5d2", dress: 1 }, { shirt: "#24222b", pants: "#24222b" }, { shirt: "#8a2a3a", dress: 1 }]];   // roupa de cada manequim (as mesmas cores do personalizar)
 
   // ---- pilastras de pedra com caneluras, capitel e base
   const pil = (px, pw) => {
@@ -3381,20 +3390,21 @@ function vClothes(D, b, bi, B) {
     vRR(wx - 1.6, wy - 1.6, ww + 3.2, gh + 3.2, 1, plumG(wy - 1.6, wy + gh));
     vRR(wx - .5, wy - .5, ww + 1, gh + 1, .6, "#1c0e18");
     ctx.save(); vRR(wx, wy, ww, gh, .5); ctx.clip();
-    ctx.fillStyle = vLG(0, wy, 0, wy + gh, [[0, "#f1e6cf"], [1, "#d6c3a0"]]); ctx.fillRect(wx, wy, ww, gh);                // parede de fundo
+    ctx.fillStyle = vLG(0, wy, 0, wy + gh, [[0, "#fbe6b8"], [.5, "#f0cd8c"], [1, "#c99a58"]]); ctx.fillRect(wx, wy, ww, gh);                // parede de fundo
     ctx.strokeStyle = "rgba(255,248,230,.55)"; ctx.lineWidth = .35;                                                           // almofadas de moldura
     for (let px = wx + 2.5; px < wx + ww - 9; px += 13.5) { vRR(px, wy + 7, 11, gh - 17, .6); ctx.stroke(); }
     ctx.fillStyle = "rgba(110,70,50,.1)"; for (let px = wx + 1; px < wx + ww; px += 2.4) ctx.fillRect(px, wy, .3, gh - 3);    // listrado do papel de parede
-    vBlot(wx + ww / 2, wy + 8, 30, "255,236,190", .3);
+    vBlot(wx + ww / 2, wy + 12, 34, "255,236,190", .5);
+    for (let i = 0; i < 26; i++) { const lx2 = wx + 2 + q() * (ww - 4), ly2 = wy + 5 + q() * 14; ctx.fillStyle = "rgba(255,240,200," + (.3 + q() * .4).toFixed(2) + ")"; ctx.fillRect(lx2, ly2, .5, .5); }   // luzinhas douradas (como a vitrine da foto)
     ctx.fillStyle = vLG(0, fl - 1.3, 0, wy + gh, [[0, "#d2a878"], [1, "#8e6540"]]); ctx.fillRect(wx, fl - 1.3, ww, gh - (fl - 1.3 - wy));   // piso
     ctx.fillStyle = "rgba(60,30,14,.35)"; for (let px = wx + 2; px < wx + ww; px += 5) { ctx.beginPath(); ctx.moveTo(px, fl - 1.3); ctx.lineTo(px + (px - wx - ww / 2) * .12, wy + gh); ctx.lineWidth = .3; ctx.strokeStyle = "rgba(60,30,14,.35)"; ctx.stroke(); }
     ctx.fillStyle = "rgba(255,240,210,.35)"; ctx.fillRect(wx, fl - 1.3, ww, .35);
     const py = fl - 3.4, dx = [wx + 9, wx + 21, wx + 33];                                                                      // palquinho de madeira escura com friso dourado
     vRR(wx + 2, py + .5, ww - 4, 3.4, .5, "rgba(10,4,12,.35)"); vRR(wx + 2, py, ww - 4, 3.4, .5, plumG(py, py + 3.4)); ctx.fillStyle = GOLD; ctx.fillRect(wx + 2, py, ww - 4, .5);
     dx.forEach(sx => { ctx.fillStyle = vLG(0, wy + 4, 0, py, [[0, "rgba(255,238,190,.3)"], [1, "rgba(255,238,190,0)"]]); ctx.beginPath(); ctx.moveTo(sx - 1, wy + 4); ctx.lineTo(sx + 1, wy + 4); ctx.lineTo(sx + 7, py); ctx.lineTo(sx - 7, py); ctx.closePath(); ctx.fill(); });   // cones de luz dos spots
-    dx.forEach((sx, i) => vBlockDoll(sx, py, .6, OUT[side][i]));
+    dx.forEach((sx, i) => vBlockDoll(sx, py, .55, OUT[side][i]));
     for (let sx = wx, i = 0; sx < wx + ww; sx += 3.5, i++) {                                                                   // cortininha listrada no alto da vitrine
-      const c = i % 2 ? CREAM : PLUM, x1 = Math.min(wx + ww, sx + 3.5);
+      const c = i % 2 ? CREAM : "#e6d5b4", x1 = Math.min(wx + ww, sx + 3.5);
       ctx.beginPath(); ctx.moveTo(sx, wy); ctx.lineTo(x1, wy); ctx.lineTo(x1, wy + 4.2); ctx.quadraticCurveTo((sx + x1) / 2, wy + 6.6, sx, wy + 4.2); ctx.closePath();
       ctx.fillStyle = vLG(0, wy, 0, wy + 6, [[0, vLight(c, .1)], [1, vDark(c, .18)]]); ctx.fill();
     }
@@ -3406,7 +3416,7 @@ function vClothes(D, b, bi, B) {
     vRR(wx - 1.6, B - 12.4, ww + 3.2, 7.9, .6, plumG(B - 12.4, B - 4.5));                                                      // painéis de madeira embaixo da vitrine
     for (let i = 0; i < 2; i++) {
       const px = wx + 1.2 + i * (ww / 2), pw = ww / 2 - 2.4;
-      vRR(px + .3, B - 11.2, pw, 5.2, .5, "rgba(0,0,0,.26)"); vRR(px, B - 11.5, pw, 5.2, .5, vLG(0, B - 11.5, 0, B - 6.3, [[0, "#7a3858"], [1, "#4a1c36"]]));
+      vRR(px + .3, B - 11.2, pw, 5.2, .5, "rgba(0,0,0,.26)"); vRR(px, B - 11.5, pw, 5.2, .5, vLG(0, B - 11.5, 0, B - 6.3, [[0, "#2c2932"], [1, "#121116"]]));
       ctx.strokeStyle = "rgba(226,182,92,.7)"; ctx.lineWidth = .3; vRR(px + .9, B - 10.6, pw - 1.8, 3.4, .3); ctx.stroke();
     }
     vRR(wx - 2.4, B - 13.4, ww + 4.8, 1.4, .5, vLG(0, B - 13.4, 0, B - 12, [[0, "#f4ead2"], [1, "#b8ab90"]])); vSoft(wx - 2, B - 12, ww + 4, 3, .22);   // peitoril
@@ -3416,7 +3426,7 @@ function vClothes(D, b, bi, B) {
   // ---- porta de vidro em arco: moldura de pedra, vidro com roupas lá dentro, painel de madeira, maçaneta, plaquinha ABERTO e degrau
   vArch(dX - 1.8, B - 46.4, dW + 3.6, 46.4, vLG(dX, 0, dX + dW, 0, [[0, "#f2e8d0"], [1, "#cdbf9f"]]));
   vArch(dX - .3, B - 45, dW + .6, 45, "#1c0e18");
-  vArch(dX, B - 44.6, dW, 44.6, vLG(dX, 0, dX + dW, 0, [[0, "#7a3858"], [.5, PLUM], [1, "#3a1428"]]));
+  vArch(dX, B - 44.6, dW, 44.6, vLG(dX, 0, dX + dW, 0, [[0, "#2c2932"], [.5, PLUM], [1, "#0b0a0e"]]));
   const gx0 = dX + 2, gy0 = B - 42.4, gw = dW - 4, ghd = 28;
   vGlass(gx0, gy0, gw, ghd, true, true, () => {                                                                               // o que se vê pelo vidro da porta
     ctx.fillStyle = vLG(0, gy0, 0, gy0 + ghd, [[0, "#e9d6b4"], [1, "#a77d50"]]); ctx.fillRect(gx0, gy0, gw, ghd);
@@ -3426,7 +3436,7 @@ function vClothes(D, b, bi, B) {
     ["#c0392b", "#27385e", "#2f6b4f", "#e8b8c0"].forEach((c, i) => vHung(gx0 + 3.2 + i * 3.6, gy0 + 22.8, 4.6, 2.8, c, i % 2 ? "shirt" : "dress"));
     vLine(gx0 + gw / 2, gy0, gx0 + gw / 2, gy0 + 5, .3, "#2a1420"); vPoly([[gx0 + gw / 2 - 2, gy0 + 7], [gx0 + gw / 2 + 2, gy0 + 7], [gx0 + gw / 2 + 1, gy0 + 5], [gx0 + gw / 2 - 1, gy0 + 5]], "#e2b65c"); vBlot(gx0 + gw / 2, gy0 + 8, 11, "255,226,160", .5);   // pendente
   });
-  vRR(dX + 1.4, B - 14.2, dW - 2.8, 11.4, .6, "rgba(0,0,0,.28)"); vRR(dX + 1.2, B - 14.5, dW - 2.4, 11.4, .6, vLG(0, B - 14.5, 0, B - 3, [[0, "#7a3858"], [1, "#4a1c36"]]));   // painel de baixo
+  vRR(dX + 1.4, B - 14.2, dW - 2.8, 11.4, .6, "rgba(0,0,0,.28)"); vRR(dX + 1.2, B - 14.5, dW - 2.4, 11.4, .6, vLG(0, B - 14.5, 0, B - 3, [[0, "#2c2932"], [1, "#121116"]]));   // painel de baixo
   ctx.strokeStyle = "rgba(226,182,92,.7)"; ctx.lineWidth = .3; vRR(dX + 2.4, B - 13.2, dW - 4.8, 9, .4); ctx.stroke();
   vRR(dX + 1, B - 4.4, dW - 2, 1.6, .3, vLG(dX, 0, dX + dW, 0, [[0, "#d6b45c"], [.5, "#f4dc92"], [1, "#a8822c"]]));              // chapa de latão
   vRR(dX + dW - 5, B - 31, 1.3, 13, .6, vLG(dX + dW - 5, 0, dX + dW - 3.7, 0, [[0, "#f6dc90"], [1, "#9c6e28"]])); vCirc(dX + dW - 4.35, B - 30.4, .7, "#e2b65c"); vCirc(dX + dW - 4.35, B - 18.6, .7, "#e2b65c");   // puxador
@@ -3445,8 +3455,8 @@ function vClothes(D, b, bi, B) {
   ctx.strokeStyle = GOLD; ctx.lineWidth = .45; vRR(x + 4.5, B - 57.5, w - 9, 9.4, .9); ctx.stroke();
   ctx.strokeStyle = "rgba(226,182,92,.4)"; ctx.lineWidth = .2; vRR(x + 5.4, B - 56.6, w - 10.8, 7.6, .6); ctx.stroke();
   [[x + 6.6, B - 55.6], [x + w - 6.6, B - 55.6], [x + 6.6, B - 49.8], [x + w - 6.6, B - 49.8]].forEach(([sx, sy]) => { vCirc(sx, sy, .55, vRG(sx - .15, sy - .15, 0, .6, [[0, "#fff0b8"], [1, "#9c6e28"]])); });   // rebites
-  vTxt("BOUTIQUE", x + w / 2, B - 52.4, GOLD, 6.3, { ls: 1.3, shadow: "rgba(0,0,0,.5)" });
-  vTxt("MODA  ·  ROUPAS  ·  ACESSÓRIOS", x + w / 2, B - 49.5, CREAM, 2.3, { ls: .5, maxW: 62 });
+  vTxt("BOUTIQUE", x + w / 2, B - 52.4, "#fff6e0", 6.3, { ls: 1.6, shadow: "rgba(255,214,130,.65)" });
+  vTxt("MODA  ·  ROUPAS  ·  ACESSÓRIOS", x + w / 2, B - 49.5, GOLD, 2.3, { ls: .5, maxW: 62 });
   vHanger(x + 18, B - 56.4, 8.4, GOLD, .6); vHanger(x + w - 18, B - 56.4, 8.4, GOLD, .6);
   [x + 27.7, x + 52, x + 76.3, x + 100.7].forEach(gx => {                                                                                   // luminárias de braço iluminando o letreiro
     ctx.save(); ctx.beginPath(); ctx.rect(x + 3, B - 59, w - 6, 12.4); ctx.clip();
@@ -4071,6 +4081,7 @@ const SEA_BODY = {
 };
 // ---------- Gaivotas: asas articuladas (ombro, cotovelo, ponta preta), batem e planam, voam atravessando o céu em alturas e tamanhos diferentes ----------
 // agora elas são vistas de costas, indo embora para o horizonte: per = segundos do voo, off = defasagem, y0 = altura de partida (negativo = céu, positivo = sobre a água), vp = desvio do ponto de fuga, fr = ritmo das asas
+const GULL_ON = false;                                                    // gaivotas desligadas por enquanto
 const GULLS = [
   { per: 15, off: 0.00, y0: -46, s: 1.7, ph: 0, vp: -.04, hi: 0, fr: 1.0 },
   { per: 19, off: 0.35, y0: -30, s: 1.4, ph: 2, vp: .05, hi: .6, fr: .9 },
@@ -4125,7 +4136,7 @@ function citySeaProps(now, l, r) {                                       // dent
   if (DAY.lamp < .35 && DAY.sunA > .15) {                                // gaivotas (só de dia)
     const vw = r - l, span = vw + 140, a = Math.min(1, DAY.sunA * 1.5) * (1 - DAY.lamp);
     ctx.save(); ctx.globalAlpha = a;
-    GULLS.forEach((gl, gi) => {                                          // cada gaivota parte de perto e voa em direção ao ponto de fuga no horizonte, diminuindo com a perspectiva
+    if (GULL_ON) GULLS.forEach((gl, gi) => {                                          // cada gaivota parte de perto e voa em direção ao ponto de fuga no horizonte, diminuindo com a perspectiva
       const T = t / gl.per + gl.off, n = Math.floor(T), u = T - n;
       const rx = sh01(gi * 7.3 + n * 3.1), ry = sh01(gi * 5.1 + n * 1.7 + 4);
       const vpx = l + vw * (.5 + gl.vp) - l * .08, vpy = HZ - 1.5 - gl.hi;                    // ponto de fuga (no horizonte, perto do centro)
