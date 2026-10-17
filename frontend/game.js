@@ -2803,8 +2803,8 @@ function cityFront(now, l, r) {
       rect(tint([255, 214, 140], .1), X + 10, 12, 6, 9);
       if (DAY.lamp > .01) {
         ctx.globalAlpha = DAY.lamp;
-        const g = ctx.createRadialGradient(X + 13, 17, 2, X + 13, 17, 90); g.addColorStop(0, "rgba(255,225,150,.5)"); g.addColorStop(1, "rgba(255,225,150,0)");
-        ctx.fillStyle = g; ctx.fillRect(X - 80, -75, 186, 186); rect("#fff0b8", X + 11, 13, 4, 6);
+        ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(X + 13, 17, 2, X + 13, 17, 55); g.addColorStop(0, "rgba(255,210,140,.28)"); g.addColorStop(1, "rgba(255,200,120,0)");
+        ctx.fillStyle = g; ctx.fillRect(X - 42, -40, 110, 110); ctx.globalCompositeOperation = "source-over"; rect("#fff0b8", X + 11, 13, 4, 6);
         ctx.globalAlpha = 1;
       }
     } else {                                                            // vaso com arbusto
@@ -2856,14 +2856,31 @@ function cityLit(now, l, r) {                                            // à n
     ctx.restore();
   }
   ctx.save(); ctx.globalAlpha = DAY.lamp;
-  D.wins.forEach(w => { if (w.x < l - 30 || w.x > r + 30 || !w.lit) return; ctx.fillStyle = "rgba(255,190,110,.13)"; ctx.fillRect(w.x - 2, w.y - 2, w.w + 4, w.h + 4); ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : "#ffd98a"; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2); });
-  D.lamps.forEach(lp => {
-    if (lp.x < l - 50 || lp.x > r + 50) return;
-    const g = ctx.createRadialGradient(lp.x, lp.y, 1, lp.x, lp.y, lp.r);
-    g.addColorStop(0, "rgba(255,225,150,.6)"); g.addColorStop(1, "rgba(255,225,150,0)");
-    ctx.fillStyle = g; ctx.fillRect(lp.x - lp.r, lp.y - lp.r, lp.r * 2, lp.r * 2);
+  const WTONE = ["#ffd98a", "#ffe6a8", "#ffc46e", "#f6e4bc", "#ffd07a"];       // janelas com tons de luz diferentes (amarela, âmbar, quase branca)
+  D.wins.forEach(w => {
+    if (w.x < l - 30 || w.x > r + 30 || !w.lit) return;
+    const hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0);
+    ctx.fillStyle = "rgba(255,190,110,.06)"; ctx.fillRect(w.x - 1, w.y - 1, w.w + 2, w.h + 2);               // só um respingo de luz na parede
+    ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : WTONE[hs % WTONE.length]; ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2);
+    if (!w.soft && w.w >= 6 && w.h >= 8) { ctx.fillStyle = "rgba(70,36,24,.5)"; ctx.fillRect(w.x + (w.w >> 1), w.y, 1, w.h); ctx.fillRect(w.x, w.y + (w.h >> 1), w.w, 1); }   // caixilho: dá forma à janela
+    if (!w.soft && hs % 3 === 0) { ctx.fillStyle = "rgba(120,60,40,.35)"; ctx.fillRect(w.x, w.y, 2, w.h); }       // cortina de um lado
   });
-  D.bulbs.forEach((bu, i) => { if (bu.x < l - 10 || bu.x > r + 10) return; ctx.fillStyle = "rgba(255,220,140," + (0.2 + 0.05 * Math.sin(now / 400 + i)).toFixed(2) + ")"; ctx.fillRect(bu.x - 3, bu.y - 3, 6, 6); ctx.fillStyle = "#fff0b8"; ctx.fillRect(bu.x - 1, bu.y - 1, 2, 2); });
+  ctx.globalCompositeOperation = "lighter";                              // luz soma na cena (não vira uma mancha laranja por cima)
+  D.lamps.forEach(lp => {
+    if (lp.x < l - 60 || lp.x > r + 60) return;
+    const R = lp.r * .8;
+    let g = ctx.createRadialGradient(lp.x, lp.y, 1, lp.x, lp.y, R);
+    g.addColorStop(0, "rgba(255,196,120,.26)"); g.addColorStop(.3, "rgba(255,170,90,.08)"); g.addColorStop(1, "rgba(255,160,80,0)");
+    ctx.fillStyle = g; ctx.fillRect(lp.x - R, lp.y - R, R * 2, R * 2);
+    const PR = lp.r * 1.2;                                                // poça de luz no chão (achatada)
+    ctx.save(); ctx.translate(lp.x, CITY_B + 10); ctx.scale(1, .26);
+    g = ctx.createRadialGradient(0, 0, 2, 0, 0, PR); g.addColorStop(0, "rgba(255,200,120,.34)"); g.addColorStop(.5, "rgba(255,170,90,.12)"); g.addColorStop(1, "rgba(255,160,80,0)");
+    ctx.fillStyle = g; ctx.fillRect(-PR, -PR, PR * 2, PR * 2); ctx.restore();
+    ctx.fillStyle = "rgba(255,236,180,.8)"; ctx.fillRect(lp.x - 1, lp.y - 1, 2, 2);
+  });
+  ctx.globalCompositeOperation = "source-over";
+  D.bulbs.forEach((bu, i) => { if (bu.x < l - 10 || bu.x > r + 10) return; ctx.fillStyle = "rgba(255,220,140," + (0.1 + 0.04 * Math.sin(now / 400 + i)).toFixed(2) + ")"; ctx.fillRect(bu.x - 2, bu.y - 2, 4, 4); ctx.fillStyle = "#fff0b8"; ctx.fillRect(bu.x - 1, bu.y - 1, 2, 2); });
   ctx.restore();
 }
 
@@ -2942,6 +2959,10 @@ function drawCity(now) {
     const ky = PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 30 + Math.round(Math.sin(now / 260) * 1.5), kx = Math.round(px) - 6;   // o "E" flutua em cima do nome do pescador
     rect("#1b2619", kx, ky, 12, 12); rect("#bccdac", kx + 1, ky + 1, 10, 9); rect("#7d8f71", kx + 1, ky + 10, 10, 1);
     ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = "center"; ctx.fillStyle = "#1b2619"; ctx.fillText("E", kx + 6, ky + 9);
+  }
+  if (DAY.lamp > .01) {                                                                  // vinheta azulada no alto: tira o "chapado" e destaca as luzes
+    const vg = ctx.createLinearGradient(0, vy, 0, vy + vh * .4); vg.addColorStop(0, "rgba(4,6,24," + (.4 * DAY.lamp).toFixed(3) + ")"); vg.addColorStop(1, "rgba(4,6,24,0)");
+    ctx.fillStyle = vg; ctx.fillRect(cl, vy, cr - cl, vh * .4);
   }
   cityFront(now, cl, cr);                                                                // postes e vasos na frente de tudo
   ctx.restore();
