@@ -4247,13 +4247,8 @@ function cityPoleGlow(now, l, r) {                                       // luz:
     ctx.save(); ctx.beginPath(); ctx.rect(x - 160, CITY_B + 1, 320, 90); ctx.clip();
     // poça realista: queda suave (tipo 1/d²) em elipse larga + núcleo menor e quente logo abaixo do poste, mais fraca nas pontas (perspectiva do chão)
     const pool = (cx, cy, R, sy, stops) => { ctx.save(); ctx.translate(cx, cy); ctx.scale(1, sy); const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, R); stops.forEach(([o, a, c]) => gr.addColorStop(o, `rgba(${c},${(a * k).toFixed(3)})`)); ctx.fillStyle = gr; ctx.fillRect(-R, -R, R * 2, R * 2); ctx.restore(); };
-    pool(x + 4, PIER_Y + 6, 120, .2, [[0, .17, "255,214,150"], [.25, .11, "255,196,120"], [.55, .045, `${lr},${lg - 6},${lb}`], [.85, .012, `${lr},${lg - 14},${lb}`], [1, 0, `${lr},${lg - 14},${lb}`]]);   // halo largo e discreto
+    pool(x + 4, PIER_Y + 6, 90, .3, [[0, .12, "255,214,150"], [.25, .11, "255,196,120"], [.55, .045, `${lr},${lg - 6},${lb}`], [.85, .012, `${lr},${lg - 14},${lb}`], [1, 0, `${lr},${lg - 14},${lb}`]]);   // halo largo e discreto
     pool(x + 4, PIER_Y + 5, 46, .22, [[0, .3, "255,230,172"], [.3, .18, "255,208,130"], [.7, .06, "255,192,110"], [1, 0, "255,192,110"]]);                                                           // núcleo
-    ctx.save(); ctx.translate(x + 4, PIER_Y + 7); ctx.scale(1, 1);                                                                    // reflexo do lampião no chão molhado: coluna fina que se estica para a frente e some
-    const rf = ctx.createLinearGradient(0, -4, 0, 30); rf.addColorStop(0, `rgba(255,226,164,${(.2 * k).toFixed(3)})`); rf.addColorStop(.5, `rgba(255,206,130,${(.08 * k).toFixed(3)})`); rf.addColorStop(1, "rgba(255,200,120,0)");
-    ctx.fillStyle = rf; ctx.beginPath(); ctx.moveTo(-1.4, -4); ctx.lineTo(1.4, -4); ctx.lineTo(3.6, 30); ctx.lineTo(-3.6, 30); ctx.closePath(); ctx.fill();
-    for (let i = 0; i < 5; i++) { const yy = 2 + i * 5.5, w = 5.5 + i * 2.2 + Math.sin(t * 1.4 + i * 2 + x) * 1.2; ctx.fillStyle = `rgba(255,222,160,${((.11 - i * .02) * k).toFixed(3)})`; ctx.fillRect(-w / 2 + Math.sin(t * .8 + i + x) * 1.2, yy, w, .7); }   // brilhos nas juntas das pedras
-    ctx.restore();
     ctx.restore();
   });
   ctx.restore();                         // brilho amarelo na água (como o drawLampWater do cais), para os postes da orla
@@ -4643,19 +4638,19 @@ function cityRays(t, l, r) {                                                   /
 function cityRail(l, r, now) {
   const P = cityData && cityData.piazza; if (!P) return;
   const x0 = Math.max(l - 4, P.x - 4), x1 = Math.min(r + 4, P.x + P.w + 4); if (x1 <= x0) return;
-  const B = CITY_B, top = B - 12, bot = B - 1.4, GAP = 2.6, IRON = "#1c2433", HI = "rgba(150,175,215,.28)";
+  const B = CITY_B, wt = B - 4.6, wb = B + .6, top = wt - 5.2, GAP = 2.4, IRON = "#1c2433";
   ctx.save();
-  ctx.fillStyle = vLG(0, bot, 0, B + 1, [[0, "#8d8272"], [1, "#4c4256"]]); ctx.fillRect(x0, bot, x1 - x0, 2.6);           // meio-fio
-  ctx.fillStyle = "rgba(255,244,222,.28)"; ctx.fillRect(x0, bot, x1 - x0, .45);
-  ctx.fillStyle = "rgba(20,10,40,.28)"; ctx.fillRect(x0, bot + 2.6, x1 - x0, 1.2);                                            // sombra sob o meio-fio
-  ctx.fillStyle = IRON; ctx.fillRect(x0, top, x1 - x0, .8); ctx.fillRect(x0, bot - 2.2, x1 - x0, .9);                          // trilhos de cima e de baixo
-  for (let x = Math.ceil(x0 / GAP) * GAP; x < x1; x += GAP) {                                                               // barras (a cada 8 uma mais grossa, com ponta)
+  ctx.fillStyle = vLG(0, wt, 0, wb, [[0, "#9a9a9e"], [1, "#6a6a74"]]); ctx.fillRect(x0, wt, x1 - x0, wb - wt);                 // murinho de tijolo cinza (suporte)
+  ctx.fillStyle = "rgba(40,36,52,.4)"; ctx.fillRect(x0, wt + (wb - wt) / 2 - .2, x1 - x0, .4);                                 // junta horizontal
+  const bw = 4.6; for (let x = Math.floor(x0 / bw) * bw, row = 0; x < x1; x += bw) { ctx.fillRect(x, wt, .4, (wb - wt) / 2); ctx.fillRect(x + bw / 2, wt + (wb - wt) / 2, .4, (wb - wt) / 2); }   // juntas verticais alternadas
+  ctx.fillStyle = "rgba(255,255,255,.3)"; ctx.fillRect(x0, wt, x1 - x0, .5);                                                    // luz no topo
+  ctx.fillStyle = "rgba(20,14,40,.3)"; ctx.fillRect(x0, wb, x1 - x0, .8);
+  ctx.fillStyle = IRON; ctx.fillRect(x0, top, x1 - x0, .6); ctx.fillRect(x0, wt - 1.5, x1 - x0, .6);                           // trilhos
+  for (let x = Math.ceil(x0 / GAP) * GAP; x < x1; x += GAP) {
     const post = Math.round(x / GAP) % 8 === 0;
-    ctx.fillStyle = IRON; ctx.fillRect(x - (post ? .6 : .3), top - (post ? 1.6 : 0), post ? 1.2 : .6, bot - top + (post ? 1.6 : 0));
-    ctx.fillStyle = HI; ctx.fillRect(x - (post ? .6 : .3), top, .25, bot - top);                                                // brilho do lado da luz
-    if (post) { ctx.fillStyle = IRON; ctx.beginPath(); ctx.arc(x, top - 2, .9, 0, 6.2832); ctx.fill(); }
+    ctx.fillStyle = IRON; ctx.fillRect(x - (post ? .5 : .25), top - (post ? 1 : 0), post ? 1 : .5, wt - top + (post ? 1 : 0));
+    if (post) { ctx.beginPath(); ctx.arc(x, top - 1.4, .7, 0, 6.2832); ctx.fill(); }
   }
-  ctx.fillStyle = HI; ctx.fillRect(x0, top, x1 - x0, .22);
   ctx.restore();
 }
 
