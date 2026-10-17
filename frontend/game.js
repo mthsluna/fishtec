@@ -2639,10 +2639,62 @@ function vShutter(x, y, w, h, col) {                                       // ve
   ctx.fillStyle = "rgba(0,0,0,.24)"; for (let q = 1.3; q < h - .6; q += 1.7) ctx.fillRect(x + .5, y + q, w - 1, .5);
   ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.fillRect(x + .35, y + .4, .6, h - .8);
 }
+// ---------- Interior atrás dos vidros (estantes, lustres, plantas, sofás, gente) ----------
+// Pintado dentro do recorte do vidro (o chamador já fez o clip). hs = número fixo da janela (mesmo resultado sempre); lit = luz acesa por dentro.
+function vInterior(x, y, w, h, arch, hs, lit) {
+  if (w < 3 || h < 4) return;
+  const q = vDetRng(hs * 7 + 3), type = hs % 5, bot = y + h, cx = x + w / 2, pk = a => a[q() * a.length | 0];
+  ctx.save();
+  if (!lit) { ctx.globalAlpha = .82; ctx.fillStyle = vLG(0, y, 0, bot, [[0, "#5e4c5c"], [1, "#2c2030"]]); ctx.fillRect(x, y, w, h); vBlot(cx, y + h * .35, Math.max(w, h) * .8, "255,196,120", .1); ctx.globalAlpha = 1; }
+  const dk = lit ? "rgba(52,26,22,.72)" : "rgba(16,9,20,.66)";
+  if (w >= 5 && h >= 7) {
+    if (type === 0) {                                                       // estante com livros
+      const n = Math.max(2, h / 6 | 0);
+      for (let i = 0; i < n; i++) {
+        const sy = y + 2.4 + i * (h - 4) / n + (h - 4) / n * .75;
+        for (let bx = x + .8; bx < x + w - 1; ) { const bw = .8 + q() * 1.1, bh = 1.8 + q() * 2.2; ctx.globalAlpha = .8; ctx.fillStyle = pk(["#b8454a", "#3f6f9a", "#d9b04a", "#4d8a5a", "#8a5aa0", "#e6dcc0"]); ctx.fillRect(bx, sy - bh, bw, bh); bx += bw + .12; }
+        ctx.globalAlpha = 1; ctx.fillStyle = dk; ctx.fillRect(x, sy, w, .7);
+      }
+    } else if (type === 1) {                                                // lustre pendurado + mesa
+      const ly = y + h * .38;
+      vLine(cx, y, cx, ly - 2, .35, dk);
+      vPoly([[cx - 2.4, ly], [cx + 2.4, ly], [cx + 1.3, ly - 2.2], [cx - 1.3, ly - 2.2]], pk(["#d9a441", "#c0392b", "#e8e0c8"]));
+      vBlot(cx, ly + 1, h * .62, "255,210,130", lit ? .3 : .42);
+      vRR(x + w * .15, bot - 3.4, w * .7, 1.2, .4, dk); vRR(x + w * .48, bot - 2.4, 1.2, 2.4, .3, dk);
+    } else if (type === 2) {                                                // planta num vaso
+      const pw = Math.min(w * .5, 5);
+      vPoly([[cx - pw / 2, bot - 4], [cx + pw / 2, bot - 4], [cx + pw / 2 - .7, bot], [cx - pw / 2 + .7, bot]], "#b4532f");
+      vBush(cx, bot - 7, Math.min(w * .32, 4.2), pk, q);
+    } else if (type === 3) {                                                // quadro na parede + sofá
+      vRR(x + w * .24, y + h * .14, w * .52, h * .22, .5, "#c8a050"); vRR(x + w * .24 + .6, y + h * .14 + .6, w * .52 - 1.2, h * .22 - 1.2, .3, pk(["#6a8aa8", "#a86a5a", "#7a9a6a"]));
+      vRR(x + w * .08, bot - h * .3, w * .84, h * .3, 1.6, dk); vRR(x + w * .08, bot - h * .38, w * .2, h * .2, 1, dk);
+    } else {                                                                // pessoa de costas para a rua
+      const hr = Math.min(w, h) * .15;
+      vCirc(cx, bot - h * .5, hr, dk); vRR(cx - w * .23, bot - h * .4, w * .46, h * .5, w * .2, dk);
+    }
+  }
+  vSoft(x, bot - 3, w, 3, .3, "10,6,14");
+  ctx.restore();
+}
+function vCafeInside(x, y, w, h) {                                           // dentro da vitrine do café (o chamador já fez o clip)
+  const dk = "rgba(40,20,16,.78)";
+  ctx.fillStyle = "rgba(110,64,36,.55)"; ctx.fillRect(x, y + 6, w, .8);                                 // prateleira com xícaras
+  for (let cx = x + 1.6; cx < x + w - 1; cx += 2.6) { ctx.fillStyle = cx % 5.2 < 2.6 ? "#f4ead2" : "#c0392b"; ctx.fillRect(cx, y + 4.2, 1.5, 1.8); }
+  [.28, .74].forEach(f => {                                                                               // lustres vermelhos
+    const lx = x + w * f, ly = y + 9; vLine(lx, y, lx, ly - 2, .35, dk);
+    vPoly([[lx - 2.4, ly], [lx + 2.4, ly], [lx + 1.3, ly - 2.4], [lx - 1.3, ly - 2.4]], "#b8321f"); vBlot(lx, ly + 1.5, 9, "255,214,140", .5);
+  });
+  [[.3, 7.4], [.66, 7.4]].forEach(([f, hh]) => {                                                          // gente nas mesinhas
+    const px0 = x + w * f, by = y + h - 7.2; vCirc(px0, by - hh * .6, 1.5, dk); vRR(px0 - 2.4, by - hh * .38, 4.8, hh * .8, 2, dk);
+    vRR(px0 + 2, by + .4, 1.2, 1, .3, "#f4ead2");
+  });
+  vRR(x, y + h - 6, w, 6, 0, vLG(0, y + h - 6, 0, y + h, [[0, "rgba(120,70,40,.9)"], [1, "rgba(70,40,24,.95)"]])); ctx.fillStyle = "rgba(255,226,180,.4)"; ctx.fillRect(x, y + h - 6, w, .5);   // balcão
+}
 function vGlass(x, y, w, h, arch, cross) {
   const p = () => arch ? vArchP(x, y, w, h) : vRR(x, y, w, h, .7);
   p(); ctx.fillStyle = vLG(x, y, x, y + h, [[0, "#b4d6ec"], [.5, "#7aa3c6"], [1, "#46688f"]]); ctx.fill();
   ctx.save(); p(); ctx.clip();
+  vInterior(x, y, w, h, arch, (((x * 73856093) ^ (y * 19349663)) >>> 0), false);                // o que há atrás do vidro
   ctx.fillStyle = "rgba(255,255,255,.24)"; ctx.beginPath(); ctx.moveTo(x + w * .05, y + h); ctx.lineTo(x + w * .55, y); ctx.lineTo(x + w * .85, y); ctx.lineTo(x + w * .35, y + h); ctx.closePath(); ctx.fill();
   vSoft(x, y, w, Math.min(3.5, h * .35), .5, "10,20,40");
   ctx.restore();
@@ -3306,6 +3358,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     vRR(cx0 - 24, B - 55, 48, 13.6, 2, vLG(0, B - 55, 0, B - 41, [[0, "#3a5a48"], [1, "#223a2e"]])); vRR(cx0 - 22.6, B - 53.6, 45.2, 10.8, 1.4, "#f6edd4");
     vText("CAFFÈ", cx0, B - 45, "#a32a1c", 8.6, 38, "rgba(80,20,10,.25)");
     vRR(x + 9, B - 29, 22, 25.6, 1.6, "#4a3020"); vRR(x + 10, B - 28, 20, 23.6, 1, vLG(0, B - 28, 0, B - 4, [[0, "#f6d68a"], [1, "#c88a44"]]));
+    ctx.save(); vRR(x + 10, B - 28, 20, 23.6, 1); ctx.clip(); vCafeInside(x + 10, B - 28, 20, 23.6); ctx.restore();
     ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.beginPath(); ctx.moveTo(x + 12, B - 5); ctx.lineTo(x + 20, B - 28); ctx.lineTo(x + 27, B - 28); ctx.lineTo(x + 19, B - 5); ctx.closePath(); ctx.fill();
     D.wins.push({ x: x + 10, y: B - 28, w: 20, h: 23.6, lit: true, soft: true });
     awning(x + 3, w - 6, "#b8321f", B - 41, 8);
@@ -3316,11 +3369,14 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
       vEll(tx + 5.5, B + 6.4, 10, 1.4, "rgba(20,8,26,.3)");
       vLine(tx + 5.5, B - 1, tx + 5.5, B + 5.2, .8, "#3a3a42"); vLine(tx + 3, B + 5.6, tx + 8, B + 5.6, .8, "#3a3a42");
       vEll(tx + 5.5, B - 2.2, 6.4, 1.8, vLG(0, B - 4, 0, B, [[0, "#f0e6c8"], [1, "#b8ac8e"]]));
-      for (const cxx of [tx - 6, tx + 14]) {
-        const sgn = cxx < tx ? -1 : 1;
+      for (const cxx of [tx - 8, tx + 16]) {                                // cadeiras maiores (1,7x)
+        const sgn = cxx < tx ? -1 : 1, KC = 1.7, ax = cxx + 2.7, ay = B + 5.8;
+        vEll(ax, ay + .3, 4.6 * KC, .9 * KC, "rgba(20,8,26,.3)");
+        ctx.save(); ctx.translate(ax, ay); ctx.scale(KC, KC); ctx.translate(-ax, -ay);
         vLine(cxx + 1, B + 2.6, cxx + .6, B + 5.8, .6, "#3a3a42"); vLine(cxx + 4.4, B + 2.6, cxx + 4.8, B + 5.8, .6, "#3a3a42");
         vRR(cxx - .4, B + 1.2, 6, 1.8, .8, "#b53a2c");
         ctx.strokeStyle = "#b53a2c"; ctx.lineWidth = .9; ctx.beginPath(); ctx.moveTo(cxx + (sgn < 0 ? .4 : 4.8), B + 1.2); ctx.bezierCurveTo(cxx + (sgn < 0 ? -.8 : 6), B - 2, cxx + (sgn < 0 ? -.8 : 6), B - 4, cxx + (sgn < 0 ? .6 : 4.6), B - 5.6); ctx.stroke();
+        ctx.restore();
       }
     }
   } else if (b.g === "arch") {                                               // sottoportico: túnel por baixo do prédio
@@ -3627,8 +3683,8 @@ function cityLightBuild() {
       ctx.fillStyle = w.soft ? vLG(0, w.y, 0, w.y + w.h, [[0, "rgba(255,226,150,.62)"], [1, "rgba(255,190,100,.5)"]]) : vLG(0, w.y, 0, w.y + w.h, [[0, tone], [1, vMix(tone, "#e8923e", .55)]]);
       ctx.fillRect(w.x, w.y, w.w, w.h);
       if (!w.soft) {
-        if (hs % 7 === 0 && w.h >= 12) { ctx.fillStyle = "rgba(60,30,24,.55)"; ctx.beginPath(); ctx.arc(cx + (hs % 3 - 1) * 1.2, w.y + w.h - 6.2, 1.5, 0, 6.2832); ctx.fill(); vRR(cx - 2.4 + (hs % 3 - 1) * 1.2, w.y + w.h - 4.6, 4.8, 5, 2, "rgba(60,30,24,.55)"); }
-        else if (hs % 3 === 0) { ctx.fillStyle = "rgba(150,70,44,.34)"; ctx.beginPath(); ctx.moveTo(w.x, w.y); ctx.lineTo(w.x + w.w * .34, w.y); ctx.quadraticCurveTo(w.x + w.w * .2, w.y + w.h * .5, w.x + w.w * .3, w.y + w.h); ctx.lineTo(w.x, w.y + w.h); ctx.closePath(); ctx.fill(); }
+        vInterior(w.x, w.y, w.w, w.h, !!w.arch, hs, true);                       // móveis e gente com a luz acesa
+        if (hs % 3 === 0) { ctx.fillStyle = "rgba(150,70,44,.34)"; ctx.beginPath(); ctx.moveTo(w.x, w.y); ctx.lineTo(w.x + w.w * .34, w.y); ctx.quadraticCurveTo(w.x + w.w * .2, w.y + w.h * .5, w.x + w.w * .3, w.y + w.h); ctx.lineTo(w.x, w.y + w.h); ctx.closePath(); ctx.fill(); }
         vSoft(w.x, w.y, w.w, Math.min(3.5, w.h * .3), .3, "130,60,26");
         if (w.w >= 6 && w.h >= 8) { ctx.fillStyle = "rgba(80,44,28,.55)"; ctx.fillRect(cx - .4, w.y, .8, w.h); ctx.fillRect(w.x, cy - .4, w.w, .8); }
       }
@@ -3785,6 +3841,51 @@ function cityFountain(t, fx, B) {
   for (let i = 0; i < 6; i++) { const u = (t * .34 + i / 6) % 1; vBlot(fx + (hsh(i, 5) - .5) * 14 + Math.sin(t + i) * 1.5, UP - 1 - u * 10, 2.4 + u * 3.4, "238,249,255", .13 * Math.sin(u * 3.1416) * (.6 + .4 * LA)); }
 }
 
+// ---------- Reflexo do personagem nos vidros (e gente se mexendo lá dentro) ----------
+// Por quadro: desenha o pescador num sprite pequeno e o copia (com transparência e tom azulado) dentro de cada vidro por onde ele passa.
+// Janelas do térreo mostram o corpo inteiro; as de cima mostram só um reflexo fraquinho. Uma faixa de brilho acompanha o pescador.
+const CITY_REFLEX = 1;                                                    // 1 = ligado, 0 = desligado
+let reflexRS = null;
+function cityGlass(now, l, r) {
+  const D = cityData; if (!CITY_REFLEX || !D || !D.wins) return;
+  const B = CITY_B, K = CITY_CHAR, c0 = [];
+  for (const w of D.wins) {
+    if (w.x > r + 8 || w.x + w.w < l - 8) continue;
+    const cx = w.x + w.w / 2, ground = w.y + w.h > B - 45, dx = px - cx;
+    if (Math.abs(dx) > w.w / 2 + (ground ? 16 : 8) + 40) continue;
+    c0.push({ w, cx, ground, dx });
+  }
+  if (!c0.length) return;
+  if (!reflexRS) { const cv = document.createElement("canvas"); cv.width = 64 * 3; cv.height = 76 * 3; reflexRS = { cv, c: cv.getContext("2d") }; }
+  const c = reflexRS.c, main = ctx;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+  c.setTransform(3, 0, 0, 3, (32 - px) * 3, (68 - PIER_Y) * 3);
+  ctx = c;
+  try { drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) }); } finally { ctx = main; }
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = "rgba(150,190,228,.32)"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
+  ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
+  for (const o of c0) {
+    const w = o.w, hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0), bot = w.y + w.h, la = 1 - (w.lit ? .5 * DAY.lamp : 0);
+    ctx.save();
+    if (w.round) { ctx.beginPath(); ctx.arc(o.cx, w.y + w.h / 2, w.w / 2, 0, 6.2832); } else if (w.arch) vArchP(w.x, w.y, w.w, w.h); else vRR(w.x, w.y, w.w, w.h, .7);
+    ctx.clip();
+    if (o.ground && hs % 4 === 0 && w.h >= 12 && !w.round) {                  // alguém se mexendo atrás do vidro
+      const hh = Math.min(w.h * .72, 20), pxx = w.x + w.w * (.5 + .27 * Math.sin(now / 2800 + hs)), dk = "rgba(24,12,18,.55)";
+      vCirc(pxx, bot - hh * .86, hh * .11, dk); vRR(pxx - hh * .17, bot - hh * .74, hh * .34, hh * .74, hh * .12, dk);
+    }
+    const s = o.ground ? 1.15 * K : .5 * K, fy = o.ground ? B - 3 : bot - 1;
+    ctx.globalAlpha = (o.ground ? (w.soft ? .46 : .4) : .15) * la;
+    ctx.drawImage(reflexRS.cv, px - 32 * s, fy - 68 * s, 64 * s, 76 * s);
+    if (Math.abs(o.dx) < 70) {                                                // brilho passando junto com o pescador
+      const a = (1 - Math.abs(o.dx) / 70) * .3 * la, gx = w.x + w.w * (.5 + o.dx / 90), bw = Math.max(1.6, w.w * .16);
+      ctx.globalAlpha = a; ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.moveTo(gx - bw, bot); ctx.lineTo(gx, bot); ctx.lineTo(gx + w.h * .35, w.y); ctx.lineTo(gx + w.h * .35 - bw, w.y); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function cityRays(t, l, r) {                                                   // raios de sol suaves atravessando a praça (só de dia, bem sutis)
   const k = DAY.sunA * Math.min(1, .25 + DAY.sunE * 1.1); if (k < .03) return;
   const B = CITY_B, nx = Math.max(-1, Math.min(1, (DAY.sunX - 240) / 180)), slant = -nx * 60 - 10, c0 = Math.floor(l / 64) - 1, n = Math.ceil((r - l) / 64) + 3;
@@ -3867,6 +3968,7 @@ function drawCity(now) {
   ctx.save(); ctx.scale(Z, Z); ctx.translate(-cl, -vy);
   DAY.scene(() => drawCityBack(now, dt, cl, cr), [0, H]);
   cityLit(now, cl, cr);
+  cityGlass(now, cl, cr);
   cityRays(now / 1000, cl, cr);
   DAY.scene(() => {                                                                      // o pescador (com a mesma lavagem da hora)
     const CK = CITY_CHAR;
