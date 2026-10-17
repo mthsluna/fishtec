@@ -18,13 +18,28 @@ const refl = document.createElement("canvas");
 const viewW = () => Math.max(WORLD, Math.min(WORLD + 240, Math.round(H * innerWidth / innerHeight)));
 
 // ---------- Estilo Obra Dinn colorido (dithering Bayer 8x8) ----------
-const LEVELS = 6;                        // níveis por canal: 2 = bem radical (8 cores), 4 = estilo Obra Dinn clássico, 6 = profissional (216 cores), 8 = quase sem dithering visível
+const LEVELS = 8;                        // níveis por canal: 2 = bem radical (8 cores), 4 = estilo Obra Dinn clássico, 6 = profissional (216 cores), 8 = quase sem dithering visível
 const STEP = 255 / (LEVELS - 1);
 const NIGHT_LIFT = 0.12;                // clareia as sombras à noite ANTES do dithering (0 = igual a antes, 0.5 = bem mais claro). A paleta continua a mesma de 4 níveis
 const BAYER = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
                3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
 
-// O dithering roda na placa de vídeo (WebGL). Se não houver WebGL, cai para a CPU.
+// ---------- Pós-processamento "filme" (roda na placa de vídeo): bloom, grade de cor, vinheta, grão, aberração e linhas de varredura ----------
+// Nada aqui muda o desenho das coisas: só a imagem final. Cada número abaixo pode ser ajustado (0 desliga o efeito).
+const FX = {
+  bloom: 0.48,        // brilho curto em volta das luzes (sol, postes, reflexos)
+  glow: 0.36,         // halo largo e suave (névoa de luz)
+  bloomThr: 0.76,     // a partir de que brilho (0 a 1) algo passa a "brilhar" de dia; à noite o limite baixa sozinho
+  grain: 0.042,       // grão de filme animado
+  vignette: 0.40,     // escurecimento suave nos cantos
+  aberration: 0.0016, // franja de cor de lente nas bordas da tela
+  scan: 0.045,        // linhas de varredura bem finas (1 por pixel do jogo)
+  sharp: 0.40,        // nitidez
+  grade: 1.0,         // correção de cor (contraste, tom das sombras e das luzes). 0 = cor original
+};
+const bump = (m, c, w) => Math.exp(-Math.pow((m - c) / w, 2));
+
+// O dithering + efeitos rodam na placa de vídeo (WebGL). Se não houver WebGL, cai para a CPU (sem os efeitos).
 const gl = (() => {
   try {
     if (!document.createElement("canvas").getContext("webgl")) return null;
@@ -34,40 +49,105 @@ const gl = (() => {
 const out = gl ? null : cv.getContext("2d");
 const buf = document.createElement("canvas");
 let DITHER_CELL = 1;
-let glTex, liftLoc, texelLoc, cellLoc, stepsLoc;
+let glTex, rtSetup = null, glMain = null, glBlur = null;
+const BL = { ok: false, A: null, B: null, C: null };
 if (gl) {
-  const VS = "attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}";
-  const FS = `#ifdef GL_FRAGMENT_PRECISION_HIGH
+  const VS_SCREEN = "attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}";
+  const VS_RT = "attribute vec2 p;varying vec2 uv;void main(){uv=p*.5+.5;gl_Position=vec4(p,0.,1.);}";
+  const PREC = `#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
 precision mediump float;
 #endif
-uniform sampler2D t;uniform float steps;uniform float lift;uniform vec2 texel;uniform float cell;varying vec2 uv;
+`;
+  // 1) passes pequenos: extrai o que brilha (1/4 da resolução) e borra (gaussiana separável)
+  const FS_BLUR = PREC + `uniform sampler2D t;uniform float mode;uniform float thr;uniform vec2 texel;uniform vec2 dir;varying vec2 uv;
+void main(){
+  if(mode<.5){
+    vec3 c=(texture2D(t,uv+texel*vec2(-1.,-1.)).rgb+texture2D(t,uv+texel*vec2(1.,-1.)).rgb+texture2D(t,uv+texel*vec2(-1.,1.)).rgb+texture2D(t,uv+texel*vec2(1.,1.)).rgb)*.25;
+    float v=dot(c,vec3(.299,.587,.114))*.7+max(c.r,max(c.g,c.b))*.3;
+    float k=smoothstep(thr,thr+.3,v);
+    gl_FragColor=vec4(c*k,1.);
+  }else{
+    vec3 s=vec3(0.);float ws=0.;
+    for(int i=-4;i<=4;i++){float w=exp(-float(i*i)*.125);s+=texture2D(t,uv+dir*float(i)).rgb*w;ws+=w;}
+    gl_FragColor=vec4(s/ws,1.);
+  }
+}`;
+  // 2) passe final: nitidez + aberração + bloom + cor + vinheta + linhas + grão + dithering
+  const FS_MAIN = PREC + `uniform sampler2D t;uniform sampler2D bt;uniform sampler2D bw;
+uniform float steps;uniform float lift;uniform float cell;uniform float time;uniform float night;uniform float golden;
+uniform vec2 texel;uniform vec2 lpx;uniform vec4 fa;uniform vec4 fb;varying vec2 uv;
+float hash12(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
 float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
 float b8(vec2 a){return (b2(a*.25)*.25+b2(a*.5))*.25+b2(a);}
 void main(){
-  vec3 c0=texture2D(t,uv).rgb;
+  vec2 d=uv-.5;
+  vec2 ab=d*fb.x;                                                    // aberração: vermelho e azul se afastam um pouquinho nas bordas
+  vec3 c0=vec3(texture2D(t,uv+ab).r,texture2D(t,uv).g,texture2D(t,uv-ab).b);
   vec3 bl=(texture2D(t,uv+vec2(texel.x,0.)).rgb+texture2D(t,uv-vec2(texel.x,0.)).rgb+texture2D(t,uv+vec2(0.,texel.y)).rgb+texture2D(t,uv-vec2(0.,texel.y)).rgb)*.25;
-  c0=clamp(c0+(c0-bl)*.45,0.,1.);                       // nitidez leve: bordas mais limpas depois da ampliação
-  vec3 c=pow(c0,vec3(lift))*255.;
+  c0=clamp(c0+(c0-bl)*fb.z,0.,1.);                                   // nitidez
+  float nb=1.+night*.9;                                              // à noite as luzes brilham mais
+  vec3 g=texture2D(bt,uv).rgb*fa.x+texture2D(bw,uv).rgb*fa.y;
+  g*=nb*mix(vec3(1.),vec3(1.08,.96,.80),golden*.7);                  // halo mais quente no nascer/pôr do sol
+  vec3 c=1.-(1.-c0)*(1.-clamp(g,0.,1.));                             // bloom em "screen": só soma luz, nunca estoura de forma feia
+  float gr=fb.w;
+  float l=dot(c,vec3(.299,.587,.114));
+  c=mix(c,c*c*(3.-2.*c),.30*gr);                                     // curva de contraste suave
+  l=dot(c,vec3(.299,.587,.114));
+  c=mix(vec3(l),c,1.-.10*gr);                                        // cor um pouco menos "de desenho", mais de foto
+  vec3 sh=vec3(-.012,.010,.040)*(1.+night*.8);                       // sombras puxam para o azul-esverdeado
+  vec3 hi=vec3(.030,.014,-.030)*(1.+golden);                         // luzes puxam para o quente
+  c+=(sh*(1.-l)*(1.-l)+hi*l*l)*gr;
+  c=c*(1.-.05*gr)+.022*gr;                                           // pretos levemente erguidos (filme)
+  float vg=smoothstep(.30,1.,length(d*vec2(1.,.82))*1.55);          // vinheta
+  c*=1.-fa.w*vg*vec3(1.,.92,.80);
+  c*=1.-fb.y*(.5+.5*cos(6.28318*uv.y/lpx.y));                        // linhas de varredura: 1 por pixel do jogo, mais claras no centro dele
+  vec2 gp=floor(gl_FragCoord.xy/cell)+floor(time*24.)*vec2(37.,17.);
+  vec3 gn=vec3(hash12(gp)-.5)+(vec3(hash12(gp+1.7),hash12(gp+3.1),hash12(gp+5.3))-.5)*.35;
+  c+=gn*fa.z*(1.2-.7*l);                                             // grão (mais nas sombras)
+  c=pow(clamp(c,0.,1.),vec3(lift))*255.;
   float st=255./(steps-1.);
   float th=(b8(mod(floor(gl_FragCoord.xy/cell),8.))-.47)*st;
   c=clamp(floor((c+th)/st+.5)*st,0.,255.)/255.;
   gl_FragColor=vec4(c,1.);
 }`;
-  const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); return o; };
-  const pg = gl.createProgram();
-  gl.attachShader(pg, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pg, sh(gl.FRAGMENT_SHADER, FS));
-  gl.linkProgram(pg); gl.useProgram(pg);
+  const sh = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.warn(gl.getShaderInfoLog(o)); return o; };
+  const mk = (vs, fs, names) => {
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+    gl.bindAttribLocation(p, 0, "p"); gl.linkProgram(p);
+    const u = {}; names.forEach(n => { u[n] = gl.getUniformLocation(p, n); });
+    return { p, u };
+  };
+  glMain = mk(VS_SCREEN, FS_MAIN, ["t", "bt", "bw", "steps", "lift", "cell", "time", "night", "golden", "texel", "lpx", "fa", "fb"]);
+  glBlur = mk(VS_RT, FS_BLUR, ["t", "mode", "thr", "texel", "dir"]);
   gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-  const loc = gl.getAttribLocation(pg, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  glTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, glTex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  stepsLoc = gl.getUniformLocation(pg, "steps"); gl.uniform1f(stepsLoc, LEVELS);
-  liftLoc = gl.getUniformLocation(pg, "lift");
-  texelLoc = gl.getUniformLocation(pg, "texel"); cellLoc = gl.getUniformLocation(pg, "cell");
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  const tex = () => {
+    const o = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, o);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return o;
+  };
+  glTex = tex();
+  const rt = (w, h) => {                                             // textura que dá para desenhar dentro (para o bloom)
+    const o = { w, h, tex: tex(), fb: gl.createFramebuffer() };
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, o.fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, o.tex, 0);
+    o.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return o;
+  };
+  rtSetup = () => {                                                  // refaz as texturas do bloom quando o tamanho do quadro muda
+    const w = Math.max(16, Math.round(buf.width / 4)), h = Math.max(16, Math.round(buf.height / 4));
+    if (BL.A && BL.A.w === w && BL.A.h === h) return;
+    [BL.A, BL.B, BL.C].forEach(o => { if (o) { gl.deleteTexture(o.tex); gl.deleteFramebuffer(o.fb); } });
+    BL.A = rt(w, h); BL.B = rt(w, h); BL.C = rt(w, h);
+    BL.ok = BL.A.ok && BL.B.ok && BL.C.ok;
+  };
 }
 
 function setScale(s) {
@@ -83,6 +163,7 @@ function setScale(s) {
   } else { cv.width = buf.width; cv.height = buf.height; }           // sem WebGL: dithering na CPU, no tamanho do buffer
   ctx = buf.getContext("2d", gl ? {} : { willReadFrequently: true });
   ctx.scale(S, S);
+  if (gl && rtSetup) rtSetup();
 }
 setScale(2);
 addEventListener("resize", () => setScale(S));
@@ -112,11 +193,41 @@ function dither() {
 }
 function present() {
   if (!gl) return dither();
-  gl.viewport(0, 0, cv.width, cv.height);
-  gl.uniform1f(liftLoc, nightLift());
-  gl.uniform1f(stepsLoc, LEVELS);
-  gl.uniform2f(texelLoc, 1 / buf.width, 1 / buf.height); gl.uniform1f(cellLoc, DITHER_CELL);
+  const night = Math.max(0, Math.min(1, DAY.starA || 0)), m = DAY.m || 0;
+  const golden = Math.max(bump(m, 375, 70), bump(m, 1065, 90));      // nascer e pôr do sol: luz e halo mais quentes
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, glTex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  const bloom = BL.ok && (FX.bloom > 0 || FX.glow > 0);
+  if (bloom) {                                                       // bloom: separa o que brilha, borra curto (A) e borra largo (C)
+    const P = glBlur, A = BL.A, B = BL.B, C = BL.C;
+    gl.useProgram(P.p); gl.uniform1i(P.u.t, 0);
+    const pass = (src, dst, mode, dx, dy) => {
+      gl.bindTexture(gl.TEXTURE_2D, src);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb); gl.viewport(0, 0, dst.w, dst.h);
+      gl.uniform1f(P.u.mode, mode); gl.uniform2f(P.u.dir, dx, dy);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    };
+    gl.uniform1f(P.u.thr, FX.bloomThr - 0.22 * night); gl.uniform2f(P.u.texel, 1 / buf.width, 1 / buf.height);
+    pass(glTex, A, 0, 0, 0);
+    pass(A.tex, B, 1, 1 / A.w, 0); pass(B.tex, A, 1, 0, 1 / A.h);
+    pass(A.tex, B, 1, 3.5 / A.w, 0); pass(B.tex, C, 1, 0, 3.5 / A.h);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, cv.width, cv.height);
+  const M = glMain; gl.useProgram(M.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, glTex);
+  if (bloom) {
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, BL.A.tex);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, BL.C.tex);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+  gl.uniform1i(M.u.t, 0); gl.uniform1i(M.u.bt, 1); gl.uniform1i(M.u.bw, 2);
+  gl.uniform1f(M.u.steps, LEVELS); gl.uniform1f(M.u.lift, nightLift());
+  gl.uniform1f(M.u.cell, DITHER_CELL); gl.uniform1f(M.u.time, performance.now() / 1000);
+  gl.uniform1f(M.u.night, night); gl.uniform1f(M.u.golden, golden);
+  gl.uniform2f(M.u.texel, 1 / buf.width, 1 / buf.height); gl.uniform2f(M.u.lpx, 1 / W, 1 / H);
+  gl.uniform4f(M.u.fa, bloom ? FX.bloom : 0, bloom ? FX.glow : 0, FX.grain, FX.vignette);
+  gl.uniform4f(M.u.fb, FX.aberration, FX.scan, FX.sharp, FX.grade);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 const API = window.API_URL;
@@ -2220,6 +2331,41 @@ function drawSunFlare(now, X, Y) {
   ctx.restore();
 }
 
+
+// ---------- Raios de sol e poeira no ar (luz volumétrica bem suave, por cima da cena; só de dia) ----------
+// Para mexer na força: SHAFT_K (1 = como está, 0 = desligado) e MOTE_N (quantidade de partículas).
+const SHAFT_K = 1, MOTE_N = 42;
+const MOTES = Array.from({ length: MOTE_N }, (_, i) => ({ x: hs(i * 3.1) * 520, y: 36 + hs(i * 7.7) * 118, z: 0.4 + hs(i * 5.3) * 0.9, ph: hs(i * 9.9) * 6.28, r: hs(i * 2.2) < 0.2 ? 2 : 1 }));
+function drawSunShafts(now, X, Y) {
+  const k = DAY.sunA * (0.3 + 0.7 * Math.pow(1 - DAY.sunE, 1.2)) * SHAFT_K;          // mais fortes com o sol baixo (nascer e pôr do sol)
+  if (k < 0.03 || X < -160 || X > W + 160) return;
+  const [r, g, b] = DAY.lc.map(Math.round), n = 9;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < n; i++) {
+    const a0 = 0.28 + (i / (n - 1)) * 2.58 + Math.sin(now / 5200 + i * 2.3) * 0.035, wd = 0.045 + 0.03 * hs(i * 4.1), len = 230 + 90 * hs(i * 6.7);
+    const al = k * 0.055 * (0.45 + 0.55 * Math.sin(now / 2300 + i * 1.9) * Math.sin(now / 3700 + i * 0.7 + 1) + 0.0) * (0.6 + 0.8 * hs(i * 8.3));
+    if (al <= 0.002) continue;
+    const x1 = X + Math.cos(a0 - wd) * len, y1 = Y + Math.sin(a0 - wd) * len, x2 = X + Math.cos(a0 + wd) * len, y2 = Y + Math.sin(a0 + wd) * len;
+    const gr = ctx.createLinearGradient(X, Y, X + Math.cos(a0) * len, Y + Math.sin(a0) * len);
+    gr.addColorStop(0, `rgba(${r},${g},${b},${al})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawMotes(now, X) {
+  const k = DAY.sunA * 0.9; if (k < 0.04) return;
+  const [r, g, b] = DAY.lc.map(Math.round), span = W + 40;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  MOTES.forEach(m => {
+    const x = ((m.x + now / 1000 * 3.2 * m.z + Math.sin(now / 1900 + m.ph) * 4) % span + span) % span - 20, y = m.y + Math.sin(now / 1700 + m.ph) * 5 + now / 1000 * 0.8 * m.z % 6;
+    const near = Math.max(0, 1 - Math.abs(x - X) / 260);                              // brilha mais perto do sol
+    const a = k * (0.12 + 0.5 * near) * (0.4 + 0.6 * Math.pow(Math.sin(now / 900 + m.ph * 3) * 0.5 + 0.5, 2));
+    if (a < 0.02) return;
+    ctx.fillStyle = `rgba(${r},${g},${b},${a.toFixed(3)})`; ctx.fillRect(x | 0, y | 0, m.r, m.r);
+  });
+  ctx.restore();
+}
+
 function draw(now) {
   DAY.update(gameMinutes());
   if (!layers) buildLayers(now);
@@ -2298,7 +2444,11 @@ function draw(now) {
   ctx.restore();
 
   ctx.restore();                                           // fim da câmera: a interface abaixo não é ampliada
-  if (!INTRO.on) drawSunFlare(now, (ox + camX * PAR.sky + DAY.sunX - lastView.sx) * lastView.z, (DAY.sunY - lastView.sy) * lastView.z);   // flare do sol (em tela, por cima da cena)
+  if (!INTRO.on) {
+    const sX = (ox + camX * PAR.sky + DAY.sunX - lastView.sx) * lastView.z, sY = (DAY.sunY - lastView.sy) * lastView.z;
+    drawSunShafts(now, sX, sY); if (lastView.z === 1) drawMotes(now, sX);
+    drawSunFlare(now, sX, sY);
+  }   // raios, poeira e flare do sol (em tela, por cima da cena)   // flare do sol (em tela, por cima da cena)
   if (INTRO.on) introView(now);
 
   if (!INTRO.on) shakeView(now);                                       // tremor levinho (só o cenário; a interface abaixo não treme)
