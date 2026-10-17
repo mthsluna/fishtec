@@ -3920,7 +3920,7 @@ function seaEach(l, r, t, cb, pick) {
 }
 // Cada coisa distante vira um SPRITE próprio (pintado em coordenadas locais, sem depender da câmera) e desfocado de verdade (ctx.filter blur; sem suporte, cai num desfoque por reduzir/ampliar).
 // O sprite só é repintado ~15x por segundo (roda-gigante girando, fumaça, luzes piscando) e depois apenas MOVIDO na tela: andar não faz mais nada tremer, brilhar ou "nadar".
-const SEAB = { pxu: 2, pad: 10, sp: {}, filt: null, rad: { shore: 1.3, light: 1.1, park: 1.2, ship: 1.0, sail: .55, buoy: .7 }, still: { shore: 1, light: 1 } };
+const SEAB = { pxu: 2, pad: 10, sp: {}, filt: null, rad: { shore: 1.3, light: 1.1, park: 1.2, ship: 1.0, sail: .55, buoy: .22 }, still: { shore: 1, light: 1 } };
 function seaBB(el) {
   switch (el.id) {
     case "shore": return { x0: -el.w / 2 - 4, x1: el.w / 2 + 4, y0: -14, y1: 5 };
@@ -4217,10 +4217,10 @@ function cityFisherLight(c, now) {
     const dx = Math.abs(px - x); if (dx > 150) return;
     const k = DAY.lamp * lampFlick(x, now) * Math.pow(1 - dx / 150, 1.1);
     let g = c.createRadialGradient(x, hy, 3, x, hy, 125);
-    g.addColorStop(0, "rgba(255,206,132," + (.2 * k).toFixed(3) + ")"); g.addColorStop(.4, "rgba(255,186,104," + (.09 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,176,90,0)");   // calor suave (como no cais: só um tom, sem estourar)
+    g.addColorStop(0, "rgba(255,210,140," + (.46 * k).toFixed(3) + ")"); g.addColorStop(.4, "rgba(255,190,108," + (.22 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,176,90,0)");   // calor do poste: dá para ver a luz no personagem, sem apagar o desenho
     c.fillStyle = g; c.fillRect(x - 135, hy - 10, 270, 200);
-    g = c.createRadialGradient(x + 4, PIER_Y + 5, 2, x + 4, PIER_Y + 5, 60);                          // a poça de luz no chão sobe de leve pelas pernas
-    g.addColorStop(0, "rgba(255,200,120," + (.1 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,190,100,0)");
+    g = c.createRadialGradient(x + 4, PIER_Y + 5, 2, x + 4, PIER_Y + 5, 70);                          // a poça de luz no chão sobe pelas pernas
+    g.addColorStop(0, "rgba(255,204,124," + (.26 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,190,100,0)");
     c.fillStyle = g; c.fillRect(x - 75, PIER_Y - 34, 150, 60);
   });
 }
@@ -4244,12 +4244,17 @@ function cityPoleGlow(now, l, r) {                                       // luz:
   cityData.poles.forEach(x => {
     if (x < l - 150 || x > r + 150) return;
     const k = DAY.lamp * lampFlick(x, now);
-    ctx.save(); ctx.beginPath(); ctx.rect(x - 150, CITY_B + 1, 300, 90); ctx.clip();
-    ctx.translate(x + 4, PIER_Y + 5); ctx.scale(1, .24);
-    const gr = ctx.createRadialGradient(0, 0, 2, 0, 0, 105);
-    gr.addColorStop(0, `rgba(255,226,158,${(.3 * k).toFixed(3)})`); gr.addColorStop(.18, `rgba(255,208,125,${(.2 * k).toFixed(3)})`); gr.addColorStop(.42, `rgba(${lr},${lg},${lb},${(.09 * k).toFixed(3)})`);
-    gr.addColorStop(.72, `rgba(${lr},${lg - 10},${lb},${(.03 * k).toFixed(3)})`); gr.addColorStop(1, `rgba(${lr},${lg},${lb},0)`);
-    ctx.fillStyle = gr; ctx.fillRect(-105, -105, 210, 210); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(x - 160, CITY_B + 1, 320, 90); ctx.clip();
+    // poça realista: queda suave (tipo 1/d²) em elipse larga + núcleo menor e quente logo abaixo do poste, mais fraca nas pontas (perspectiva do chão)
+    const pool = (cx, cy, R, sy, stops) => { ctx.save(); ctx.translate(cx, cy); ctx.scale(1, sy); const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, R); stops.forEach(([o, a, c]) => gr.addColorStop(o, `rgba(${c},${(a * k).toFixed(3)})`)); ctx.fillStyle = gr; ctx.fillRect(-R, -R, R * 2, R * 2); ctx.restore(); };
+    pool(x + 4, PIER_Y + 6, 120, .2, [[0, .17, "255,214,150"], [.25, .11, "255,196,120"], [.55, .045, `${lr},${lg - 6},${lb}`], [.85, .012, `${lr},${lg - 14},${lb}`], [1, 0, `${lr},${lg - 14},${lb}`]]);   // halo largo e discreto
+    pool(x + 4, PIER_Y + 5, 46, .22, [[0, .3, "255,230,172"], [.3, .18, "255,208,130"], [.7, .06, "255,192,110"], [1, 0, "255,192,110"]]);                                                           // núcleo
+    ctx.save(); ctx.translate(x + 4, PIER_Y + 7); ctx.scale(1, 1);                                                                    // reflexo do lampião no chão molhado: coluna fina que se estica para a frente e some
+    const rf = ctx.createLinearGradient(0, -4, 0, 30); rf.addColorStop(0, `rgba(255,226,164,${(.2 * k).toFixed(3)})`); rf.addColorStop(.5, `rgba(255,206,130,${(.08 * k).toFixed(3)})`); rf.addColorStop(1, "rgba(255,200,120,0)");
+    ctx.fillStyle = rf; ctx.beginPath(); ctx.moveTo(-1.4, -4); ctx.lineTo(1.4, -4); ctx.lineTo(3.6, 30); ctx.lineTo(-3.6, 30); ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 5; i++) { const yy = 2 + i * 5.5, w = 5.5 + i * 2.2 + Math.sin(t * 1.4 + i * 2 + x) * 1.2; ctx.fillStyle = `rgba(255,222,160,${((.11 - i * .02) * k).toFixed(3)})`; ctx.fillRect(-w / 2 + Math.sin(t * .8 + i + x) * 1.2, yy, w, .7); }   // brilhos nas juntas das pedras
+    ctx.restore();
+    ctx.restore();
   });
   ctx.restore();                         // brilho amarelo na água (como o drawLampWater do cais), para os postes da orla
   const D = cityData, P = D.piazza;
@@ -4634,6 +4639,26 @@ function cityRays(t, l, r) {                                                   /
   ctx.restore();
 }
 
+// Grade de ferro da orla (como na foto): barras finas verticais entre dois trilhos, postes mais grossos a cada tanto, meio-fio de pedra embaixo; o mar aparece entre as barras
+function cityRail(l, r, now) {
+  const P = cityData && cityData.piazza; if (!P) return;
+  const x0 = Math.max(l - 4, P.x - 4), x1 = Math.min(r + 4, P.x + P.w + 4); if (x1 <= x0) return;
+  const B = CITY_B, top = B - 12, bot = B - 1.4, GAP = 2.6, IRON = "#1c2433", HI = "rgba(150,175,215,.28)";
+  ctx.save();
+  ctx.fillStyle = vLG(0, bot, 0, B + 1, [[0, "#8d8272"], [1, "#4c4256"]]); ctx.fillRect(x0, bot, x1 - x0, 2.6);           // meio-fio
+  ctx.fillStyle = "rgba(255,244,222,.28)"; ctx.fillRect(x0, bot, x1 - x0, .45);
+  ctx.fillStyle = "rgba(20,10,40,.28)"; ctx.fillRect(x0, bot + 2.6, x1 - x0, 1.2);                                            // sombra sob o meio-fio
+  ctx.fillStyle = IRON; ctx.fillRect(x0, top, x1 - x0, .8); ctx.fillRect(x0, bot - 2.2, x1 - x0, .9);                          // trilhos de cima e de baixo
+  for (let x = Math.ceil(x0 / GAP) * GAP; x < x1; x += GAP) {                                                               // barras (a cada 8 uma mais grossa, com ponta)
+    const post = Math.round(x / GAP) % 8 === 0;
+    ctx.fillStyle = IRON; ctx.fillRect(x - (post ? .6 : .3), top - (post ? 1.6 : 0), post ? 1.2 : .6, bot - top + (post ? 1.6 : 0));
+    ctx.fillStyle = HI; ctx.fillRect(x - (post ? .6 : .3), top, .25, bot - top);                                                // brilho do lado da luz
+    if (post) { ctx.fillStyle = IRON; ctx.beginPath(); ctx.arc(x, top - 2, .9, 0, 6.2832); ctx.fill(); }
+  }
+  ctx.fillStyle = HI; ctx.fillRect(x0, top, x1 - x0, .22);
+  ctx.restore();
+}
+
 function drawCityBack(now, dt, l, r) {                                   // tudo que recebe a lavagem de cor da hora (l..r = trecho visível do mundo)
   cityEnsure();
   const D = cityData, B = CITY_B, t = now / 1000, cs = cityCache.cs;
@@ -4641,6 +4666,7 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
   ctx.save(); ctx.beginPath(); ctx.rect(l - 20, -200, r - l + 40, CITY_HZ + 200); ctx.clip(); cityClouds(t, l, r); ctx.restore();   // nuvens só acima do horizonte
   cityFar(DAY.sky[3], l, r);
   citySeaProps(now, l, r);
+  cityRail(l, r, now);                                                   // gradezinha de ferro da orla (atrás das fachadas: só aparece nos vãos com mar)
   ctx.imageSmoothingEnabled = CITY_HD; ctx.imageSmoothingQuality = "low";
   const sx = Math.max(0, Math.floor((l - 4 - CITY_FW) * cs)), ex = Math.min(cityCache.cv.width, Math.ceil((r + 4 - CITY_FW) * cs));
   if (ex > sx) ctx.drawImage(cityCache.cv, sx, 0, ex - sx, cityCache.cv.height, CITY_FW + sx / cs, 0, (ex - sx) / cs, cityCache.cv.height / cs);
