@@ -2994,12 +2994,11 @@ function vPiazza(D, B, r, pk) {
     vRR(bx - .1, B - 11.6, 3.4, 7.4, .6, "rgba(110,92,74,.22)"); vRR(bx + .2, B - 11.2, .5, 6.6, .2, "rgba(255,255,255,.35)");                   // almofada
     vRR(bx - 1.9, B - 15.6, 7, 2.2, .9, vLG(0, B - 15.6, 0, B - 13.4, [[0, "#fff6e0"], [1, "#cdbfa2"]]));
     vCirc(bx + 1.6, B - 17.4, 1.7, vRG(bx + 1, B - 18, 0, 2, [[0, "#fff8e6"], [1, "#b5a78a"]]));
-    vBlot(bx + 1.6, B - 1.5, 4.5, "84,124,60", .28);
     speck(bx - 1.2, B - 14, 5.6, 14, () => vRR(bx - 1.2, B - 14, 5.6, 14, 1), 16);
   }
-  for (let i = 0; i < 9; i++) {                                                                                                           // hera caindo do tampo
-    const ix = P.x + 8 + lr() * (P.w - 16), len = 3 + lr() * 6;
-    for (let q = 0; q < len; q += 1.1) vCirc(ix + (lr() - .5) * 1.4, B - 9.6 + q, .75 + lr() * .35, pk(["#2f6a34", "#3f8040", "#56a050", "#245a2c"]));
+  for (let i = 0; i < 9; i++) {                                                                                                           // (hera removida: só consome os sorteios para o resto da cidade continuar igual)
+    lr(); lr(); const len = 3 + lr() * 6;
+    for (let q = 0; q < len; q += 1.1) { lr(); lr(); pk(["#2f6a34", "#3f8040", "#56a050", "#245a2c"]); }
   }
 
   // ---------- fonte: bacia de pedra com painéis, taça canelada, pilar com molduras ----------
@@ -3011,7 +3010,6 @@ function vPiazza(D, B, r, pk) {
     vArch(x - w / 2, B - 2.2, w, 4.6, "rgba(84,68,56,.3)"); vArch(x - w / 2 + .5, B - 1.6, w - 1, 4, "rgba(255,246,226,.1)");
   }
   speck(fx - 28, B - 4, 56, 7.2, () => vRR(fx - 28.4, B - 4, 56.8, 7.2, 3.4), 90);
-  [-19, -6, 11, 22].forEach((mx, i) => vBlot(fx + mx, B + 1.6, 4 + i % 2 * 2, "86,126,62", .3));                                          // musgo no pé
   ctx.beginPath(); ctx.ellipse(fx, B - 4, 28.2, 5.9, 0, 0, 6.2832); ctx.fillStyle = vLG(0, B - 10, 0, B + 2, [[0, "#fbf1da"], [1, "#cdbfa2"]]); ctx.fill();   // borda de cima
   ctx.beginPath(); ctx.ellipse(fx, B - 3.9, 25.7, 5, 0, 0, 6.2832); ctx.fillStyle = vLG(0, B - 9, 0, B, [[0, "#a29478"], [1, "#d6c9ac"]]); ctx.fill();         // lábio interno
   ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = .5; ctx.beginPath(); ctx.ellipse(fx, B - 3.8, 28, 5.8, 0, .1, 3.04); ctx.stroke();        // luz na borda da frente
@@ -3215,11 +3213,23 @@ function vFacadePre(b, bi, B, wc) {                                        // po
     for (let i = 0; i < w / 4; i++) { ctx.fillStyle = q() < .5 ? "rgba(255,246,226,.1)" : "rgba(40,26,20,.1)"; ctx.fillRect(x + q() * w, yy + .5 + q() * 3, .7 + q(), .5); }
   }
   vRR(x - .8, pb - 1, w + 1.6, 1.5, .6, vLG(0, pb - 1, 0, pb + .5, [[0, "#d4c8b2"], [1, "#a89a86"]])); vSoft(x, pb + .5, w, 2, .22);
-  for (let c = 0, nc = q() < .6 ? 1 : 2; c < nc; c++) {                    // rachadura fina
-    let cx = x + 6 + q() * (w - 12), cy = top + 16 + q() * ht * .3; const L = 7 + q() * 11;
-    ctx.beginPath(); ctx.moveTo(cx, cy); for (let s = 0; s < 5; s++) { cx += (q() - .5) * 2.8; cy += L / 5; ctx.lineTo(cx, cy); }
-    ctx.lineWidth = .28; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(50,30,26,.36)"; ctx.stroke();
-    ctx.lineWidth = .2; ctx.strokeStyle = "rgba(255,246,226,.18)"; ctx.translate(.35, 0); ctx.stroke(); ctx.translate(-.35, 0);
+  // rachaduras: 2 a 4 por prédio, em alturas variadas, com ramificações curtas e fio de luz ao lado (textura de reboco velho, sem exagero)
+  const crack = (sx, sy, len, ang, wd, al, branch) => {
+    const pts = [[sx, sy]]; let cx = sx, cy = sy, a = ang; const n = 4 + (len / 4 | 0);
+    for (let s = 0; s < n; s++) { a += (q() - .5) * .9; cx += Math.sin(a) * len / n; cy += Math.cos(a) * len / n; pts.push([cx, cy]); }
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    const stroke = () => { ctx.beginPath(); pts.forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.stroke(); };
+    ctx.lineWidth = wd; ctx.strokeStyle = "rgba(50,30,26," + al + ")"; stroke();
+    ctx.lineWidth = wd * .7; ctx.strokeStyle = "rgba(255,246,226,.2)"; ctx.translate(.35, .05); stroke(); ctx.translate(-.35, -.05);
+    if (branch && pts.length > 4) { const [bx, by] = pts[2 + (q() * (pts.length - 4) | 0)]; crack(bx, by, len * (.3 + q() * .25), ang + (q() < .5 ? -1 : 1) * (.6 + q() * .5), wd * .75, al * .85, false); }
+  };
+  for (let c = 0, nc = 2 + (q() * 3 | 0); c < nc; c++) {
+    const cx0 = x + 5 + q() * (w - 10), cy0 = top + 9 + q() * Math.max(6, ht * .55);
+    crack(cx0, cy0, 8 + q() * 16, (q() - .5) * .5, .3 + q() * .12, (.34 + q() * .16).toFixed(2), q() < .6);
+  }
+  for (let c = 0, nc = 1 + (q() * 2 | 0); c < nc; c++) {                    // microrrachaduras curtas e soltas (pontos de reboco trincado)
+    const cx0 = x + 4 + q() * (w - 8), cy0 = top + 12 + q() * Math.max(6, ht * .6);
+    crack(cx0, cy0, 3 + q() * 5, (q() - .5) * 1.6, .22, .3, false);
   }
 }
 
@@ -3486,9 +3496,9 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     for (let yy = top + 8; yy < B - 6; yy += 14) vRR(x + w - 6.2, yy, 3.3, 1, .4, "#a89886");
     vRR(x + w - 8, B - 5.5, 4.2, 2, .9, "#5a4e42");
   }
-  if (bi % 4 === 2 && w > 56) {                                              // trepadeira com flores
-    const vx = x + w - 28, vh = ri(46, 66);
-    for (let i = 0; i < 70; i++) { const vy = B - 4 - vh * Math.pow(r(), 1.5), vxx = vx + r() * 24, q = 1.2 + r() * 1.4; vCirc(vxx, vy, q, vMix(pk(CITY_GREENS), "#0a2010", r() * .3)); if (r() < .28) vCirc(vxx + .4, vy - .3, .65, pk(["#d6477f", "#e868a0", "#b8326a"])); }
+  if (bi % 4 === 2 && w > 56) {                                              // (trepadeira removida: só consome os sorteios para o traçado da cidade não mudar)
+    ri(46, 66);
+    for (let i = 0; i < 70; i++) { r(); r(); r(); pk(CITY_GREENS); r(); if (r() < .28) pk(["#d6477f", "#e868a0", "#b8326a"]); }
   }
   for (let k = 0; k <= b.n; k++) {                                           // frisos entre os andares
     const ly = B - GF - k * FH; vRR(x, ly - .9, w, 1.8, .7, vLG(0, ly - 1, 0, ly + 1, [[0, wc[2]], [1, vDark(wc[1], .1)]])); vSoft(x, ly + .9, w, 3.6, .32);
@@ -3551,16 +3561,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
       vSoft(sx - 1, B - 38, 48, 4, .28);
       vText("CAIS  ›", sx + 23, B - 43, "#ffffff", 8.4, 40, "rgba(0,0,30,.4)");
     }
-    if (b.g === "shrine") {                                                  // nichozinho com a santa e uma velinha
-      const sx = x + w - 20;
-      vArch(sx - 1.4, B - 55, 12, 20.4, "#e2d8bc"); vArch(sx, B - 53.6, 9.2, 18, vLG(0, B - 54, 0, B - 36, [[0, "#2a1a1c"], [1, "#4a3430"]]));
-      ctx.beginPath(); ctx.moveTo(sx + 4.6, B - 49); ctx.bezierCurveTo(sx + 8, B - 46, sx + 8.2, B - 41, sx + 7.4, B - 37.4); ctx.lineTo(sx + 1.8, B - 37.4); ctx.bezierCurveTo(sx + 1, B - 41, sx + 1.2, B - 46, sx + 4.6, B - 49); ctx.fillStyle = vLG(sx, 0, sx + 9, 0, [[0, "#3d72b8"], [1, "#264a82"]]); ctx.fill();
-      vCirc(sx + 4.6, B - 50.6, 1.8, "#e8c9a0"); vRR(sx + 3.2, B - 46, 2.8, 5, 1.2, "#eef2f8");
-      vRR(sx - 2, B - 36.2, 13.2, 2.2, 1, "#dccfae"); vSoft(sx - 1.5, B - 34, 12, 3, .3);
-      vRR(sx + .8, B - 40.2, 1.3, 3.6, .5, "#f6ecd2"); vRR(sx + 7, B - 40.2, 1.3, 3.6, .5, "#f6ecd2");
-      D.doors.push({ cx: sx + 4.6, kind: "shrine", glow: 0, o: 0, t: 0 });
-      D.lamps.push({ x: sx + 4.6, y: B - 40, r: 15 });
-    }
+    // (o nicho com a santa e as velinhas foi removido: o prédio "shrine" agora é só uma porta comum)
   } else if (b.g === "shop") {
     const sx0 = x + 6, sw = w - 12, awn = pk(["#c0392b", "#2f6b4f", "#2d5a8a", "#d98e04"]), nm = b.name;
     vRR(x + 7.5, B - 55, w - 15, 14.4, 2, vLG(0, B - 55, 0, B - 40, [[0, "#6a4630"], [1, "#3a2414"]]));
@@ -3919,7 +3920,7 @@ function seaEach(l, r, t, cb, pick) {
 }
 // Cada coisa distante vira um SPRITE próprio (pintado em coordenadas locais, sem depender da câmera) e desfocado de verdade (ctx.filter blur; sem suporte, cai num desfoque por reduzir/ampliar).
 // O sprite só é repintado ~15x por segundo (roda-gigante girando, fumaça, luzes piscando) e depois apenas MOVIDO na tela: andar não faz mais nada tremer, brilhar ou "nadar".
-const SEAB = { pxu: 2, pad: 10, sp: {}, filt: null, rad: { shore: 1.3, light: 1.1, park: 1.2, ship: 1.0, sail: .55 }, still: { shore: 1, light: 1 } };
+const SEAB = { pxu: 2, pad: 10, sp: {}, filt: null, rad: { shore: 1.3, light: 1.1, park: 1.2, ship: 1.0, sail: .55, buoy: .7 }, still: { shore: 1, light: 1 } };
 function seaBB(el) {
   switch (el.id) {
     case "shore": return { x0: -el.w / 2 - 4, x1: el.w / 2 + 4, y0: -14, y1: 5 };
@@ -4038,21 +4039,62 @@ const SEA_BODY = {
     ctx.fillStyle = "#e7dec8"; ctx.beginPath(); ctx.moveTo(-.8, -11.4); ctx.quadraticCurveTo(-5.6, -6.6, -7, -2.6); ctx.lineTo(-.8, -2.6); ctx.closePath(); ctx.fill();    // buja
     vPoly([[0, -13.4], [2.8, -12.6], [0, -11.8]], "#c9566e");
   },
-  buoy(t, k, el) {
+  buoy(t, k, el) {                                                       // boia de sinalização: corpo cônico listrado, grade no alto com lâmpada, anel de espuma, sombra e reflexo na água (o desfoque vem do sprite)
+    const ph = el ? el.ph : 0, WL = 1.5, tilt = Math.sin(t * 1.1 + ph) * .06, bob = Math.sin(t * 1.4 + ph * 2) * .25;
     for (let q = 0; q < 2; q++) {                                                                // ondinhas abrindo em volta da boia
-      const u = (t * .35 + q * .5 + (el ? el.ph : 0)) % 1; ctx.strokeStyle = "rgba(235,245,255," + (.32 * (1 - u)).toFixed(3) + ")"; ctx.lineWidth = .35;
-      ctx.beginPath(); ctx.ellipse(0, 1.4, 3.4 + u * 7.5, .8 + u * 1.7, 0, 0, 6.2832); ctx.stroke();
+      const u = (t * .35 + q * .5 + ph) % 1; ctx.strokeStyle = "rgba(235,245,255," + (.34 * (1 - u)).toFixed(3) + ")"; ctx.lineWidth = .4;
+      ctx.beginPath(); ctx.ellipse(0, WL, 3.8 + u * 8, .9 + u * 1.8, 0, 0, 6.2832); ctx.stroke();
     }
-    vEll(0, 1.5, 3.8, .85, "rgba(10,40,80,.34)");
-    vPoly([[-2.6, 1.1], [2.6, 1.1], [1.6, -3.8], [-1.6, -3.8]], "#c9423a"); vPoly([[-2.15, -.7], [2.15, -.7], [1.9, -2], [-1.9, -2]], "#f0ece0"); vPoly([[.6, 1.1], [2.6, 1.1], [1.6, -3.8], [.4, -3.8]], "rgba(20,10,40,.22)");
-    vLine(-1.3, -3.8, 0, -6.4, .35, "#33425c"); vLine(1.3, -3.8, 0, -6.4, .35, "#33425c"); vCirc(0, -6.6, .75, "#33425c");
+    ctx.save(); ctx.translate(1.4, WL + .7); ctx.scale(1, .2);                                  // sombra: mancha macia e escura na água, deslocada para longe do sol
+    ctx.fillStyle = vRG(0, 0, 0, 7, [[0, "rgba(6,26,60,.55)"], [.55, "rgba(6,26,60,.28)"], [1, "rgba(6,26,60,0)"]]); ctx.fillRect(-7, -7, 14, 14); ctx.restore();
+    const body = () => {
+      vPoly([[-2.9, 1.3], [2.9, 1.3], [1.5, -3.8], [-1.5, -3.8]], vLG(-2.9, 0, 2.9, 0, [[0, "#e65b4c"], [.5, "#c9423a"], [1, "#8e2a2c"]]));          // corpo vermelho com volume
+      vPoly([[-2.2, -.6], [2.2, -.6], [1.9, -2.1], [-1.9, -2.1]], vLG(-2.2, 0, 2.2, 0, [[0, "#fffaf0"], [.55, "#efe9db"], [1, "#b9b3a6"]]));           // faixa branca
+      vRR(-1.2, -4.3, 2.4, .9, .35, "#2f3b52");                                                                                                         // tampa
+      ctx.strokeStyle = "#3a4760"; ctx.lineWidth = .32; ctx.lineCap = "round";                                                                        // grade/estrutura do topo
+      ctx.beginPath(); ctx.moveTo(-1.1, -4.3); ctx.lineTo(-.55, -7); ctx.moveTo(1.1, -4.3); ctx.lineTo(.55, -7); ctx.moveTo(-.9, -5.4); ctx.lineTo(.9, -5.4); ctx.stroke();
+      vRR(-.8, -7.7, 1.6, .9, .3, "#2f3b52");
+      vRR(-.55, -7, 1.1, 1.3, .3, "rgba(255,226,150,.9)");                                                                                              // vidro da luz
+      vLine(2.9, 1.3, 1.5, -3.8, .3, "rgba(255,255,255,.18)");
+      vRR(-1.1, -3.3, .5, 4, .25, "rgba(255,255,255,.32)");                                                                                             // brilho vertical
+      vRR(-3.2, .6, 6.4, 1, .5, "#2f3b52");                                                                                                             // anel/defensa na base
+    };
+    ctx.save(); ctx.translate(0, WL); ctx.rotate(tilt); ctx.translate(0, -WL + bob);
+    ctx.save(); ctx.beginPath(); ctx.rect(-10, -14, 20, WL + 14 + .0); ctx.clip(); body(); ctx.restore();   // parte de fora d'água
+    ctx.restore();
+    ctx.save(); ctx.translate(0, WL * 2 - .2); ctx.scale(1, -.55); ctx.globalAlpha = .3;                     // reflexo espelhado, ondulando
+    ctx.beginPath(); ctx.rect(-10, -14, 20, 14 + WL); ctx.clip(); ctx.translate(Math.sin(t * 2.2 + ph) * .35, 0); body(); ctx.restore();
+    ctx.fillStyle = "rgba(10,40,84,.28)"; ctx.fillRect(-5, WL, 10, 2.4);                                    // véu de água por cima do reflexo
+    ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.beginPath(); ctx.ellipse(0, WL + .1, 3.5 + Math.sin(t * 2 + ph) * .3, .6, 0, 0, 6.2832); ctx.fill();   // espuma na linha d'água
+    ctx.fillStyle = "rgba(255,255,255,.4)"; for (let i = 0; i < 3; i++) ctx.fillRect(-2.5 + i * 2 + Math.sin(t * 1.8 + i + ph) * .6, WL + 1.3 + i * .55, 1.7, .3);   // brilhos no reflexo
   },
 };
 // ---------- Gaivotas: asas articuladas (ombro, cotovelo, ponta preta), batem e planam, voam atravessando o céu em alturas e tamanhos diferentes ----------
+// agora elas são vistas de costas, indo embora para o horizonte: per = segundos do voo, off = defasagem, y0 = altura de partida (negativo = céu, positivo = sobre a água), vp = desvio do ponto de fuga, fr = ritmo das asas
 const GULLS = [
-  { x: 0, v: 9, y: -50, s: 1.0, ph: 0 }, { x: 150, v: -7, y: -32, s: .8, ph: 2 }, { x: 270, v: 11, y: -62, s: .7, ph: 4 }, { x: 70, v: 6, y: -22, s: 1.15, ph: 1 },
-  { x: 215, v: -13, y: 15, s: 1.4, ph: 3, low: 1 }, { x: -90, v: 10, y: 24, s: 1.55, ph: 5, low: 1 },
+  { per: 15, off: 0.00, y0: -46, s: 1.7, ph: 0, vp: -.04, hi: 0, fr: 1.0 },
+  { per: 19, off: 0.35, y0: -30, s: 1.4, ph: 2, vp: .05, hi: .6, fr: .9 },
+  { per: 17, off: 0.62, y0: -60, s: 1.2, ph: 4, vp: .00, hi: .3, fr: 1.1 },
+  { per: 22, off: 0.80, y0: -20, s: 1.9, ph: 1, vp: -.08, hi: 0, fr: .85 },
+  { per: 16, off: 0.18, y0: 14, s: 2.1, ph: 3, vp: .08, hi: 0, fr: 1.0 },
+  { per: 21, off: 0.50, y0: 24, s: 2.3, ph: 5, vp: -.02, hi: 0, fr: .95 },
 ];
+function drawGullBack(x, y, s, tt, ph, yaw) {                              // gaivota de costas: asas simétricas batendo (ou planando), cabeça pequena, cauda e pontas escuras
+  const cyc = (tt * .32 + ph * .37) % 1, flap = cyc < .62;
+  const th = flap ? Math.sin(tt * 8.5) * .75 + .15 : .22 + .04 * Math.sin(tt * 1.3);
+  const bob = flap ? Math.sin(tt * 8.5 - 1.2) * .5 * s : 0;
+  ctx.save(); ctx.translate(x, y + bob); ctx.rotate(yaw); ctx.scale(s, s);
+  const wing = (sg, col, tip) => {
+    const L1 = 3.6, L2 = 3.9, ex = sg * Math.cos(th) * L1, ey = -Math.sin(th) * L1 - .2, tt2 = th * .35 - .38, tx = ex + sg * Math.cos(tt2) * L2, ty = ey - Math.sin(tt2) * L2;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(sg * .7, -.2); ctx.lineTo(ex, ey - .1); ctx.lineTo(tx, ty); ctx.lineTo(tx - sg * 1.5, ty + .9); ctx.lineTo(ex - sg * 1.2, ey + 1.5); ctx.lineTo(sg * .6, .9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = tip; ctx.beginPath(); ctx.moveTo(ex + (tx - ex) * .5, ey + (ty - ey) * .5); ctx.lineTo(tx, ty); ctx.lineTo(tx - sg * 1.5, ty + .9); ctx.lineTo(ex + (tx - ex) * .5 - sg * 1.1, ey + (ty - ey) * .5 + 1); ctx.closePath(); ctx.fill();
+  };
+  wing(-1, "#d9dde3", "#39404d"); wing(1, "#eceff2", "#39404d");
+  ctx.fillStyle = "#f5f5f3"; ctx.beginPath(); ctx.ellipse(0, .6, 1.25, 1.9, 0, 0, 6.2832); ctx.fill();   // corpo visto de trás
+  ctx.fillStyle = "#c7ccd4"; ctx.beginPath(); ctx.moveTo(-1, 2.2); ctx.lineTo(1, 2.2); ctx.lineTo(.8, 3.6); ctx.lineTo(-.8, 3.6); ctx.closePath(); ctx.fill();   // cauda
+  ctx.fillStyle = "#f8f8f6"; ctx.beginPath(); ctx.arc(0, -1.5, .85, 0, 6.2832); ctx.fill();         // cabeça
+  ctx.restore();
+}
 function drawGull(x, y, s, dir, t, ph) {
   const cyc = (t * .32 + ph * .37) % 1, flap = cyc < .6;                                           // bate asas por um tempo e depois plana
   const th = flap ? Math.sin((t + ph) * 8.5) * .8 + .1 : .26 + .05 * Math.sin(t * 1.3 + ph);        // ângulo do ombro (rad, + = para cima)
@@ -4079,13 +4121,21 @@ function citySeaProps(now, l, r) {                                       // dent
   g.addColorStop(0, hz + "0)"); g.addColorStop(.5, hz + ".26)"); g.addColorStop(1, hz + "0)");
   ctx.fillStyle = g; ctx.fillRect(l - 4, HZ - 18, r - l + 8, 38);
   seaEach(l, r, t, (el, tt, k) => seaSpr(el, tt, "body", 0, k), el => el.id === "sail");          // meio: levemente desfocado
-  seaEach(l, r, t, (el, tt, k) => SEA_BODY.buoy(tt, k, el), el => el.id === "buoy");              // perto: nítido
+  seaEach(l, r, t, (el, tt, k) => seaSpr(el, tt, "body", 0, k), el => el.id === "buoy");          // boias: sprite com desfoque leve (e sombra/reflexo pintados dentro dele)
   if (DAY.lamp < .35 && DAY.sunA > .15) {                                // gaivotas (só de dia)
     const vw = r - l, span = vw + 140, a = Math.min(1, DAY.sunA * 1.5) * (1 - DAY.lamp);
     ctx.save(); ctx.globalAlpha = a;
-    GULLS.forEach(gl => {
-      const x = l - 70 + ((((gl.x + t * gl.v - l * .1) % span) + span) % span), y = HZ + gl.y + Math.sin(t * .55 + gl.ph) * (gl.low ? 1.4 : 3.8);
-      drawGull(x, y, gl.s * .62, gl.v > 0 ? 1 : -1, t, gl.ph);
+    GULLS.forEach((gl, gi) => {                                          // cada gaivota parte de perto e voa em direção ao ponto de fuga no horizonte, diminuindo com a perspectiva
+      const T = t / gl.per + gl.off, n = Math.floor(T), u = T - n;
+      const rx = sh01(gi * 7.3 + n * 3.1), ry = sh01(gi * 5.1 + n * 1.7 + 4);
+      const vpx = l + vw * (.5 + gl.vp) - l * .08, vpy = HZ - 1.5 - gl.hi;                    // ponto de fuga (no horizonte, perto do centro)
+      const sx = l + vw * (.06 + .88 * rx) - l * .08, sy = HZ + gl.y0 + (ry - .5) * 10;      // ponto de partida (perto da câmera)
+      const z = 1 / (1 + 6.5 * u), ex = Math.pow(u, .85);
+      const x = vpx + (sx - vpx) * z + Math.sin(T * 6 + gl.ph) * 2.2 * z, y = vpy + (sy - vpy) * z + Math.sin(T * 9 + gl.ph) * 1.2 * z;
+      const fade = Math.min(1, u / .08) * Math.min(1, (1 - u) / .12) * (1 - .25 * ex);
+      if (fade <= .02) return;
+      ctx.globalAlpha = a * fade;
+      drawGullBack(x, y, gl.s * z * .9, t * gl.fr + gl.ph, gl.ph, sx > vpx ? -.12 : .12);
     });
     ctx.restore();
   }
@@ -4167,10 +4217,10 @@ function cityFisherLight(c, now) {
     const dx = Math.abs(px - x); if (dx > 150) return;
     const k = DAY.lamp * lampFlick(x, now) * Math.pow(1 - dx / 150, 1.1);
     let g = c.createRadialGradient(x, hy, 3, x, hy, 125);
-    g.addColorStop(0, "rgba(255,224,152," + (.85 * k).toFixed(3) + ")"); g.addColorStop(.4, "rgba(255,196,112," + (.45 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,180,90,0)");
+    g.addColorStop(0, "rgba(255,206,132," + (.2 * k).toFixed(3) + ")"); g.addColorStop(.4, "rgba(255,186,104," + (.09 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,176,90,0)");   // calor suave (como no cais: só um tom, sem estourar)
     c.fillStyle = g; c.fillRect(x - 135, hy - 10, 270, 200);
-    g = c.createRadialGradient(x + 4, PIER_Y + 5, 2, x + 4, PIER_Y + 5, 75);                          // a poça de luz no chão sobe pelas pernas
-    g.addColorStop(0, "rgba(255,208,128," + (.4 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,190,100,0)");
+    g = c.createRadialGradient(x + 4, PIER_Y + 5, 2, x + 4, PIER_Y + 5, 60);                          // a poça de luz no chão sobe de leve pelas pernas
+    g.addColorStop(0, "rgba(255,200,120," + (.1 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,190,100,0)");
     c.fillStyle = g; c.fillRect(x - 75, PIER_Y - 34, 150, 60);
   });
 }
@@ -4197,8 +4247,8 @@ function cityPoleGlow(now, l, r) {                                       // luz:
     ctx.save(); ctx.beginPath(); ctx.rect(x - 150, CITY_B + 1, 300, 90); ctx.clip();
     ctx.translate(x + 4, PIER_Y + 5); ctx.scale(1, .24);
     const gr = ctx.createRadialGradient(0, 0, 2, 0, 0, 105);
-    gr.addColorStop(0, `rgba(255,226,158,${(.62 * k).toFixed(3)})`); gr.addColorStop(.18, `rgba(255,208,125,${(.4 * k).toFixed(3)})`); gr.addColorStop(.42, `rgba(${lr},${lg},${lb},${(.17 * k).toFixed(3)})`);
-    gr.addColorStop(.72, `rgba(${lr},${lg - 10},${lb},${(.05 * k).toFixed(3)})`); gr.addColorStop(1, `rgba(${lr},${lg},${lb},0)`);
+    gr.addColorStop(0, `rgba(255,226,158,${(.3 * k).toFixed(3)})`); gr.addColorStop(.18, `rgba(255,208,125,${(.2 * k).toFixed(3)})`); gr.addColorStop(.42, `rgba(${lr},${lg},${lb},${(.09 * k).toFixed(3)})`);
+    gr.addColorStop(.72, `rgba(${lr},${lg - 10},${lb},${(.03 * k).toFixed(3)})`); gr.addColorStop(1, `rgba(${lr},${lg},${lb},0)`);
     ctx.fillStyle = gr; ctx.fillRect(-105, -105, 210, 210); ctx.restore();
   });
   ctx.restore();                         // brilho amarelo na água (como o drawLampWater do cais), para os postes da orla
