@@ -2844,9 +2844,18 @@ function cityUse() {                                                     // tecl
 function cityLit(now, l, r) {                                            // à noite: janelas acesas, lanternas, luzinhas de festa (por cima da lavagem escura)
   if (DAY.lamp <= 0.01) return;
   const D = cityData;
+  {                                                                      // luzes dos prédios do fundo: recortadas para só aparecerem onde o fundo é visível (vielas, praça e acima dos telhados), nunca por cima das fachadas da frente
+    const B = CITY_B;
+    ctx.save(); ctx.beginPath();
+    D.blds.forEach(bd => ctx.rect(bd.x - 2, -60, bd.w + 4, bd.top - 16 + 60));
+    D.gaps.forEach(gp => ctx.rect(gp.x, -60, gp.w, B - 12 - gp.hh - 8 + 60));
+    ctx.rect(D.piazza.x, -60, D.piazza.w, B - 20 + 60);
+    ctx.clip(); ctx.globalAlpha = DAY.lamp;
+    cityFarEach(D.far2, CITY_FARF[1], l, r, 4, 10, 30, 8, 12, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,205,130,.38)"; ctx.fillRect(wx, wy, 2, 4); } });
+    cityFarEach(D.far, CITY_FARF[2], l, r, 4, 8, 70, 9, 16, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,200,120,.55)"; ctx.fillRect(wx, wy, 3, 5); } });
+    ctx.restore();
+  }
   ctx.save(); ctx.globalAlpha = DAY.lamp;
-  cityFarEach(D.far2, CITY_FARF[1], l, r, 4, 10, 30, 8, 12, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,205,130,.38)"; ctx.fillRect(wx, wy, 2, 4); } });
-  cityFarEach(D.far, CITY_FARF[2], l, r, 4, 8, 70, 9, 16, (b, wx, wy, k) => { if (cityFarWinLit(b, k, wy)) { ctx.fillStyle = "rgba(255,200,120,.55)"; ctx.fillRect(wx, wy, 3, 5); } });
   D.wins.forEach(w => { if (w.x < l - 30 || w.x > r + 30 || !w.lit) return; ctx.fillStyle = "rgba(255,190,110,.13)"; ctx.fillRect(w.x - 2, w.y - 2, w.w + 4, w.h + 4); ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : "#ffd98a"; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2); });
   D.lamps.forEach(lp => {
     if (lp.x < l - 50 || lp.x > r + 50) return;
