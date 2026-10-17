@@ -1,4 +1,4 @@
-6.// ---------- Fonte do jogo: DigitalDisco (assets/fonts/DigitalDisco.ttf). Só o celular continua com a fonte do Nokia ----------
+// ---------- Fonte do jogo: DigitalDisco (assets/fonts/DigitalDisco.ttf). Só o celular continua com a fonte do Nokia ----------
 const UI_FONT = '"DigitalDisco", ui-monospace, monospace', UI_PX = 11;     // UI_PX: tamanho do texto no canvas (a fonte é de pixel: 1/16 do tamanho = 1 "pixel" da letra)
 const UI_CH = Math.ceil(UI_PX * 576 / 1024 * 10) / 10;                    // largura de uma letra larga (usada para dimensionar a caixa de fala)
 (() => {
@@ -2626,33 +2626,58 @@ function vPiazza(D, B, r, pk) {
   };
   [P.x + 14, P.x + 52, P.x + 118, P.x + 158].forEach((cx, i) => cypress(cx, 54 + (i % 2) * 14, 5.4));
 
-  // ---------- pinheiro-manso: tronco com casca, galhos e copa de tufos com agulhas ----------
-  const pn = P.x + 86;
-  ctx.save(); ctx.translate(pn + 8, B - 8.6); ctx.scale(1, .12); vBlot(0, 0, 30, "20,8,26", .5); ctx.restore();
-  const trunk = () => { ctx.beginPath(); ctx.moveTo(pn - 2.6, B - 8.4); ctx.bezierCurveTo(pn - 1.4, B - 12, pn - 1.6, B - 18, pn - 1.5, B - 26); ctx.bezierCurveTo(pn - 2.4, B - 34, pn + 1.6, B - 40, pn + .5, B - 48); ctx.lineTo(pn + 3, B - 48); ctx.bezierCurveTo(pn + 4.8, B - 38, pn + 2.4, B - 32, pn + 3.2, B - 26); ctx.bezierCurveTo(pn + 3.4, B - 18, pn + 3.6, B - 12, pn + 5, B - 8.4); ctx.closePath(); };
-  trunk(); ctx.fillStyle = vLG(pn - 3, 0, pn + 5, 0, [[0, "#8a5c3c"], [.45, "#6a4630"], [1, "#35200f"]]); ctx.fill();
+  // ---------- pinheiro-manso: tronco de casca escamada, galhos abertos e copa em almofadas de agulhas ----------
+  const pn = P.x + 86, CY = B - 51;
+  ctx.save(); ctx.translate(pn + 8, B - 8.6); ctx.scale(1, .12); vBlot(0, 0, 32, "20,8,26", .5); ctx.restore();
+  const trunk = () => {
+    ctx.beginPath(); ctx.moveTo(pn - 5, B - 8.2); ctx.bezierCurveTo(pn - 2.4, B - 10, pn - 2.2, B - 14, pn - 1.9, B - 20); ctx.bezierCurveTo(pn - 1.8, B - 28, pn - 3, B - 34, pn - 1.2, B - 42);
+    ctx.lineTo(pn + 3.4, B - 42); ctx.bezierCurveTo(pn + 4.6, B - 34, pn + 3.2, B - 28, pn + 3.7, B - 20); ctx.bezierCurveTo(pn + 4, B - 14, pn + 4.2, B - 10, pn + 7, B - 8.2); ctx.closePath();
+  };
+  trunk(); ctx.fillStyle = vLG(pn - 4, 0, pn + 6, 0, [[0, "#c58455"], [.3, "#9a5e3c"], [.7, "#6a4028"], [1, "#2e1a10"]]); ctx.fill();
   ctx.save(); trunk(); ctx.clip();
-  ctx.strokeStyle = "rgba(30,16,8,.45)"; ctx.lineWidth = .4;
-  for (let i = 0; i < 16; i++) { const y = B - 10 - lr() * 36, x = pn - 1 + lr() * 4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (lr() - .5) * 1.2, y - 2 - lr() * 3); ctx.stroke(); }
-  ctx.strokeStyle = "rgba(255,214,170,.22)"; for (let i = 0; i < 8; i++) { const y = B - 12 - lr() * 34; ctx.beginPath(); ctx.moveTo(pn - 1.6, y); ctx.lineTo(pn - 1.5, y - 3 - lr() * 3); ctx.stroke(); }
-  ctx.restore();
-  ctx.strokeStyle = "#4a2e1c"; ctx.lineCap = "round"; ctx.lineWidth = 1.3;                // galhos para a copa
-  [[-12, -44, -20], [14, -45, -22], [-5, -47, -14], [6, -47, -12]].forEach(([dx, y, c]) => { ctx.beginPath(); ctx.moveTo(pn + 1, B - 40); ctx.quadraticCurveTo(pn + 1 + dx * .4, B + c, pn + 1 + dx, B + y + 4); ctx.stroke(); });
-  vEll(pn + 1, B - 47.5, 21, 3, "rgba(8,28,16,.3)");                                      // sombra da copa por baixo
-  const clumps = [[-18, 9, 10, 0], [18, 10, 11, 0], [0, 7, 23, 0], [-10, 3, 15, 1], [11, 3, 14, 1], [0, 0, 18, 1], [-14, 5, 10, 2], [14, 5, 10, 2], [-5, -4, 12, 2], [6, -3, 10, 2], [-20, 13, 7, 0], [21, 14, 7, 0]];
-  const GP = [["#1c4524", "#2a5f31", "#3e8444"], ["#25562d", "#35733a", "#52a04d"], ["#2f6a34", "#43893f", "#6cbc5a"]];
-  clumps.forEach(([dx, dy, q, t]) => {
-    const cx = pn + 1 + dx, cy = B - 50 + dy, g = GP[t];
-    ctx.save(); ctx.translate(cx, cy); ctx.scale(1, .46);
-    vCirc(0, q * .18, q, g[0]); vCirc(-q * .05, 0, q * .92, g[1]); vCirc(-q * .22, -q * .26, q * .62, g[2]);
-    ctx.restore();
-    for (let i = 0, n = Math.round(q * 1.6); i < n; i++) {                                   // agulhas
-      const a = Math.PI + lr() * Math.PI, rr = .45 + lr() * .55, ex = cx + Math.cos(a) * q * rr, ey = cy + Math.sin(a) * q * .46 * rr;
-      ctx.strokeStyle = lr() < .55 ? "rgba(190,236,130,.5)" : "rgba(10,36,20,.5)"; ctx.lineWidth = .4;
-      ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + (lr() - .5) * 2.2, ey - 1 - lr() * 1.6); ctx.stroke();
+  for (let y = B - 9; y > B - 43; y -= 2.1) {                                                  // placas de casca (cada linha é deslocada da anterior)
+    for (let x = pn - 4 + ((((y * 7) | 0) % 3) - 1) * 1.4; x < pn + 6; x += 2.8 + lr() * 1.2) {
+      const w = 2.2 + lr() * 1.2, h = 1.7 + lr() * .7;
+      ctx.fillStyle = "rgba(255,190,130," + (.1 + lr() * .14).toFixed(2) + ")"; ctx.beginPath(); ctx.ellipse(x + w / 2, y - h / 2, w * .5, h * .45, 0, 0, 6.2832); ctx.fill();     // topo claro da placa
+      ctx.strokeStyle = "rgba(34,16,8," + (.34 + lr() * .2).toFixed(2) + ")"; ctx.lineWidth = .38; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + w * .5, y - .6 - lr() * .6, x + w, y); ctx.stroke();   // fenda entre placas
+      if (lr() < .45) { ctx.beginPath(); ctx.moveTo(x + w * .5, y); ctx.lineTo(x + w * .5 + (lr() - .5) * .8, y - h); ctx.stroke(); }
     }
+  }
+  vSoft(pn - 5, B - 12, 14, 4, .3, "20,10,6");                                                 // raiz sombreada
+  ctx.fillStyle = vLG(pn + 1, 0, pn + 7, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(10,4,0,.5)"]]); ctx.fillRect(pn - 5, B - 44, 14, 38);   // lado da sombra
+  ctx.restore();
+  ctx.lineCap = "round";                                                                      // galhos mestres abrindo em leque
+  [[-30, -2, 2.4], [-20, -9, 2.1], [-9, -5, 1.8], [8, -6, 1.8], [21, -9, 2.1], [31, -2, 2.4], [-1, -12, 1.6]].forEach(([dx, dy, w], i) => {
+    const x1 = pn + 1 + dx, y1 = CY + 6 + dy, c1x = pn + 1 + dx * .25, c1y = B - 43 - Math.abs(dx) * .1;
+    ctx.strokeStyle = "#4a2c1c"; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(pn + 1, B - 41); ctx.quadraticCurveTo(c1x, c1y, x1, y1); ctx.stroke();
+    ctx.strokeStyle = "rgba(200,130,86,.5)"; ctx.lineWidth = w * .3; ctx.beginPath(); ctx.moveTo(pn + .6, B - 41.4); ctx.quadraticCurveTo(c1x - .3, c1y - .4, x1 - .3, y1 - .4); ctx.stroke();
   });
-  for (let i = 0; i < 9; i++) { const a = lr() * 6.2832, q = Math.sqrt(lr()); vEll(pn + 1 + Math.cos(a) * 20 * q + 4, B - 3 + Math.sin(a) * 4 * q, 1.6 + lr() * 1.4, .5, "rgba(255,238,170,.16)"); }   // manchas de sol no chão
+  const needleCol = L => L < .22 ? "#0f2e1b" : L < .45 ? "#1d4f2a" : L < .68 ? "#2f6e37" : L < .86 ? "#5f9d48" : "#9fcc62";
+  const pad = (cx, cy, rx, ry, lay) => {                                                      // lay: 0 = atrás (escuro), 1 = meio, 2 = frente (mais claro)
+    const dk = ["#0e2818", "#143820", "#1b4a29"][lay], md = ["#1c4526", "#24572e", "#2f6c36"][lay];
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(1, ry / rx);
+    vCirc(0, rx * .12, rx * .94, dk); vCirc(-rx * .06, -rx * .04, rx * .82, vRG(-rx * .2, -rx * .4, rx * .05, rx * .9, [[0, md], [1, dk]]));
+    ctx.restore();
+    const N = Math.round(rx * ry * 3.6);
+    for (let i = 0; i < N; i++) {                                                             // agulhas em tufos, mais densas na borda de cima
+      const a = lr() * 6.2832, rr = Math.sqrt(lr()) * .95, x = cx + Math.cos(a) * rr * rx, y = cy + Math.sin(a) * rr * ry, u = (y - (cy - ry)) / (2 * ry);
+      const L = Math.max(0, Math.min(1, (1 - u) * .62 + lr() * .34 + (lay - 1) * .1 + (x < cx ? .06 : -.06)));
+      const dir = -1.5708 + ((x - cx) / rx) * .95 + (lr() - .5) * .9, len = .9 + lr() * 1.25;
+      ctx.strokeStyle = needleCol(L); ctx.lineWidth = .6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(dir) * len, y + Math.sin(dir) * len); ctx.stroke();
+    }
+    for (let i = 0, n = Math.round(rx * 3); i < n; i++) {                                     // franja curta da borda de cima (silhueta macia de copa, sem franjas caindo)
+      const a = 3.3 + lr() * 2.7, x = cx + Math.cos(a) * rx * (.84 + lr() * .16), y = cy + Math.sin(a) * ry * (.84 + lr() * .16), dir = -1.5708 + Math.cos(a) * .9 + (lr() - .5) * .9, len = 1 + lr() * 1.3;
+      ctx.strokeStyle = needleCol(.35 + lr() * .6); ctx.lineWidth = .55; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(dir) * len, y + Math.sin(dir) * len); ctx.stroke();
+    }
+    for (let i = 0, n = Math.round(rx * 1.4); i < n; i++) {                                   // luz do sol no topo da almofada
+      const a = 3.5 + lr() * 2.4, x = cx + Math.cos(a) * rx * (.3 + lr() * .6), y = cy + Math.sin(a) * ry * (.3 + lr() * .6);
+      ctx.strokeStyle = lr() < .5 ? "#b4d870" : "#8fc25a"; ctx.lineWidth = .42; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (lr() - .3) * 1.4, y - .8 - lr() * .9); ctx.stroke();
+    }
+  };
+  [[-22, -6, 12, 4.8, 0], [21, -7, 12, 4.8, 0], [0, -11, 16, 5.4, 0], [-11, -12, 11, 4.4, 0], [12, -12, 11, 4.4, 0],
+   [-27, 1, 12, 4.8, 1], [27, 1, 12, 4.8, 1], [-15, -3, 15, 5.6, 1], [15, -3, 15, 5.6, 1], [0, -5, 18, 6.2, 1],
+   [-19, 6, 11, 4.4, 2], [19, 6, 11, 4.4, 2], [0, 4, 14, 5, 2], [-8, -1, 10, 4, 2], [9, -1, 10, 4, 2]].forEach(([dx, dy, rx, ry, lay]) => pad(pn + 1 + dx, CY + dy, rx, ry, lay));
+  for (let i = 0; i < 11; i++) { const a = lr() * 6.2832, q = Math.sqrt(lr()); vEll(pn + 1 + Math.cos(a) * 22 * q + 4, B - 3 + Math.sin(a) * 4 * q, 1.4 + lr() * 1.6, .5, "rgba(255,238,170,.16)"); }   // manchas de sol no chão
 
   // ---------- muretinha com balaústres torneados, pilares com almofada, musgo e hera ----------
   vRR(P.x - 1, B - .8, P.w + 2, 1.5, .5, vLG(0, B - .8, 0, B + .7, [[0, "#cfc3a8"], [1, "#8f8068"]]));
@@ -3349,17 +3374,33 @@ function cityLit(now, l, r) {                                            // à n
   ctx.restore();
 }
 
-// Água da fonte: mesma ideia da água do cais (céu refletido, cristas de onda iluminadas pela luz da hora, brilhos, anéis e reflexo do pilar), tudo vivo a cada quadro
+// Água da fonte: bacias vivas (céu refletido, cristas, brilhos, anéis) + água SENDO LANÇADA, simulada com gravidade:
+// jatos do topo sobem em arco e caem na taça; a taça transborda em fios que aceleram, afinam e se quebram em gotas; onde bate há respingo, espuma, anéis e névoa.
 function cityFountain(t, fx, B) {
+  const G = 70, hsh = (a, b = 0) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
   const mixA = (a, b, f) => a.map((v, i) => v + (b[i] - v) * f), css = (c, a) => "rgba(" + c.map(Math.round).join(",") + "," + (a == null ? 1 : a) + ")";
   const sk = DAY.sky, deep = [40, 108, 146], farC = mixA(sk[3], [150, 210, 228], .5), midC = mixA(sk[2], deep, .55), nearC = mixA(deep, sk[1], .2);
   const LA = Math.max(DAY.lightA, DAY.lamp * .45), lcs = "rgba(" + DAY.lc.map(Math.round).join(",") + ",";
-  const pool = (cx, cy, rx, ry, rows, ringsN, pillar, spark) => {
+  const wc = mixA([226, 243, 255], DAY.lc, .22 * LA), wcs = a => css(wc, Math.max(0, Math.min(1, a)).toFixed(3));
+  const NY = B - 42.4, UP = B - 31.2, LOW = B - 3.6;                       // bocal, superfície da taça, superfície da bacia
+
+  // ---- jatos do topo: (ponto de queda na taça, velocidade inicial pra cima, espessura)
+  const jets = [[0, -37, 1.2], [-3.2, -32, 1.05], [3.2, -32, 1.05], [-6.4, -26, .95], [6.4, -26, .95], [-8.8, -19, .85], [8.8, -19, .85]].map(([lx, vy0, w], j) => {
+    const l = lx + Math.sin(t * 1.7 + j * 2.1) * .7, vy = vy0 * (1 + .03 * Math.sin(t * 2.9 + j)), tau = (-vy + Math.sqrt(vy * vy + 2 * G * (UP - NY))) / G;
+    return { j, w, vx: l / tau, vy, tau, land: l, x0: fx, y0: NY };
+  });
+  // ---- transbordo da taça: fios que saem da borda da frente e despencam na bacia
+  const sheets = [-11, -9.2, -7.4, -5.6, -3.8, 3.8, 5.6, 7.4, 9.2, 11].map((dx, j) => {
+    const y0 = B - 31 + 3.6 * Math.sqrt(Math.max(0, 1 - (dx / 13.4) ** 2)) - .2, yl = LOW + 1 + hsh(j, 4) * 2.2, tau = Math.sqrt(2 * (yl - y0) / G), vx = dx * .36;
+    return { j: j + 20, w: .95 + hsh(j, 2) * .3, vx, vy: 0, tau, land: dx + vx * tau, x0: fx + dx, y0, yl };
+  });
+
+  const pool = (cx, cy, rx, ry, rows, lands, pillar, spark) => {
     ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 6.2832); ctx.clip();
     const g = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
     g.addColorStop(0, css(farC)); g.addColorStop(.45, css(midC)); g.addColorStop(1, css(nearC));
     ctx.fillStyle = g; ctx.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
-    for (let j = 0; j < rows; j++) {                                          // cristas de onda: finas e juntas ao fundo, mais grossas perto
+    for (let j = 0; j < rows; j++) {
       const yy = cy - ry + (j + .5) * (2 * ry / rows), hw = rx * Math.sqrt(Math.max(0, 1 - ((yy - cy) / ry) ** 2)), pe = j / rows;
       for (let x = -hw; x < hw; x += 1.6) {
         const w = Math.sin(x * .42 + j * 1.9 + t * 1.7) * Math.sin(x * .15 - t * .8 + j * .7);
@@ -3367,51 +3408,78 @@ function cityFountain(t, fx, B) {
         else if (w < -.45) { ctx.fillStyle = "rgba(14,40,70," + ((-w - .45) * .38).toFixed(3) + ")"; ctx.fillRect(cx + x, yy, 1.8, .5); }
       }
     }
-    if (pillar) for (let y = cy - ry * .8; y < cy + ry * .9; y += .7) {       // reflexo do pilar e da taça, balançando com a água
+    if (pillar) for (let y = cy - ry * .8; y < cy + ry * .9; y += .7) {
       const k = (y - cy + ry) / (2 * ry), wob = Math.sin(y * 2.1 + t * 2.4) * .9 * (.4 + k), w = 5.5 + k * 3.5;
       ctx.fillStyle = "rgba(236,226,200," + (.2 * (1 - k * .5)).toFixed(3) + ")"; ctx.fillRect(cx - w / 2 + wob, y, w, .55);
     }
-    for (let q = 0; q < ringsN; q++) {                                         // anéis abrindo onde a água cai
-      const u = (t * .55 + q / ringsN) % 1, off = [-12, -5, 5, 12][q % 4] * (rx / 24), rr = 1 + u * rx * .3;
-      ctx.strokeStyle = "rgba(240,252,255," + ((1 - u) * .55).toFixed(3) + ")"; ctx.lineWidth = .45;
-      ctx.beginPath(); ctx.ellipse(cx + off, cy + ry * .15, rr, rr * ry / rx * 1.15, 0, 0, 6.2832); ctx.stroke();
-      if (u < .25) { ctx.fillStyle = "rgba(255,255,255," + ((.25 - u) * 1.6).toFixed(3) + ")"; ctx.fillRect(cx + off - 1.2, cy + ry * .15 - .3, 2.4, .6); }
-    }
-    for (let q = 0; q < spark; q++) {                                          // brilhos do sol/lua/lampiões
+    lands.forEach((off, q) => {                                              // anéis abrindo onde a água cai (um por ponto de queda, defasados)
+      const u = (t * .62 + hsh(q, 7)) % 1, rr = 1 + u * rx * (pillar ? .3 : .34), yo = (pillar ? sheets[q % sheets.length].yl : UP + .4) - cy;
+      ctx.strokeStyle = "rgba(240,252,255," + ((1 - u) * .6).toFixed(3) + ")"; ctx.lineWidth = .42;
+      ctx.beginPath(); ctx.ellipse(cx + off, cy + yo, rr, rr * ry / rx * 1.15, 0, 0, 6.2832); ctx.stroke();
+      if (u < .5) { ctx.strokeStyle = "rgba(240,252,255," + ((.5 - u) * .5).toFixed(3) + ")"; ctx.beginPath(); ctx.ellipse(cx + off, cy + yo, rr * .55, rr * .55 * ry / rx * 1.15, 0, 0, 6.2832); ctx.stroke(); }
+    });
+    for (let q = 0; q < spark; q++) {
       const a = Math.pow(Math.max(0, Math.sin(t * 2.3 + q * 5.7)), 10) * LA; if (a < .05) continue;
       const ang = q * 2.399, rr = Math.sqrt((q + .5) / spark), sx = cx + Math.cos(ang) * rx * .88 * rr, sy = cy + Math.sin(ang) * ry * .78 * rr;
       ctx.fillStyle = "rgba(255,252,235," + a.toFixed(2) + ")"; ctx.fillRect(sx - .9, sy - .2, 1.8, .5); ctx.fillRect(sx - .25, sy - .7, .5, 1.4);
     }
-    const sh = ctx.createLinearGradient(0, cy - ry, 0, cy - ry * .35);       // sombra da borda de trás dentro da água
+    const sh = ctx.createLinearGradient(0, cy - ry, 0, cy - ry * .35);
     sh.addColorStop(0, "rgba(10,30,52,.42)"); sh.addColorStop(1, "rgba(10,30,52,0)");
     ctx.fillStyle = sh; ctx.fillRect(cx - rx, cy - ry, rx * 2, ry * .65);
     ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,.38)"; ctx.lineWidth = .5;             // fio de luz na borda da frente
+    ctx.strokeStyle = "rgba(255,255,255,.38)"; ctx.lineWidth = .5;
     ctx.beginPath(); ctx.ellipse(cx, cy + .25, rx + .2, ry + .1, 0, .15, 3.0); ctx.stroke();
   };
-  pool(fx, B - 3.6, 24, 4.4, 9, 4, true, 16);
-  pool(fx, B - 31.2, 10.6, 2.6, 4, 2, false, 6);
-  { // o pilar e a haste ficam na frente da água (a água não cobre o pé deles), com marolinha em volta
+  pool(fx, LOW, 24, 4.4, 9, sheets.map(s => s.land), true, 16);
+  pool(fx, UP, 10.6, 2.6, 4, jets.map(j => j.land), false, 6);
+
+  { // o pilar e a haste ficam na frente da água, com marolinha em volta
     const cg = ctx.createLinearGradient(fx - 3.4, 0, fx + 3.4, 0); cg.addColorStop(0, "#f2e9d2"); cg.addColorStop(.45, "#d6caae"); cg.addColorStop(1, "#8a7c66");
-    ctx.fillStyle = cg; ctx.fillRect(fx - 3.4, B - 11, 6.8, 7.4); ctx.beginPath(); ctx.ellipse(fx, B - 3.6, 3.4, .75, 0, 0, 3.1416); ctx.fill();
+    ctx.fillStyle = cg; ctx.fillRect(fx - 3.4, B - 11, 6.8, 7.4); ctx.beginPath(); ctx.ellipse(fx, LOW, 3.4, .75, 0, 0, 3.1416); ctx.fill();
     const sg = ctx.createLinearGradient(fx - 1.3, 0, fx + 1.3, 0); sg.addColorStop(0, "#f2e9d2"); sg.addColorStop(1, "#cdbfa2");
     ctx.fillStyle = sg; ctx.fillRect(fx - 1.3, B - 35.4, 2.6, 4.2);
-    for (let q = 0; q < 2; q++) { const u = (t * .7 + q * .5) % 1; ctx.strokeStyle = "rgba(240,252,255," + ((1 - u) * .5).toFixed(3) + ")"; ctx.lineWidth = .4; ctx.beginPath(); ctx.ellipse(fx, B - 3.6, 4 + u * 4, .9 + u * .9, 0, 0, 6.2832); ctx.stroke(); }
-    for (let q = 0; q < 2; q++) { const u = (t * .8 + q * .5) % 1; ctx.strokeStyle = "rgba(240,252,255," + ((1 - u) * .5).toFixed(3) + ")"; ctx.lineWidth = .35; ctx.beginPath(); ctx.ellipse(fx, B - 31.2, 2 + u * 3.4, .5 + u * .7, 0, 0, 6.2832); ctx.stroke(); }
+    for (let q = 0; q < 2; q++) { const u = (t * .7 + q * .5) % 1; ctx.strokeStyle = "rgba(240,252,255," + ((1 - u) * .5).toFixed(3) + ")"; ctx.lineWidth = .4; ctx.beginPath(); ctx.ellipse(fx, LOW, 4 + u * 4, .9 + u * .9, 0, 0, 6.2832); ctx.stroke(); }
   }
-  ctx.save(); ctx.lineWidth = .6; ctx.setLineDash([2.2, 2.8]);                 // água escorrendo da taça de cima para a bacia
-  [-10.5, -8, -5.5, -3, 3, 5.5, 8, 10.5].forEach((dx, i) => {
-    const sg = dx < 0 ? -1 : 1, y0 = B - 30 + 2.4 * Math.sqrt(Math.max(0, 1 - (dx / 10.6) ** 2));
-    ctx.lineDashOffset = -t * (15 + (i & 1) * 4);
-    ctx.strokeStyle = "rgba(228,246,255," + (.3 + .12 * Math.sin(t * 3 + i)).toFixed(3) + ")";
-    ctx.beginPath(); ctx.moveTo(fx + dx, y0); ctx.quadraticCurveTo(fx + dx + sg * 1.5, y0 + 9, fx + dx + sg * 3.2, B - 4.8); ctx.stroke();
-  });
-  ctx.restore();
-  for (let i = 0; i < 18; i++) {                                               // jato do topo: gotas em arco que caem na taça
-    const u = (t * .85 + i / 18) % 1, vx = (i - 8.5) * .5, x = fx + vx * u * 2, y = B - 42.4 + (-12 * u + 23.4 * u * u);
-    ctx.fillStyle = "rgba(228,246,255," + (.92 - u * .3).toFixed(2) + ")"; ctx.beginPath(); ctx.arc(x, y, .75 - u * .15, 0, 6.2832); ctx.fill();
+
+  // ---- um fio de água: trecho contínuo (que pulsa, mostrando o fluxo) e, depois, gotas que se soltam e seguem o mesmo arco
+  const stream = (S, brk, wet) => {
+    const P = a => [S.x0 + S.vx * a, S.y0 + S.vy * a + .5 * G * a * a], tb = S.tau * brk, n = Math.max(6, Math.round(tb / .032)), pts = [];
+    for (let k = 0; k <= n; k++) pts.push(P(tb * k / n));
+    if (wet) { ctx.strokeStyle = "rgba(24,58,86,.14)"; ctx.lineWidth = S.w + 1.1; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); }   // molhado em volta do fio
+    ctx.lineCap = "round";
+    for (let k = 1; k <= n; k++) {
+      const f = k / n, a = tb * f, pulse = .74 + .26 * Math.sin(a * 48 - t * 20 + S.j * 3);
+      ctx.strokeStyle = wcs((S.top ? .86 : .62) * (1 - .38 * f) * pulse); ctx.lineWidth = S.w * (1 - .45 * f);
+      ctx.beginPath(); ctx.moveTo(pts[k - 1][0], pts[k - 1][1]); ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke();
+      if (k % 3 === 0) { ctx.strokeStyle = "rgba(255,255,255," + (.5 * pulse * (1 - f * .5)).toFixed(3) + ")"; ctx.lineWidth = S.w * .3; ctx.beginPath(); ctx.moveTo(pts[k - 1][0] - S.w * .2, pts[k - 1][1]); ctx.lineTo(pts[k][0] - S.w * .2, pts[k][1]); ctx.stroke(); }   // brilho do fio
+    }
+    const m = Math.max(4, Math.round((S.tau - tb) / .028));
+    for (let k = 0; k < m; k++) {                                            // gotas: nascem no ponto de quebra e escorrem pelo arco
+      const ph = (k / m + t * 1.9 + hsh(S.j, k) * .2) % 1, a = tb + ph * (S.tau - tb), p = P(a), q = P(Math.max(0, a - .016)), lat = (hsh(S.j, k + 40) - .5) * 1.6 * ph;
+      ctx.strokeStyle = wcs(.78 * (1 - ph * .45)); ctx.lineWidth = S.w * (.75 - ph * .2); ctx.beginPath(); ctx.moveTo(q[0] + lat, q[1]); ctx.lineTo(p[0] + lat, p[1]); ctx.stroke();
+    }
+  };
+  sheets.forEach(s => stream(s, .6, true));
+  jets.forEach(j => { j.top = true; stream(j, .5, false); });
+  sheets.forEach(s => { ctx.fillStyle = wcs(.7); ctx.beginPath(); ctx.ellipse(s.x0, s.y0, 1.2, .45, 0, 0, 6.2832); ctx.fill(); });     // lábio d'água na borda da taça
+  { const bl = ctx.createRadialGradient(fx, NY - .5, 0, fx, NY - .5, 4); bl.addColorStop(0, "rgba(255,255,255,.75)"); bl.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = bl; ctx.fillRect(fx - 4, NY - 4.5, 8, 8); }   // estouro de água no bocal
+
+  // ---- respingos onde a água bate: espuma + coroa de gotas em arco
+  const splash = (x, y, sc, seed) => {
+    ctx.fillStyle = "rgba(246,252,255," + (.34 + .14 * Math.sin(t * 9 + seed * 5)).toFixed(2) + ")"; ctx.beginPath(); ctx.ellipse(x, y, 1.6 * sc + .5 * Math.sin(t * 7 + seed), .55 * sc, 0, 0, 6.2832); ctx.fill();
+    for (let p = 0; p < 6; p++) {
+      const ph = (t * 2.3 + hsh(seed, p)) % 1, tt = .4 * ph, vx = (hsh(seed, p + 9) - .5) * 17 * sc, vy = -(8 + hsh(seed, p + 3) * 12) * sc, xx = x + vx * tt, yy = y + vy * tt + .5 * G * tt * tt;
+      if (yy > y + .25) continue;
+      ctx.fillStyle = wcs((1 - ph) * .9); ctx.beginPath(); ctx.arc(xx, yy, .42 + .3 * (1 - ph), 0, 6.2832); ctx.fill();
+    }
+  };
+  sheets.forEach(s => splash(fx + s.land, s.yl, 1, s.j));
+  jets.forEach(j => splash(fx + j.land, UP + .3, .7, j.j));
+  for (let i = 0; i < 12; i++) {                                              // névoa leve subindo da bacia
+    const u = (t * .3 + i / 12) % 1, bx = fx + (hsh(i, 1) - .5) * 32 + Math.sin(t * .8 + i) * 2, by = LOW - 1 - u * 15 - hsh(i, 2) * 3;
+    vBlot(bx, by, 3.5 + u * 5, "238,249,255", .12 * Math.sin(u * 3.1416) * (.6 + .4 * LA));
   }
-  vBlot(fx, B - 40, 13, "235,248,255", .16);                                    // neblina leve em volta do jato
+  for (let i = 0; i < 6; i++) { const u = (t * .34 + i / 6) % 1; vBlot(fx + (hsh(i, 5) - .5) * 14 + Math.sin(t + i) * 1.5, UP - 1 - u * 10, 2.4 + u * 3.4, "238,249,255", .13 * Math.sin(u * 3.1416) * (.6 + .4 * LA)); }
 }
 
 function cityRays(t, l, r) {                                                   // raios de sol suaves atravessando a praça (só de dia, bem sutis)
