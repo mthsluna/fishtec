@@ -2266,7 +2266,7 @@ function lampSprite() {
   return c;
 }
 
-function drawLampGlow(now, list = LAMPS, by = PIER_Y + 1, on = lampOn) {   // luz: vidro aceso, feixe suave para baixo, poeira no ar, bloom e poça nas tábuas
+function drawLampGlow(now, list = LAMPS, by = PIER_Y + 1, on = lampOn, pool = true) {   // luz: vidro aceso, feixe suave para baixo, poeira no ar, bloom e poça nas tábuas
   const L = DAY.lamp, [r, g, b] = LAMP_WARM, y0 = by, yt = y0 - LAMP_H, cy = yt - 5.5, yb = yt - 2, spr = lampSprite(), t = now / 1000;
   list.forEach(x => {
     if (!on(x)) return;
@@ -2291,12 +2291,14 @@ function drawLampGlow(now, list = LAMPS, by = PIER_Y + 1, on = lampOn) {   // lu
     gr.addColorStop(0.6, `rgba(${r},${g - 10},${b - 10},${0.025 * k})`); gr.addColorStop(1, `rgba(${r},${g - 20},${b - 20},0)`);
     ctx.fillStyle = gr; ctx.fillRect(x - 22, cy - 22, 44, 44);
     ctx.restore();
-    ctx.beginPath(); ctx.rect(x - 110, y0 - 1, 220, 3.4); ctx.clip();                 // poça de luz só nas tábuas do deck
-    ctx.translate(x, y0); ctx.scale(1, 0.07);
-    gr = ctx.createRadialGradient(0, 0, 1, 0, 0, 100);   // miolo forte + espalhado largo (curva tipo 1/d²)
-    gr.addColorStop(0, `rgba(255,228,160,${0.95 * k})`); gr.addColorStop(0.08, `rgba(255,214,130,${0.7 * k})`); gr.addColorStop(0.2, `rgba(255,192,95,${0.4 * k})`);
-    gr.addColorStop(0.4, `rgba(${r},${g},${b},${0.17 * k})`); gr.addColorStop(0.7, `rgba(${r},${g - 10},${b},${0.05 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = gr; ctx.fillRect(-100, -100, 200, 200);
+    if (pool) {
+      ctx.beginPath(); ctx.rect(x - 110, y0 - 1, 220, 3.4); ctx.clip();                 // poça de luz só nas tábuas do deck
+      ctx.translate(x, y0); ctx.scale(1, 0.07);
+      gr = ctx.createRadialGradient(0, 0, 1, 0, 0, 100);   // miolo forte + espalhado largo (curva tipo 1/d²)
+      gr.addColorStop(0, `rgba(255,228,160,${0.95 * k})`); gr.addColorStop(0.08, `rgba(255,214,130,${0.7 * k})`); gr.addColorStop(0.2, `rgba(255,192,95,${0.4 * k})`);
+      gr.addColorStop(0.4, `rgba(${r},${g},${b},${0.17 * k})`); gr.addColorStop(0.7, `rgba(${r},${g - 10},${b},${0.05 * k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = gr; ctx.fillRect(-100, -100, 200, 200);
+    }
     ctx.restore();
   });
 }
@@ -3675,7 +3677,14 @@ function cityBuild() {                                                     // pi
     D.blds.forEach((b, bi) => { if (b.g === "church") vChurch(D, b, B, r, ri, pk); else vBuilding(D, b, bi, B, r, ri, pk); });
     // postes de luz do cais (mesmo desenho e mesma iluminação): um de cada lado da orla e outros ao longo da rua
     D.poles = [D.piazza.x + 38, D.piazza.x + 132];
-    for (let x = -90; x < CITY_FX1 - 100; x += ri(125, 165)) { if (x > D.piazza.x - 40 && x < D.piazza.x + D.piazza.w + 40) continue; D.poles.push(x); }
+    { let last = -1e9;                                                     // nas emendas entre os prédios (pilastras), e não na frente de portas e janelas
+      D.blds.forEach(bd => {
+        const x = bd.x + bd.w;
+        if (x < -80 || x > CITY_FX1 - 100 || x - last < 130 || (x > D.piazza.x - 30 && x < D.piazza.x + D.piazza.w + 30)) return;
+        if (D.gaps.some(gp => Math.abs(gp.x - x) < 8 || Math.abs(gp.x + gp.w - x) < 8)) return;
+        D.poles.push(x); last = x;
+      });
+      D.poles.sort((a, b) => a - b); }
     ctx.fillStyle = vLG(0, B + 30, 0, CITY_CH, [[0, "rgba(20,10,30,0)"], [1, "rgba(20,10,30,.42)"]]); ctx.fillRect(FW, B + 30, CWD, CITY_CH - B - 30);   // a beirada de baixo escurece, o pescador fica em destaque
     cityGrain(c2, FW, CWD, cs, sd);
   } finally { ctx = main; }
@@ -3877,82 +3886,148 @@ function citySea(now, l, r) {
   ctx.restore();
 }
 
-// ---------- Coisas no mar da cidade: ilha com um parquinho (roda-gigante, carrossel, montanha-russa), farol, navio, veleiros, boias e gaivotas ----------
-// Cada uma anda numa camada de parallax própria (as longe quase não se mexem), tem tamanho de acordo com a distância e, à noite, luzes + reflexo na água.
-// dx: posição em relação ao centro da tela (câmera na orla) | f: parallax | y: distância abaixo do horizonte | s: escala | rep: repetições (a cada 700 de largura)
+// ---------- Coisas no mar da cidade: margens distantes, ilha com parquinho (roda-gigante, carrossel, cadeiras-voadoras, montanha-russa, fogos), farol, navio, veleiros e boias ----------
+// Tudo que está longe é pintado numa camada de BAIXA resolução e esticada de volta (vira um desfoque suave, como profundidade de campo): quanto mais longe, mais desfocado.
+// dx: posição em relação ao centro da tela | f: parallax | y: distância abaixo do horizonte | s: escala | rep: repetições (a cada 700 de largura)
 const SEAPR = [
-  { id: "light", dx: 128, f: .13, y: 1.2, s: .66, rep: [0] },
-  { id: "park", dx: -34, f: .15, y: 2.2, s: .64, rep: [0] },
-  { id: "ship", dx: 0, f: .2, y: 3.4, s: .5, rep: [0], v: 1.5, ph: 150, span: 600 },
+  { id: "shore", dx: -212, f: .08, y: .4, s: 1, rep: [0], w: 150, sd: 1.3 },
+  { id: "shore", dx: 226, f: .08, y: .4, s: 1, rep: [0], w: 130, sd: 4.1 },
+  { id: "light", dx: 132, f: .13, y: 1.4, s: .66, rep: [0] },
+  { id: "park", dx: -34, f: .15, y: 2.4, s: .66, rep: [0] },
+  { id: "ship", dx: 0, f: .2, y: 3.6, s: .52, rep: [0], v: 1.5, ph: 150, span: 600 },
   { id: "sail", dx: -118, f: .3, y: 15, s: .95, rep: [-1, 0, 1], ph: 1.3, v: .5, span: 40 },
   { id: "sail", dx: 70, f: .34, y: 24, s: 1.25, rep: [-1, 0, 1], ph: 4.1, v: -.4, span: 30 },
   { id: "buoy", dx: -48, f: .46, y: 33, s: 1.2, rep: [-1, 0, 1], ph: .4 },
   { id: "buoy", dx: 150, f: .5, y: 40, s: 1.45, rep: [-1, 0, 1], ph: 2.2 },
 ];
 const SEA_COL = ["#c9566e", "#d6a24a", "#5aa0b8", "#7e6fb0", "#6bb07a"];
-function seaEach(l, r, t, cb) {
+const SEA_FAR = ["shore", "light", "park", "ship"];
+const sh01 = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+function seaEach(l, r, t, cb, pick) {
   const D = cityData; if (!D) return;
   const vw = r - l, cc = l + vw / 2, C = D.piazza.x + 85;
-  SEAPR.forEach(el => (el.rep || [0]).forEach(k => {
-    let x = cc + el.dx + k * 700 - el.f * (cc - C);
-    if (el.v) x += el.id === "ship" ? ((t * el.v + el.ph) % el.span) - el.span / 2 : Math.sin(t * Math.abs(el.v) * .12 + el.ph) * el.span * (el.v < 0 ? -1 : 1);   // navio atravessa devagar; veleiros só balançam de um lado a outro
-    if (x < l - 90 || x > r + 90) return;
-    const y = CITY_HZ + el.y + (el.id === "sail" || el.id === "buoy" ? Math.sin(t * 1.1 + el.ph * 2 + k) * .45 : 0);
-    ctx.save(); ctx.translate(x, y); ctx.scale(el.s, el.s); cb(el, t, k); ctx.restore();
-  }));
+  SEAPR.forEach(el => {
+    if (pick && !pick(el)) return;
+    (el.rep || [0]).forEach(k => {
+      let x = cc + el.dx + k * 700 - el.f * (cc - C);
+      if (el.v) x += el.id === "ship" ? ((t * el.v + el.ph) % el.span) - el.span / 2 : Math.sin(t * Math.abs(el.v) * .12 + el.ph) * el.span * (el.v < 0 ? -1 : 1);   // navio atravessa devagar; veleiros só balançam de um lado a outro
+      if (x < l - 100 || x > r + 100) return;
+      const y = CITY_HZ + el.y + (el.id === "sail" || el.id === "buoy" ? Math.sin(t * 1.1 + el.ph * 2 + k) * .45 : 0);
+      ctx.save(); ctx.translate(x, y); ctx.scale(el.s, el.s); cb(el, t, k); ctx.restore();
+    });
+  });
+}
+// pinta o grupo numa camada pequena (bl = pixels por unidade do mundo; menor = mais desfocado) e cola de volta; mode "light" soma luz
+const SEAL = {};
+function seaBlur(l, r, bl, pick, mode, t, a) {
+  const y0 = CITY_HZ - 50, hh = 92, x0 = l - 2, w = r - l + 4, cw = Math.ceil(w * bl), ch = Math.ceil(hh * bl), key = mode + bl;
+  let L = SEAL[key];
+  if (!L || L.cv.width !== cw || L.cv.height !== ch) { const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch; L = SEAL[key] = { cv, c: cv.getContext("2d") }; }
+  const c = L.c; c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-over"; c.clearRect(0, 0, cw, ch);
+  c.setTransform(bl, 0, 0, bl, -x0 * bl, -y0 * bl); c.imageSmoothingEnabled = true;
+  if (mode === "light") c.globalCompositeOperation = "lighter";
+  const prev = ctx; ctx = c;
+  try { seaEach(l, r, t, (el, tt, k) => { if (mode === "light") { if (SEA_LIGHT[el.id]) SEA_LIGHT[el.id](tt, a, k, el); } else SEA_BODY[el.id](tt, k, el); }, pick); } finally { ctx = prev; }
+  prev.save(); if (mode === "light") prev.globalCompositeOperation = "lighter";
+  prev.imageSmoothingEnabled = true; prev.imageSmoothingQuality = "high";
+  prev.drawImage(L.cv, 0, 0, cw, ch, x0, y0, cw / bl, ch / bl);
+  prev.restore();
 }
 const SEA_BODY = {
+  shore(t, k, el) {                                                      // margens bem longe: dois morros baixos, quase só névoa
+    const w = el.w, sd = el.sd, hy = x => (2.6 + 3 * Math.sin(x * .07 + sd) + 2 * Math.sin(x * .19 + sd * 2)) * Math.min(1, (w / 2 - Math.abs(x)) / 30);
+    ctx.beginPath(); ctx.moveTo(-w / 2, 1.5); for (let x = -w / 2; x <= w / 2; x += 5) ctx.lineTo(x, -Math.max(.2, hy(x)) - 1.2); ctx.lineTo(w / 2, 1.5); ctx.closePath();
+    ctx.fillStyle = "#5a7396"; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-w / 2 + 12, 1.5); for (let x = -w / 2 + 12; x <= w / 2 - 12; x += 5) ctx.lineTo(x, -Math.max(.2, hy(x * .9 + 9) * .75) - .4); ctx.lineTo(w / 2 - 12, 1.5); ctx.closePath();
+    ctx.fillStyle = "#4a6385"; ctx.fill();
+  },
   park(t) {
-    vPoly([[-64, 2.5], [-52, -2], [-36, -4.5], [-8, -5.5], [22, -5], [46, -3], [66, 2.5]], "#46607f");
-    ctx.strokeStyle = "#4d6382"; ctx.lineWidth = 1; ctx.beginPath();                          // montanha-russa (trilho em ondas + apoios)
-    for (let x = 28; x <= 64; x += 2) { const y = -9 - 8 * Math.abs(Math.sin((x - 28) * .13)); x === 28 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke();
-    for (let x = 30; x <= 62; x += 4) vLine(x, -9 - 8 * Math.abs(Math.sin((x - 28) * .13)), x, -4.5, .45, "#4d6382");
-    [[-50, -2.4], [-45, -3.4], [-40, -3.2], [41, -2], [54, -.8], [60, .2]].forEach(([x, y]) => vCirc(x, y - 2.4, 2.5, "#35604f"));   // árvores
-    vRR(-36, -9.5, 6, 5, .6, "#8a6a82"); vPoly([[-37, -9.5], [-29, -9.5], [-33, -13]], "#a06070");                                   // barraquinha
-    const cx = -14, cy = -28, R = 17, ang = t * .1;                                           // roda-gigante (gira devagar; as cabines ficam de pé)
-    vLine(cx, cy, cx - 10, -4.8, 1.2, "#40587a"); vLine(cx, cy, cx + 10, -4.8, 1.2, "#40587a"); vLine(cx - 6, -13, cx + 6, -13, .6, "#40587a");
-    ctx.strokeStyle = "#5d7599"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.stroke();
-    ctx.lineWidth = .5; ctx.beginPath(); ctx.arc(cx, cy, R * .6, 0, 6.2832); ctx.stroke();
-    for (let i = 0; i < 12; i++) {
-      const a = ang + i * Math.PI / 6, px = cx + Math.cos(a) * R, py = cy + Math.sin(a) * R;
-      vLine(cx, cy, px, py, .5, "#5d7599"); vLine(px, py, px, py + 1.2, .4, "#5d7599"); vRR(px - 1.5, py + 1.1, 3, 3.3, .8, SEA_COL[i % 5]);
+    vEll(0, 3.4, 70, 1.6, "rgba(20,40,80,.28)");                                            // sombra da ilha na água
+    vPoly([[-66, 2.6], [-54, -1.8], [-38, -4.8], [-10, -6], [20, -5.4], [46, -3.4], [68, 2.6]], "#47617f");
+    vPoly([[-54, -1.8], [-38, -4.8], [-10, -6], [20, -5.4], [46, -3.4], [40, -3.9], [18, -5], [-10, -5.6], [-38, -4.4]], "#6f89a8");   // luz na crista
+    vRR(-66, 1.2, 134, 1.5, .4, "#6a5a70");                                                // calçadão iluminado
+    for (let x = -62; x <= 62; x += 8) vLine(x, 1.2, x, -1.6, .35, "#40587a");              // postinhos do calçadão
+    vRR(66, 1.4, 22, 1.2, .3, "#6a5a70"); for (let x = 70; x <= 86; x += 5) vLine(x, 2.6, x, 5, .4, "#40587a");   // píer da ilha
+    [[-58, -2.4], [-53, -3.6], [-47, -3.8], [-30, -4.6], [41, -2.8], [52, -1.6], [58, -.6]].forEach(([x, y], i) => { vLine(x, y, x + (i % 2 ? .6 : -.6), y - 3.4, .5, "#34485f"); vCirc(x + (i % 2 ? .6 : -.6), y - 4.3, 2.4, i % 3 ? "#35604f" : "#3f6f58"); });   // coqueiros/árvores
+    vRR(-38, -9.4, 7, 5.4, .6, "#8a6a82"); vPoly([[-39, -9.4], [-30, -9.4], [-34.5, -13.2]], "#a06070"); vRR(-31, -8.2, 4.6, 4, .5, "#7d6e95");   // barraquinhas
+    // montanha-russa: trilho em ondas, apoios cruzados e o carrinho passeando
+    const tr = x => -9.5 - 9.5 * Math.pow(Math.abs(Math.sin((x - 30) * .125)), .8);
+    ctx.strokeStyle = "#4d6382"; ctx.lineWidth = 1; ctx.beginPath(); for (let x = 30; x <= 66; x += 1.5) x === 30 ? ctx.moveTo(x, tr(x)) : ctx.lineTo(x, tr(x)); ctx.stroke();
+    ctx.strokeStyle = "#5d7599"; ctx.lineWidth = .35; ctx.beginPath(); for (let x = 30; x <= 66; x += 1.5) x === 30 ? ctx.moveTo(x, tr(x) + 1.3) : ctx.lineTo(x, tr(x) + 1.3); ctx.stroke();
+    for (let x = 32; x <= 64; x += 4) { vLine(x, tr(x), x, -4.2, .4, "#4d6382"); vLine(x, tr(x) + 1, x + 4, -4.4, .25, "#4d6382"); }
+    const cu = (t * .1) % 1; for (let q = 0; q < 3; q++) { const x = 31 + ((cu * 34 - q * 3 + 34) % 34); vRR(x - 1.2, tr(x) - 1.7, 2.4, 1.6, .5, SEA_COL[(q + 1) % 5]); }
+    // cadeiras-voadoras: torre alta com o "guarda-chuva" e as cadeirinhas abrindo com a rotação
+    const tx = -46, ty = -33; vRR(tx - .9, ty, 1.8, 28, .4, "#52698b"); vPoly([[tx - 6, ty + 1.2], [tx + 6, ty + 1.2], [tx, ty - 3]], "#c9566e"); vCirc(tx, ty - 3.4, .8, "#d6a24a");
+    for (let i = 0; i < 8; i++) { const a = t * 1.1 + i * Math.PI / 4, ex = tx + Math.cos(a) * 5.4, sx = tx + Math.cos(a) * 9.5, sy = ty + 9.5 + Math.sin(a) * .9; vLine(ex, ty + 1.2, sx, sy, .25, "#5d7599"); vRR(sx - .9, sy, 1.8, 1.6, .4, SEA_COL[i % 5]); }
+    // roda-gigante: aro duplo, raios, 16 cabines que ficam sempre de pé
+    const cx = -14, cy = -30, R = 19, ang = t * .1;
+    vLine(cx, cy, cx - 11, -5, 1.3, "#40587a"); vLine(cx, cy, cx + 11, -5, 1.3, "#40587a"); vLine(cx - 7, -14, cx + 7, -14, .6, "#40587a"); vLine(cx - 4, -21, cx + 4, -21, .5, "#40587a");
+    ctx.strokeStyle = "#5d7599"; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.stroke();
+    ctx.lineWidth = .55; ctx.beginPath(); ctx.arc(cx, cy, R * .62, 0, 6.2832); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, R - 1.6, 0, 6.2832); ctx.stroke();
+    for (let i = 0; i < 16; i++) {
+      const a = ang + i * Math.PI / 8, px = cx + Math.cos(a) * R, py = cy + Math.sin(a) * R;
+      if (i % 2 === 0) vLine(cx, cy, px, py, .5, "#5d7599");
+      vLine(px, py, px, py + 1.2, .35, "#5d7599"); vRR(px - 1.5, py + 1.1, 3, 3.3, .8, SEA_COL[i % 5]); vRR(px - 1.1, py + 1.5, 2.2, 1, .3, "#f1e8d4");
     }
-    vCirc(cx, cy, 1.7, "#7690b3");
-    vRR(14, -13, 18, 9, 1, "#7d6e95");                                                        // carrossel (toldo listrado)
-    for (let i = 0; i < 6; i++) { const x0 = 12 + i * 4.8; vPoly([[x0, -13], [x0 + 4.8, -13], [24, -26]], i % 2 ? "#c9566e" : "#e8e0d0"); }
-    vLine(24, -26, 24, -31, .6, "#40587a"); vPoly([[24, -31], [28.5, -29.8], [24, -28.6]], "#d6a24a");
-    for (let i = 0; i < 4; i++) vLine(16.5 + i * 4.3, -12, 16.5 + i * 4.3, -5, .5, "#c2b6d0");
+    vCirc(cx, cy, 2, "#7690b3"); vCirc(cx, cy, .8, "#c9566e");
+    // carrossel: pavilhão com toldo listrado, bandeirinha e cavalinhos
+    vRR(13, -13.5, 20, 9.6, 1, "#7d6e95"); vRR(12, -14, 22, 1.4, .5, "#d6a24a");
+    for (let i = 0; i < 8; i++) { const x0 = 11 + i * 3.1; vPoly([[x0, -14], [x0 + 3.1, -14], [23.5, -27.5]], i % 2 ? "#c9566e" : "#ece4d2"); }
+    for (let i = 0; i < 7; i++) { const x0 = 11 + i * 3.6; ctx.fillStyle = i % 2 ? "#c9566e" : "#ece4d2"; ctx.beginPath(); ctx.arc(x0 + 1.8, -14, 1.8, 0, 3.1416); ctx.fill(); }   // barra recortada em ondas
+    vLine(23.5, -27.5, 23.5, -32.5, .6, "#40587a"); vPoly([[23.5, -32.5], [28.4, -31.1], [23.5, -29.8]], "#d6a24a");
+    for (let i = 0; i < 4; i++) { const bx = 16.2 + i * 4.4, by = -9 + Math.sin(t * 2 + i * 1.7) * .9; vLine(bx, -13, bx, by, .4, "#c2b6d0"); vRR(bx - 1, by, 2, 1.7, .5, SEA_COL[(i + 2) % 5]); }
   },
   light() {
-    vPoly([[-10, 2.5], [-7, -2], [-2, -3.5], [3, -3], [8, -1], [11, 2.5]], "#46586f");
+    vEll(0, 3.2, 14, 1.2, "rgba(20,40,80,.3)");
+    vPoly([[-11, 2.6], [-8, -2], [-3, -3.6], [3, -3.2], [8, -1.2], [12, 2.6]], "#46586f"); vPoly([[-8, -2], [-3, -3.6], [3, -3.2], [0, -2.2]], "#667c97");
+    vRR(4.6, -7.2, 6.6, 4.6, .5, "#e8e2d4"); vPoly([[3.8, -7.2], [12, -7.2], [7.9, -10.6]], "#b7425a"); vRR(6.6, -6.2, 1.6, 1.8, .3, "#8aa0bd");   // casa do faroleiro
     for (let b = 0; b < 4; b++) {
       const y1 = -3 - b * 6.75, y2 = y1 - 6.75, h1 = 3.8 - 1.4 * ((-3 - y1) / 27), h2 = 3.8 - 1.4 * ((-3 - y2) / 27);
       vPoly([[-h1, y1], [h1, y1], [h2, y2], [-h2, y2]], b % 2 ? "#b7425a" : "#e8e2d4");
+      vPoly([[h1 * .35, y1], [h1, y1], [h2, y2], [h2 * .35, y2]], "rgba(20,30,60,.22)");    // lado da sombra
     }
-    vRR(-3.8, -31.4, 7.6, 1.3, .4, "#3d4d66"); vRR(-2.2, -35.6, 4.4, 4.3, .6, "#8aa0bd"); vPoly([[-3.1, -35.6], [3.1, -35.6], [0, -39.6]], "#3d4d66");
+    vRR(-4.2, -31.6, 8.4, 1.4, .4, "#3d4d66"); vLine(-4, -33.6, 4, -33.6, .35, "#3d4d66");
+    vRR(-2.3, -36, 4.6, 4.4, .6, "#9ab0cb"); vLine(0, -36, 0, -31.7, .3, "#3d4d66"); vPoly([[-3.3, -36], [3.3, -36], [0, -40]], "#3d4d66"); vCirc(0, -40.6, .6, "#3d4d66");
   },
-  ship() {
-    vEll(0, .7, 21, .8, "rgba(255,255,255,.16)");                                              // marola do navio
-    vPoly([[-16, 0], [16, 0], [20, -4.6], [-17, -4.6]], "#2c3a52"); vRR(-16.6, -3, 35, 1.1, .3, "#a43d4c");
-    for (let i = 0; i < 7; i++) { vRR(-10 + i * 3.4, -7.9, 3.2, 3.3, .3, SEA_COL[(i * 2) % 5]); if (i > 0 && i < 6) vRR(-10 + i * 3.4, -11.2, 3.2, 3.3, .3, SEA_COL[(i * 3 + 1) % 5]); }
-    vRR(-17, -12.6, 6, 8, .6, "#d7d9de"); vRR(-15.2, -16, 2.6, 3.6, .4, "#c9566e");
-    for (let i = 0; i < 3; i++) ctx.fillStyle = "#8b9bb3", ctx.fillRect(-16 + i * 1.8, -10.6, 1, 1.1);
+  ship(t) {
+    vEll(0, .9, 24, .9, "rgba(255,255,255,.17)"); vEll(-22, 1.1, 8, .6, "rgba(255,255,255,.1)");   // marola e esteira
+    vPoly([[-19, 0], [17, 0], [23, -5.8], [-19, -5.8]], "#2c3a52"); vPoly([[-19, -.1], [17, -.1], [18.6, -1.7], [-19, -1.7]], "#8e2f3f"); vLine(-19, -5.8, 23, -5.8, .5, "#4a5d7c");
+    for (let i = 0; i < 8; i++) for (let j = 0; j < (i === 0 || i === 7 ? 2 : 3); j++) vRR(-9 + i * 3.3, -9 - j * 3.1, 3.1, 3, .3, SEA_COL[(i * 2 + j * 3) % 5]);
+    vRR(-18.4, -13.6, 7.6, 9, .6, "#dfe1e6"); vRR(-17.4, -17.8, 5.6, 4.6, .6, "#d1d4db"); vRR(-17.2, -11.2, 5.2, 1, .3, "#7f8ea6"); vRR(-16.6, -16.4, 4, 1, .3, "#7f8ea6");   // superestrutura com janelas
+    vRR(-16.4, -21.4, 2.8, 3.8, .4, "#c9566e"); vLine(-14.4, -18, -14.4, -23.4, .35, "#5d7599");
+    for (let i = 0; i < 4; i++) {                                                                // fumaça saindo da chaminé
+      const u = (t * .22 + i * .25) % 1;
+      vCirc(-15 - u * 11, -22 - u * 8, 1.1 + u * 2.6, "rgba(190,198,214," + (.32 * (1 - u)).toFixed(3) + ")");
+    }
+    vLine(17, -5.8, 17, -9.4, .4, "#6a7d9b"); vLine(10, -12.4, 16.6, -5.9, .3, "#6a7d9b");     // guindaste e mastro de proa
   },
   sail(t, k) {
     ctx.rotate(Math.sin(t * .9 + k * 1.7) * .035);
-    vEll(0, 1.8, 7.6, .9, "rgba(10,40,80,.3)");
-    vPoly([[-5.2, -1], [5.2, -1], [3.5, 1.5], [-3.5, 1.5]], "#f4efe2"); vLine(0, -1, 0, -12, .5, "#4a3a2c");
-    vPoly([[.8, -11], [.8, -2], [5.8, -2]], "#fbf6ea"); vPoly([[-.8, -9], [-.8, -2], [-4.6, -2]], "#ece4cf");
+    vEll(0, 1.9, 8, .9, "rgba(10,40,80,.32)");
+    vPoly([[-5.6, -1.2], [5.6, -1.2], [3.8, 1.6], [-3.6, 1.6]], "#f4efe2"); vPoly([[-5.5, -1.2], [5.5, -1.2], [5.1, -.2], [-5.1, -.2]], "#27385e");
+    vLine(0, -1.2, 0, -13.4, .55, "#4a3a2c"); vLine(0, -2.6, -4.6, -2.2, .35, "#4a3a2c");
+    ctx.fillStyle = "#fbf6ea"; ctx.beginPath(); ctx.moveTo(.8, -12.8); ctx.quadraticCurveTo(7.6, -7, 6.2, -2.4); ctx.lineTo(.8, -2.4); ctx.closePath(); ctx.fill();   // vela grande curva
+    ctx.fillStyle = "#e7dec8"; ctx.beginPath(); ctx.moveTo(-.8, -11.4); ctx.quadraticCurveTo(-5.6, -6.6, -7, -2.6); ctx.lineTo(-.8, -2.6); ctx.closePath(); ctx.fill();    // buja
+    vPoly([[0, -13.4], [2.8, -12.6], [0, -11.8]], "#c9566e");
   },
-  buoy(t) {
-    vEll(0, 1.4, 3.8, .85, "rgba(10,40,80,.32)");
-    vPoly([[-2.4, 1], [2.4, 1], [1.6, -3.6], [-1.6, -3.6]], "#c9423a"); vPoly([[-2.05, -.6], [2.05, -.6], [1.85, -1.8], [-1.85, -1.8]], "#f0ece0");
-    vLine(-1.3, -3.6, 0, -6.2, .35, "#33425c"); vLine(1.3, -3.6, 0, -6.2, .35, "#33425c"); vCirc(0, -6.4, .7, "#33425c");
+  buoy(t, k, el) {
+    for (let q = 0; q < 2; q++) {                                                                // ondinhas abrindo em volta da boia
+      const u = (t * .35 + q * .5 + (el ? el.ph : 0)) % 1; ctx.strokeStyle = "rgba(235,245,255," + (.32 * (1 - u)).toFixed(3) + ")"; ctx.lineWidth = .35;
+      ctx.beginPath(); ctx.ellipse(0, 1.4, 3.4 + u * 7.5, .8 + u * 1.7, 0, 0, 6.2832); ctx.stroke();
+    }
+    vEll(0, 1.5, 3.8, .85, "rgba(10,40,80,.34)");
+    vPoly([[-2.6, 1.1], [2.6, 1.1], [1.6, -3.8], [-1.6, -3.8]], "#c9423a"); vPoly([[-2.15, -.7], [2.15, -.7], [1.9, -2], [-1.9, -2]], "#f0ece0"); vPoly([[.6, 1.1], [2.6, 1.1], [1.6, -3.8], [.4, -3.8]], "rgba(20,10,40,.22)");
+    vLine(-1.3, -3.8, 0, -6.4, .35, "#33425c"); vLine(1.3, -3.8, 0, -6.4, .35, "#33425c"); vCirc(0, -6.6, .75, "#33425c");
   },
 };
 function citySeaProps(now, l, r) {                                       // dentro da lavagem de cor da hora
   const t = now / 1000, HZ = CITY_HZ;
-  seaEach(l, r, t, (el, tt, k) => SEA_BODY[el.id](tt, k));
+  seaBlur(l, r, .5, el => SEA_FAR.includes(el.id), "body", t);           // longe: bem desfocado
+  const g = ctx.createLinearGradient(0, HZ - 18, 0, HZ + 20);            // neblina de distância: o que está longe se dissolve no horizonte
+  g.addColorStop(0, "rgba(255,206,178,0)"); g.addColorStop(.45, "rgba(255,206,178,.24)"); g.addColorStop(1, "rgba(255,206,178,0)");
+  ctx.fillStyle = g; ctx.fillRect(l - 4, HZ - 18, r - l + 8, 38);
+  seaBlur(l, r, .85, el => el.id === "sail", "body", t);                 // meio: levemente desfocado
+  seaEach(l, r, t, (el, tt, k) => SEA_BODY.buoy(tt, k, el), el => el.id === "buoy");   // perto: nítido
   if (DAY.lamp < .35 && DAY.sunA > .15) {                                // gaivotas (só de dia)
     const vw = r - l, cc = l + vw / 2, a = Math.min(1, DAY.sunA * 1.5) * (1 - DAY.lamp);
     ctx.save(); ctx.globalAlpha = a; ctx.lineCap = "round"; ctx.strokeStyle = "#f2eee6"; ctx.lineWidth = .7;
@@ -3962,61 +4037,92 @@ function citySeaProps(now, l, r) {                                       // dent
     }
     ctx.restore();
   }
-  const g = ctx.createLinearGradient(0, HZ - 16, 0, HZ + 18);            // neblina de distância: o que está longe se dissolve no horizonte
-  g.addColorStop(0, "rgba(255,206,178,0)"); g.addColorStop(.45, "rgba(255,206,178,.2)"); g.addColorStop(1, "rgba(255,206,178,0)");
-  ctx.fillStyle = g; ctx.fillRect(l - 4, HZ - 16, r - l + 8, 34);
 }
 const SEA_LIGHT = {
+  shore(t, a, k, el) {
+    for (let i = 0; i < 9; i++) { const x = -el.w / 2 + 14 + i * (el.w - 28) / 8 + (sh01(i + el.sd) - .5) * 6, al = a * (.35 + .5 * sh01(i * 3 + el.sd + Math.floor(t * .2 + i))); ctx.fillStyle = "rgba(255,214,150," + al.toFixed(3) + ")"; ctx.fillRect(x, -2.2 - sh01(i + 9) * 2, 1.2, 1); }
+  },
   park(t, a) {
-    const cx = -14, cy = -28, R = 17, ang = t * .1;
-    ctx.strokeStyle = "rgba(255,214,150," + (.2 * a).toFixed(3) + ")"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.stroke();
-    for (let i = 0; i < 24; i++) {                                       // lâmpadas coloridas no aro, piscando
-      const an = ang + i * Math.PI / 12, x = cx + Math.cos(an) * R, y = cy + Math.sin(an) * R, al = a * (.55 + .45 * Math.sin(t * 2.2 + i * 1.7));
-      ctx.fillStyle = SEA_COL[i % 5] === "#d6a24a" ? "rgba(255,220,150," + al.toFixed(3) + ")" : "rgba(255,236,200," + (al * .9).toFixed(3) + ")";
-      ctx.fillRect(x - .8, y - .8, 1.6, 1.6); ctx.fillStyle = "rgba(255,200,130," + (al * .22).toFixed(3) + ")"; ctx.fillRect(x - 2, y - 2, 4, 4);
+    const cx = -14, cy = -30, R = 19, ang = t * .1;
+    ctx.strokeStyle = "rgba(255,214,150," + (.24 * a).toFixed(3) + ")"; ctx.lineWidth = 1.7; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.stroke();
+    for (let i = 0; i < 32; i++) {                                       // lâmpadas coloridas no aro, piscando
+      const an = ang + i * Math.PI / 16, x = cx + Math.cos(an) * R, y = cy + Math.sin(an) * R, al = a * (.55 + .45 * Math.sin(t * 2.2 + i * 1.7)), c = SEA_COL[i % 5];
+      ctx.fillStyle = "rgba(255,236,200," + (al * .95).toFixed(3) + ")"; ctx.fillRect(x - .8, y - .8, 1.6, 1.6);
+      ctx.fillStyle = c + Math.round(al * 70).toString(16).padStart(2, "0"); ctx.fillRect(x - 2.2, y - 2.2, 4.4, 4.4);
     }
-    for (let i = 0; i < 12; i++) { const an = ang + i * Math.PI / 6; ctx.fillStyle = "rgba(255,226,170," + (.6 * a).toFixed(3) + ")"; ctx.fillRect(cx + Math.cos(an) * R - .7, cy + Math.sin(an) * R + 2.4, 1.4, 1.4); }   // cabines acesas
-    ctx.fillStyle = "rgba(255,210,150," + (.5 * a).toFixed(3) + ")"; ctx.fillRect(cx - .9, cy - .9, 1.8, 1.8);
-    for (let i = 0; i < 8; i++) { ctx.fillStyle = "rgba(255,226,170," + (a * (.6 + .4 * Math.sin(t * 3 + i))).toFixed(3) + ")"; ctx.fillRect(15.6 + i * 2.2, -13.6, 1.1, 1.1); }   // beirada do carrossel
-    for (let x = 30; x <= 62; x += 4) { ctx.fillStyle = "rgba(255,170,190," + (a * (.5 + .5 * Math.sin(t * 2.6 + x))).toFixed(3) + ")"; ctx.fillRect(x - .5, -9.6 - 8 * Math.abs(Math.sin((x - 28) * .13)), 1.1, 1.1); }   // luzinhas no trilho
-    let g = ctx.createRadialGradient(cx, -8, 0, cx, -8, 34); g.addColorStop(0, "rgba(255,190,120," + (.16 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,190,120,0)");
-    ctx.fillStyle = g; ctx.fillRect(cx - 34, -42, 68, 52);
-    [cx, 24, 48].forEach((rx, q) => { for (let j = 0; j < 9; j++) {      // reflexo quebrado na água, embaixo do parque
-      const w = (q === 0 ? 20 : 12) - j * 1.4 + Math.sin(t * 1.5 + j * 1.3 + q) * 2, y = 3.4 + j * 1.9;
-      ctx.fillStyle = "rgba(255," + (190 + j * 4) + ",140," + (.22 * a * (1 - j / 11)).toFixed(3) + ")"; ctx.fillRect(rx - w / 2 + Math.sin(t * .9 + j * 2 + q) * 1.6, y, w, .55);
+    for (let i = 0; i < 16; i++) { const an = ang + i * Math.PI / 8; ctx.fillStyle = "rgba(255,226,170," + (.6 * a).toFixed(3) + ")"; ctx.fillRect(cx + Math.cos(an) * R - .7, cy + Math.sin(an) * R + 2.4, 1.4, 1.4); }   // cabines acesas
+    ctx.fillStyle = "rgba(255,210,150," + (.6 * a).toFixed(3) + ")"; ctx.fillRect(cx - 1, cy - 1, 2, 2);
+    for (let i = 0; i < 9; i++) { ctx.fillStyle = "rgba(255,226,170," + (a * (.6 + .4 * Math.sin(t * 3 + i))).toFixed(3) + ")"; ctx.fillRect(14.6 + i * 2.2, -14.6, 1.1, 1.1); }   // beirada do carrossel
+    for (let x = 32; x <= 64; x += 4) { ctx.fillStyle = "rgba(255,170,190," + (a * (.5 + .5 * Math.sin(t * 2.6 + x))).toFixed(3) + ")"; ctx.fillRect(x - .5, -10.2 - 9.5 * Math.pow(Math.abs(Math.sin((x - 30) * .125)), .8), 1.1, 1.1); }   // luzinhas no trilho
+    for (let i = 0; i < 8; i++) { const a2 = t * 1.1 + i * Math.PI / 4; ctx.fillStyle = "rgba(255,230,170," + (a * .7).toFixed(3) + ")"; ctx.fillRect(-46 + Math.cos(a2) * 9.5 - .5, -33 + 9.5 + Math.sin(a2) * .9 + .3, 1, 1); }   // cadeiras-voadoras acesas
+    ctx.fillStyle = "rgba(255,236,190," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(-46.4, -37, .9, .9);
+    for (let x = -62; x <= 62; x += 8) { ctx.fillStyle = "rgba(255,214,150," + (.75 * a).toFixed(3) + ")"; ctx.fillRect(x - .5, -1.9, 1, 1); }       // postinhos do calçadão
+    let g = ctx.createRadialGradient(cx, -9, 0, cx, -9, 40); g.addColorStop(0, "rgba(255,190,120," + (.18 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,190,120,0)");
+    ctx.fillStyle = g; ctx.fillRect(cx - 40, -49, 80, 60);
+    // fogos de artifício: um estouro novo a cada ~9 s
+    const per = 9, id = Math.floor((t + 3) / per), u = (((t + 3) % per) / per) / .32;
+    if (u < 1 && a > .4) {
+      const fx = -30 + sh01(id) * 80, fy = -56 - sh01(id + 7) * 16, e = 1 - Math.pow(1 - u, 2.2), fa = a * Math.pow(1 - u, 1.4), col = [[255, 120, 140], [255, 214, 120], [130, 210, 255], [190, 150, 255], [140, 255, 190]][id % 5];
+      for (let i = 0; i < 18; i++) { const an = i * 6.2832 / 18 + sh01(id * 3 + i) * .3, rr = e * (13 + sh01(i + id) * 5); ctx.fillStyle = "rgba(" + col + "," + fa.toFixed(3) + ")"; ctx.fillRect(fx + Math.cos(an) * rr - .6, fy + Math.sin(an) * rr + u * u * 6 - .6, 1.3, 1.3); }
+      g = ctx.createRadialGradient(fx, fy, 0, fx, fy, 24); g.addColorStop(0, "rgba(" + col + "," + (.3 * fa).toFixed(3) + ")"); g.addColorStop(1, "rgba(" + col + ",0)"); ctx.fillStyle = g; ctx.fillRect(fx - 24, fy - 24, 48, 48);
+    }
+    [cx, 24, 48, -46].forEach((rx, q) => { for (let j = 0; j < 9; j++) {   // reflexo quebrado na água, embaixo do parque
+      const w = (q === 0 ? 22 : 12) - j * 1.5 + Math.sin(t * 1.5 + j * 1.3 + q) * 2, y = 3.8 + j * 1.9;
+      ctx.fillStyle = "rgba(255," + (190 + j * 4) + ",140," + (.24 * a * (1 - j / 11)).toFixed(3) + ")"; ctx.fillRect(rx - w / 2 + Math.sin(t * .9 + j * 2 + q) * 1.6, y, w, .55);
     } });
   },
   light(t, a) {
     const ang = t * .55, c = Math.cos(ang), ba = a * Math.pow(Math.abs(c), 3), dir = c > 0 ? 1 : -1;
-    let g = ctx.createRadialGradient(0, -33.4, 0, 0, -33.4, 12); g.addColorStop(0, "rgba(255,244,200," + (.8 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,230,170,0)");
-    ctx.fillStyle = g; ctx.fillRect(-12, -45, 24, 24);
+    let g = ctx.createRadialGradient(0, -33.8, 0, 0, -33.8, 13); g.addColorStop(0, "rgba(255,244,200," + (.85 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,230,170,0)");
+    ctx.fillStyle = g; ctx.fillRect(-13, -47, 26, 26);
     if (ba > .02) {
-      g = ctx.createLinearGradient(0, 0, dir * 110, 0); g.addColorStop(0, "rgba(255,244,205," + (.5 * ba).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,244,205,0)");
-      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, -33.4); ctx.lineTo(dir * 110, -33.4 - 9); ctx.lineTo(dir * 110, -33.4 + 9); ctx.closePath(); ctx.fill();
+      g = ctx.createLinearGradient(0, 0, dir * 120, 0); g.addColorStop(0, "rgba(255,244,205," + (.5 * ba).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,244,205,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, -33.8); ctx.lineTo(dir * 120, -33.8 - 10); ctx.lineTo(dir * 120, -33.8 + 10); ctx.closePath(); ctx.fill();
     }
-    for (let j = 0; j < 6; j++) { ctx.fillStyle = "rgba(255,236,190," + (.18 * a * (1 - j / 7)).toFixed(3) + ")"; ctx.fillRect(-2 + Math.sin(t * 1.3 + j * 2) * 1.2, 3 + j * 1.9, 4 - j * .4, .5); }
+    ctx.fillStyle = "rgba(255,226,160," + (.8 * a).toFixed(3) + ")"; ctx.fillRect(6.6, -6.2, 1.6, 1.8);
+    for (let j = 0; j < 6; j++) { ctx.fillStyle = "rgba(255,236,190," + (.2 * a * (1 - j / 7)).toFixed(3) + ")"; ctx.fillRect(-2 + Math.sin(t * 1.3 + j * 2) * 1.2, 3.4 + j * 1.9, 4 - j * .4, .5); }
   },
   ship(t, a) {
-    for (let i = 0; i < 3; i++) { ctx.fillStyle = "rgba(255,226,160," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(-16 + i * 1.8, -10.6, 1, 1.1); }
-    ctx.fillStyle = "rgba(255,90,80," + (.8 * a).toFixed(3) + ")"; ctx.fillRect(-17.2, -9, 1, 1); ctx.fillStyle = "rgba(120,255,160," + (.8 * a).toFixed(3) + ")"; ctx.fillRect(19, -5.2, 1, 1);
-    for (let j = 0; j < 5; j++) { ctx.fillStyle = "rgba(255,226,160," + (.2 * a * (1 - j / 6)).toFixed(3) + ")"; ctx.fillRect(-16 + Math.sin(t * 1.4 + j) * 1.2, 1.8 + j * 1.7, 5 - j * .5, .5); }
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = "rgba(255,226,160," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(-17 + i * 1.7, -11.2, .9, 1); ctx.fillRect(-16.6 + i * 1.4, -16.4, .9, 1); }
+    ctx.fillStyle = "rgba(255,90,80," + (.85 * a).toFixed(3) + ")"; ctx.fillRect(-18.8, -9, 1, 1); ctx.fillStyle = "rgba(120,255,160," + (.85 * a).toFixed(3) + ")"; ctx.fillRect(22, -6.2, 1, 1);
+    ctx.fillStyle = "rgba(255,244,210," + (.8 * a).toFixed(3) + ")"; ctx.fillRect(16.6, -9.8, 1, 1);
+    for (let j = 0; j < 5; j++) { ctx.fillStyle = "rgba(255,226,160," + (.2 * a * (1 - j / 6)).toFixed(3) + ")"; ctx.fillRect(-17 + Math.sin(t * 1.4 + j) * 1.2, 2 + j * 1.7, 5 - j * .5, .5); }
   },
   sail(t, a) {
-    ctx.fillStyle = "rgba(255,90,80," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(-5.6, -1.8, 1.1, 1.1); ctx.fillStyle = "rgba(255,240,200," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(-.5, -12.8, 1.1, 1.1);
-    for (let j = 0; j < 4; j++) { ctx.fillStyle = "rgba(255,226,170," + (.22 * a * (1 - j / 5)).toFixed(3) + ")"; ctx.fillRect(-3 + Math.sin(t * 1.5 + j * 2) * 1, 3 + j * 1.8, 5 - j, .5); }
+    ctx.fillStyle = "rgba(255,90,80," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(-6, -2, 1.1, 1.1); ctx.fillStyle = "rgba(255,240,200," + (.9 * a).toFixed(3) + ")"; ctx.fillRect(-.5, -14, 1.1, 1.1);
+    for (let j = 0; j < 4; j++) { ctx.fillStyle = "rgba(255,226,170," + (.22 * a * (1 - j / 5)).toFixed(3) + ")"; ctx.fillRect(-3 + Math.sin(t * 1.5 + j * 2) * 1, 3.2 + j * 1.8, 5 - j, .5); }
   },
-  buoy(t, a) {
-    const on = (t * .65 + .3) % 1 < .3; if (!on) return;
-    const g = ctx.createRadialGradient(0, -6.4, 0, 0, -6.4, 7); g.addColorStop(0, "rgba(255,110,90," + (.85 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,90,70,0)");
-    ctx.fillStyle = g; ctx.fillRect(-7, -13.4, 14, 14); ctx.fillStyle = "rgba(255,200,190," + a.toFixed(3) + ")"; ctx.fillRect(-.6, -7, 1.2, 1.2);
-    for (let j = 0; j < 3; j++) { ctx.fillStyle = "rgba(255,110,90," + (.2 * a * (1 - j / 4)).toFixed(3) + ")"; ctx.fillRect(-1.5 + Math.sin(t * 1.2 + j) * .8, 2.6 + j * 1.6, 3, .5); }
+  buoy(t, a, k, el) {
+    if ((t * .65 + (el ? el.ph : 0)) % 1 > .3) return;
+    const g = ctx.createRadialGradient(0, -6.6, 0, 0, -6.6, 7); g.addColorStop(0, "rgba(255,110,90," + (.85 * a).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,90,70,0)");
+    ctx.fillStyle = g; ctx.fillRect(-7, -13.6, 14, 14); ctx.fillStyle = "rgba(255,200,190," + a.toFixed(3) + ")"; ctx.fillRect(-.6, -7.2, 1.2, 1.2);
+    for (let j = 0; j < 3; j++) { ctx.fillStyle = "rgba(255,110,90," + (.2 * a * (1 - j / 4)).toFixed(3) + ")"; ctx.fillRect(-1.5 + Math.sin(t * 1.2 + j) * .8, 2.8 + j * 1.6, 3, .5); }
   },
 };
-function citySeaLights(now, l, r) {                                      // à noite: luzes do parque, farol, navio, veleiros e boias (soma luz, por cima da lavagem escura)
+function citySeaLights(now, l, r) {                                      // à noite: luzes do parque, farol, navio, veleiros e boias (soma luz; desfocadas como os objetos)
   const a = DAY.lamp; if (a <= .02) return;
+  const t = now / 1000;
+  seaBlur(l, r, .5, el => SEA_FAR.includes(el.id), "light", t, a);
+  seaBlur(l, r, .85, el => el.id === "sail", "light", t, a);
   ctx.save(); ctx.globalCompositeOperation = "lighter";
-  seaEach(l, r, now / 1000, (el, t) => { if (SEA_LIGHT[el.id]) SEA_LIGHT[el.id](t, a); });
+  seaEach(l, r, t, (el, tt, k) => SEA_LIGHT.buoy(tt, a, k, el), el => el.id === "buoy");
   ctx.restore();
+}
+
+// Luz dos postes no pescador: aquece só os pixels dele (source-atop), mais forte quanto mais perto do poste
+function cityFisherLight(c, now) {
+  const D = cityData; if (!D || !D.poles || DAY.lamp <= .01) return;
+  const by = CITY_POLE_Y(), hy = by - (LAMP_H + 5.5) * CITY_POLE_K;
+  D.poles.forEach(x => {
+    const dx = Math.abs(px - x); if (dx > 150) return;
+    const k = DAY.lamp * lampFlick(x, now) * Math.pow(1 - dx / 150, 1.1);
+    let g = c.createRadialGradient(x, hy, 3, x, hy, 125);
+    g.addColorStop(0, "rgba(255,224,152," + (.85 * k).toFixed(3) + ")"); g.addColorStop(.4, "rgba(255,196,112," + (.45 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,180,90,0)");
+    c.fillStyle = g; c.fillRect(x - 135, hy - 10, 270, 200);
+    g = c.createRadialGradient(x + 4, PIER_Y + 5, 2, x + 4, PIER_Y + 5, 75);                          // a poça de luz no chão sobe pelas pernas
+    g.addColorStop(0, "rgba(255,208,128," + (.4 * k).toFixed(3) + ")"); g.addColorStop(1, "rgba(255,190,100,0)");
+    c.fillStyle = g; c.fillRect(x - 75, PIER_Y - 34, 150, 60);
+  });
 }
 
 // ---------- Postes da cidade: o MESMO poste e a MESMA iluminação do cais (drawLamps + drawLampGlow), um pouco menores para casar com a escala da rua ----------
@@ -4032,8 +4138,20 @@ function cityPolesEach(l, r, fn) {
 function cityPoles(now, l, r) { cityPolesEach(l, r, (x, by) => drawLamps(now, [x], by, () => true)); }       // corpo: dentro da lavagem de cor da hora
 function cityPoleGlow(now, l, r) {                                       // luz: por cima de tudo, só à noite
   if (DAY.lamp <= .01) return;
-  cityPolesEach(l, r, (x, by) => drawLampGlow(now, [x], by, () => true));
-  const t = now / 1000, [lr, lg, lb] = LAMP_WARM;                         // brilho amarelo na água (como o drawLampWater do cais), para os postes da orla
+  cityPolesEach(l, r, (x, by) => drawLampGlow(now, [x], by, () => true, false));
+  const t = now / 1000, [lr, lg, lb] = LAMP_WARM;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";                   // poça de luz no chão: elipse larga, que avança para a frente da calçada (e não só uma linha)
+  cityData.poles.forEach(x => {
+    if (x < l - 150 || x > r + 150) return;
+    const k = DAY.lamp * lampFlick(x, now);
+    ctx.save(); ctx.beginPath(); ctx.rect(x - 150, CITY_B + 1, 300, 90); ctx.clip();
+    ctx.translate(x + 4, PIER_Y + 5); ctx.scale(1, .24);
+    const gr = ctx.createRadialGradient(0, 0, 2, 0, 0, 105);
+    gr.addColorStop(0, `rgba(255,226,158,${(.62 * k).toFixed(3)})`); gr.addColorStop(.18, `rgba(255,208,125,${(.4 * k).toFixed(3)})`); gr.addColorStop(.42, `rgba(${lr},${lg},${lb},${(.17 * k).toFixed(3)})`);
+    gr.addColorStop(.72, `rgba(${lr},${lg - 10},${lb},${(.05 * k).toFixed(3)})`); gr.addColorStop(1, `rgba(${lr},${lg},${lb},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(-105, -105, 210, 210); ctx.restore();
+  });
+  ctx.restore();                         // brilho amarelo na água (como o drawLampWater do cais), para os postes da orla
   const D = cityData, P = D.piazza;
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   D.poles.forEach(x => {
@@ -4420,7 +4538,7 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
   cityEnsure();
   const D = cityData, B = CITY_B, t = now / 1000, cs = cityCache.cs;
   ctx.save();
-  cityClouds(t, l, r);
+  ctx.save(); ctx.beginPath(); ctx.rect(l - 20, -200, r - l + 40, CITY_HZ + 200); ctx.clip(); cityClouds(t, l, r); ctx.restore();   // nuvens só acima do horizonte
   cityFar(DAY.sky[3], l, r);
   citySeaProps(now, l, r);
   ctx.imageSmoothingEnabled = CITY_HD; ctx.imageSmoothingQuality = "low";
@@ -4485,11 +4603,12 @@ function drawCity(now) {
   lastView = { z: Z, sx: cl, sy: vy };
   ctx.save(); ctx.translate(W / 2, 0); ctx.scale(Z, Z); ctx.translate(-WORLD / 2 - EXT, 0); DAY.paintSky(ctx, now); ctx.restore();   // o mesmo céu do cais, na mesma hora
   ctx.save(); ctx.scale(Z, Z); ctx.translate(-cl, -vy);
-  citySea(now, cl, cr);                                                                  // mar igual ao do cais (fora da lavagem do cenário: usa a lavagem da água)
+  citySea(now, cl, cr);
+  citySeaLights(now, cl, cr);                                                            // luzes do parque/farol: antes dos prédios, então as fachadas tampam (nada atravessa as casas)
+                                                                  // mar igual ao do cais (fora da lavagem do cenário: usa a lavagem da água)
   DAY.scene(() => drawCityBack(now, dt, cl, cr), [0, H]);
   cityLit(now, cl, cr);
   cityPoleGlow(now, cl, cr);
-  citySeaLights(now, cl, cr);
   cityGlass(now, cl, cr);
   const shadeEnd = cityShadeBegin(dt);                                                   // na sombra dos prédios o pescador escurece
   try { DAY.scene(() => {                                                                // o pescador (com a mesma lavagem da hora)
@@ -4498,7 +4617,7 @@ function drawCity(now) {
     ctx.save(); ctx.translate(px, PIER_Y); ctx.scale(CK, CK); ctx.translate(-px, -PIER_Y);      // pescador reduzido (pés continuam em PIER_Y)
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
     ctx.restore();
-  }, [PIER_Y - 70, PIER_Y + 12]); } finally { shadeEnd(); }
+  }, [PIER_Y - 70, PIER_Y + 12], c => cityFisherLight(c, now)); } finally { shadeEnd(); }
   text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 6, "#ffd166", "center");              // o nome fica FORA da lavagem de cor (à noite ela escurecia o texto)
   const dn = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open ? cityNearDoor() : null;
   if (dn) {                                                                              // "E" quando há uma porta ao alcance

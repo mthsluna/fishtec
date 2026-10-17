@@ -143,10 +143,11 @@ const DAY = (() => {
     },
 
     // desenha fn() num canvas transparente, aplica a lavagem de cor do horário e joga o resultado por cima do que já está na tela
+    // post(sc) (opcional): roda depois da lavagem, com a câmera atual, em modo source-atop
     // band = [y0, y1] (opcional): só essa faixa (em coordenadas do jogo, sem zoom) é limpa, lavada e copiada
     _sc: null, _scx: null,
-    scene(fn, band) {
-      if (this.washA <= 0.004) { fn(); return; }              // sem lavagem (visual original): desenha direto, sem custo extra
+    scene(fn, band, post) {
+      if (this.washA <= 0.004 && !post) { fn(); return; }              // sem lavagem (visual original): desenha direto, sem custo extra
       const main = ctx, w = buf.width, h = buf.height;
       if (!this._sc || this._sc.width !== w || this._sc.height !== h) {
         this._sc = document.createElement("canvas"); this._sc.width = w; this._sc.height = h; this._scx = this._sc.getContext("2d");
@@ -163,6 +164,10 @@ const DAY = (() => {
       if (this.washA > 0.004) {
         sc.globalCompositeOperation = "source-atop"; sc.fillStyle = this.washCss; sc.fillRect(0, y0, w, y1 - y0);
         sc.globalCompositeOperation = "source-over";
+      }
+      if (post) {                                           // luz extra (ex.: poste de luz) só sobre o que foi desenhado, depois da lavagem
+        sc.save(); sc.setTransform(tf); sc.globalCompositeOperation = "source-atop";
+        try { post(sc); } finally { sc.restore(); }
       }
       main.save(); main.setTransform(1, 0, 0, 1, 0, 0); main.globalAlpha = 1;
       main.drawImage(this._sc, 0, y0, w, y1 - y0, 0, y0, w, y1 - y0);
