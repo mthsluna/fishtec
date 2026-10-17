@@ -4324,6 +4324,7 @@ function cityNearDoor() {                                                // a po
 }
 // ---- Boutique: aviso "Entrar" com uma camiseta pixelada (as outras portas continuam desligadas em cityNearDoor) ----
 const SHIRT_PX = ["..##.##..", ".#o###o#.", "#ooooooo#", "##ooooo##", ".#ooooo#.", ".#ooooo#.", ".#ooooo#.", ".#######."];   // 9x8: # contorno, o = tecido (cor da minha camiseta)
+let nameFade = 1;                                                        // opacidade do meu nome na cidade (0 a 1)
 function boutiqueNear() {                                                // a porta da loja de roupas, se o pescador estiver bem na frente dela
   if (!cityData || !CITY.on) return null;
   const d = cityData.doors.find(o => o.kind === "clothes");
@@ -4771,7 +4772,9 @@ function drawCity(now) {
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
     ctx.restore();
   }, [PIER_Y - 70, PIER_Y + 12], c => cityFisherLight(c, now)); } finally { shadeEnd(); }
-  ctx.save(); ctx.translate(px, PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 5); ctx.scale(.68, .68); text(myName, 0, 0, "#ffd166", "center"); ctx.restore();   // nome menor na cidade (fica FORA da lavagem de cor (à noite ela escurecia o texto)
+  { const nearAct = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open && !!(boutiqueNear() || cityNearDoor());   // perto de uma interação ("Entrar"): o nome some em fade
+    nameFade += ((nearAct ? 0 : 1) - nameFade) * Math.min(1, dt * 9);
+    if (nameFade > .02) { ctx.save(); ctx.globalAlpha = nameFade; ctx.translate(px, PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 5); ctx.scale(.68, .68); text(myName, 0, 0, "#ffd166", "center"); ctx.restore(); } }   // nome menor na cidade (fica FORA da lavagem de cor (à noite ela escurecia o texto)
   const dn = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open ? cityNearDoor() : null;
   if (dn) {                                                                              // "E" quando há uma porta ao alcance
     const ky = PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 30 + Math.round(Math.sin(now / 260) * 1.5), kx = Math.round(px) - 6;   // o "E" flutua em cima do nome do pescador
