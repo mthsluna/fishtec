@@ -2371,7 +2371,7 @@ function drawTrans() {
 // Fachadas e chão são pintados UMA vez num canvas (cityCache) e só o pedaço visível é copiado a cada quadro; o que se mexe (varais, gatos, fonte, portas abrindo) é desenhado por cima.
 // Portas: perto de uma porta aparece o "E"; ao apertar ela abre/ou está trancada (veja cityUse). Para ligar uma porta a algo (ex.: um interior), use window.onCityDoor = d => {...}.
 let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
-const CITY_HD = true;                                                    // false = volta ao visual pixel art de antes (dithering, sem suavização)
+const CITY_HD = true;                                                    // true = ilustração suave (sem dithering, resolução maior na cidade); false = mantém o dithering do jogo
 const CITY_S = 3, CITY_CS = 5;                                           // resolução interna na cidade (S) e do cenário pintado (pixels por unidade do mundo)
 let cityPierS = 0;                                                       // resolução que o cais tinha antes de entrar na cidade
 const CITY_Z = 1.5;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
@@ -2446,7 +2446,461 @@ function cityInit() {                                                    // o tr
   gaps.forEach((gp, i) => { if (i % 3 === 1) cityData.cats.push(gp.x + (gp.w >> 1)); });
 }
 
-function cityBuild() {                                                   // pinta tudo que não se mexe, uma vez só (refeito se a resolução mudar)
+// ==================== Cidade em ilustração vetorial (formas suaves, degradês, sombras) ====================
+// Tudo aqui é pintado UMA vez no cache (cityCache) em alta resolução. Nada de pixel art: curvas, cantos arredondados, vidro com reflexo, madeira com veios etc.
+const vHex = c => c[0] === "#" ? [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16)) : c.match(/[\d.]+/g).slice(0, 3).map(Number);
+const vMix = (a, b, f) => { const A = vHex(a), Bb = vHex(b); return "rgb(" + A.map((v, i) => Math.round(v + (Bb[i] - v) * f)).join(",") + ")"; };
+const vDark = (c, f) => vMix(c, "#140a1e", f), vLight = (c, f) => vMix(c, "#fff4dc", f);
+function vRR(x, y, w, h, rd, fill) {                                      // retângulo de cantos arredondados (só caminho; pinta se passar a cor)
+  const q = Math.max(0, Math.min(rd, w / 2, h / 2)); ctx.beginPath();
+  ctx.moveTo(x + q, y); ctx.lineTo(x + w - q, y); ctx.arcTo(x + w, y, x + w, y + q, q); ctx.lineTo(x + w, y + h - q); ctx.arcTo(x + w, y + h, x + w - q, y + h, q);
+  ctx.lineTo(x + q, y + h); ctx.arcTo(x, y + h, x, y + h - q, q); ctx.lineTo(x, y + q); ctx.arcTo(x, y, x + q, y, q); ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+}
+function vArchP(x, y, w, h) { const q = w / 2; ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x, y + q); ctx.arc(x + q, y + q, q, Math.PI, 0); ctx.lineTo(x + w, y + h); ctx.closePath(); }
+function vArch(x, y, w, h, fill) { vArchP(x, y, w, h); ctx.fillStyle = fill; ctx.fill(); }
+function vLG(x0, y0, x1, y1, stops) { const g = ctx.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => g.addColorStop(o, c)); return g; }
+function vRG(x, y, r0, r1, stops) { const g = ctx.createRadialGradient(x, y, r0, x, y, r1); stops.forEach(([o, c]) => g.addColorStop(o, c)); return g; }
+function vCirc(x, y, q, fill) { ctx.beginPath(); ctx.arc(x, y, q, 0, 6.2832); ctx.fillStyle = fill; ctx.fill(); }
+function vEll(x, y, rx, ry, fill) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.2832); ctx.fillStyle = fill; ctx.fill(); }
+function vLine(x1, y1, x2, y2, w, col) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineCap = "round"; ctx.stroke(); }
+function vWire(x1, y1, x2, y2, sag, w, col) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo((x1 + x2) / 2, (y1 + y2) / 2 + sag * 2, x2, y2); ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineCap = "round"; ctx.stroke(); }
+function vPoly(pts, fill) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
+function vSoft(x, y, w, h, a = .3, col = "20,8,26") { ctx.fillStyle = vLG(0, y, 0, y + h, [[0, "rgba(" + col + "," + a + ")"], [1, "rgba(" + col + ",0)"]]); ctx.fillRect(x, y, w, h); }   // sombra que some para baixo
+function vText(s, x, y, col, size, maxW, shadow) {
+  ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  ctx.font = "bold " + size + "px Georgia, 'Times New Roman', serif";
+  if (maxW) { const wd = ctx.measureText(s).width; if (wd > maxW) { size *= maxW / wd; ctx.font = "bold " + size + "px Georgia, 'Times New Roman', serif"; } }
+  if (shadow) { ctx.fillStyle = shadow; ctx.fillText(s, x + .3, y + .4); }
+  ctx.fillStyle = col; ctx.fillText(s, x, y); ctx.restore();
+}
+function vBlot(cx, cy, q, col, a) { ctx.fillStyle = vRG(cx, cy, 0, q, [[0, "rgba(" + col + "," + a + ")"], [1, "rgba(" + col + ",0)"]]); ctx.fillRect(cx - q, cy - q, q * 2, q * 2); }
+function vBush(cx, cy, q, pk, r) {                                         // moita: círculos sobrepostos em 3 tons
+  const g = [vMix(pk(CITY_GREENS), "#0a2010", .25), pk(CITY_GREENS), vLight(pk(CITY_GREENS), .15)];
+  for (let i = 0; i < 5; i++) { const a = i * 1.26 + r(), dx = Math.cos(a) * q * .55, dy = Math.sin(a) * q * .4; vCirc(cx + dx, cy + dy + q * .15, q * (.55 + r() * .2), g[0]); }
+  for (let i = 0; i < 5; i++) { const a = i * 1.26 + 1 + r(), dx = Math.cos(a) * q * .5, dy = Math.sin(a) * q * .35 - q * .1; vCirc(cx + dx, cy + dy, q * (.48 + r() * .15), g[1]); }
+  vCirc(cx - q * .15, cy - q * .3, q * .42, g[2]);
+}
+
+function vShutter(x, y, w, h, col) {                                       // veneziana de madeira
+  vRR(x + .4, y + .7, w, h, .7, "rgba(20,8,26,.2)");
+  vRR(x, y, w, h, .7, vLG(x, 0, x + w, 0, [[0, vLight(col, .2)], [1, vDark(col, .22)]]));
+  ctx.fillStyle = "rgba(0,0,0,.24)"; for (let q = 1.3; q < h - .6; q += 1.7) ctx.fillRect(x + .5, y + q, w - 1, .5);
+  ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.fillRect(x + .35, y + .4, .6, h - .8);
+}
+function vGlass(x, y, w, h, arch, cross) {
+  const p = () => arch ? vArchP(x, y, w, h) : vRR(x, y, w, h, .7);
+  p(); ctx.fillStyle = vLG(x, y, x, y + h, [[0, "#b4d6ec"], [.5, "#7aa3c6"], [1, "#46688f"]]); ctx.fill();
+  ctx.save(); p(); ctx.clip();
+  ctx.fillStyle = "rgba(255,255,255,.24)"; ctx.beginPath(); ctx.moveTo(x + w * .05, y + h); ctx.lineTo(x + w * .55, y); ctx.lineTo(x + w * .85, y); ctx.lineTo(x + w * .35, y + h); ctx.closePath(); ctx.fill();
+  vSoft(x, y, w, Math.min(3.5, h * .35), .5, "10,20,40");
+  ctx.restore();
+  if (cross) { ctx.fillStyle = "#f0e8d2"; ctx.fillRect(x + w / 2 - .42, y, .84, h); ctx.fillRect(x, y + h * .5 - .42, w, .84); }
+}
+function vWin(x, y, w, h, o) {                                              // janela: moldura de pedra, vidro com reflexo, caixilho e peitoril
+  const arch = !!o.arch, fr = o.frame || "#ebe1c8";
+  if (arch) vArchP(x - 1.4, y - 1.4, w + 2.8, h + 1.4); else vRR(x - 1.4, y - 1.4, w + 2.8, h + 2.8, 1.1);
+  ctx.fillStyle = vLG(x, 0, x + w, 0, [[0, vLight(fr, .15)], [1, vDark(fr, .12)]]); ctx.fill();
+  vGlass(x, y, w, h, arch, o.cross !== false);
+  if (o.sill !== false) { vRR(x - 2, y + h + .8, w + 4, 1.7, .8, vLG(0, y + h, 0, y + h + 2.5, [[0, "#f0e7d0"], [1, "#cdc0a4"]])); vSoft(x - 1.5, y + h + 2.5, w + 3, 3.4, .3); }
+}
+function vFlowerBox(x, y, w, r, pk) {
+  vRR(x, y, w, 3.2, .8, vLG(0, y, 0, y + 3.2, [[0, "#9a6240"], [1, "#6a3e26"]]));
+  for (let q = x + 1; q < x + w - .5; q += 1.7) { vCirc(q, y - .4 - r() * 1.1, 1.3, pk(CITY_GREENS)); if (r() < .8) vCirc(q + .2, y - 1.7 - r() * 1.2, .85, pk(CITY_FLOWER)); }
+}
+function vLantern(lx, ly, D) {                                              // lampião de parede (o brilho de noite vem do cityLit)
+  vLine(lx + 1.5, ly - 4, lx + 1.5, ly, .7, "#2a2d35");
+  vPoly([[lx - .8, ly], [lx + 3.8, ly], [lx + 2.9, ly - 1.4], [lx + .1, ly - 1.4]], "#2a2d35");
+  vRR(lx - .1, ly + .2, 3.2, 4.8, .9, vLG(0, ly, 0, ly + 5, [[0, "#fff0b8"], [1, "#e8b052"]]));
+  vRR(lx - .9, ly + 4.9, 4.8, 1, .5, "#2a2d35");
+  D.lamps.push({ x: lx + 1.5, y: ly + 3, r: 34 });
+}
+function vPot(px0, big, B, r, pk) {
+  const hh = big ? 7 : 6, cx = px0 + 2.5;
+  vBush(cx, B - hh - 2.5, big ? 4.2 : 3.4, pk, r);
+  vPoly([[px0 - .4, B - hh], [px0 + 5.4, B - hh], [px0 + 4.5, B], [px0 + .5, B]], vLG(px0, 0, px0 + 5, 0, [[0, "#d37a46"], [.6, "#b4532f"], [1, "#84381f"]]));
+  vRR(px0 - 1, B - hh - .3, 7, 1.5, .6, "#dc8450");
+  if (r() < .8) vCirc(cx + (r() - .5) * 3, B - hh - 4.5 - r() * 2, .85, pk(CITY_FLOWER));
+  vEll(cx + 1, B + .2, 4.2, .9, "rgba(20,8,26,.28)");
+}
+function vDoor(dx, dcol, B) {                                               // porta em arco: moldura de pedra, tábuas, almofadas, bandeira de vidro, maçaneta e degrau
+  vArch(dx - 2.2, B - 46.2, 18.4, 46, vLG(dx, 0, dx + 14, 0, [[0, "#f0e6cc"], [1, "#cdbf9f"]]));
+  vArch(dx - .5, B - 44.5, 15, 42.5, "#241820");
+  vArch(dx, B - 44, 14, 42, vLG(dx, 0, dx + 14, 0, [[0, vLight(dcol, .12)], [.5, dcol], [1, vDark(dcol, .3)]]));
+  ctx.save(); vArchP(dx, B - 44, 14, 42); ctx.clip();
+  ctx.fillStyle = "rgba(0,0,0,.2)"; for (let xx = dx + 2.3; xx < dx + 14; xx += 2.3) ctx.fillRect(xx, B - 30, .45, 30);
+  ctx.strokeStyle = "rgba(0,0,0,.3)"; ctx.lineWidth = .6; vRR(dx + 2.2, B - 27, 9.6, 12, 1); ctx.stroke(); vRR(dx + 2.2, B - 12.5, 9.6, 9, 1); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,230,190,.22)"; ctx.lineWidth = .4; vRR(dx + 2.5, B - 26.6, 9.6, 12, 1); ctx.stroke();
+  ctx.restore();
+  vGlass(dx + 3.8, B - 40, 6.4, 8.4, true, true);
+  vCirc(dx + 11.2, B - 17.5, 1, "#e6bc6a"); vCirc(dx + 10.9, B - 17.8, .35, "#fff0c0");
+  vRR(dx - 3, B - 2.3, 20, 2.6, .9, vLG(0, B - 2.3, 0, B + .3, [[0, "#e2d6bc"], [1, "#b2a68e"]])); vSoft(dx - 3, B + .3, 20, 2.6, .25);
+}
+function vRoofTiles(bl, br, y0, hh, ins, bi) {                              // telhado de barro: degradê, fileiras de telhas e brilho na cumeeira
+  const p = () => { ctx.beginPath(); ctx.moveTo(bl, y0); ctx.lineTo(br, y0); ctx.lineTo(br - ins, y0 - hh); ctx.lineTo(bl + ins, y0 - hh); ctx.closePath(); };
+  p(); ctx.fillStyle = vLG(0, y0 - hh, 0, y0, [[0, "#d98558"], [.55, "#bd5c36"], [1, "#9a4228"]]); ctx.fill();
+  ctx.save(); p(); ctx.clip();
+  for (let yy = y0 - hh + 2.2, row = 0; yy < y0; yy += 2.3, row++) {
+    ctx.fillStyle = "rgba(70,25,15,.32)"; ctx.fillRect(bl, yy, br - bl, .5); ctx.fillStyle = "rgba(255,205,160,.2)"; ctx.fillRect(bl, yy + .5, br - bl, .4);
+    ctx.fillStyle = "rgba(70,25,15,.2)"; for (let tx = bl + (row % 2) * 1.5; tx < br; tx += 3) ctx.fillRect(tx, yy + .8, .4, 1.5);
+  }
+  vSoft(bl, y0 - 3.5, br - bl, 3.5, .22, "50,16,12");
+  ctx.restore();
+  vRR(bl + ins - 1, y0 - hh - .9, br - bl - ins * 2 + 2, 1.7, .8, vLG(0, y0 - hh - .9, 0, y0 - hh + .8, [[0, "#f0a070"], [1, "#c8663c"]]));
+  vRR(bl - .8, y0 - .5, br - bl + 1.6, 2.6, .9, vLG(0, y0 - .5, 0, y0 + 2.1, [[0, "#7a3a26"], [1, "#4a2418"]]));
+}
+
+// ---- chão: calçada de lajotas, meio-fio e rua de paralelepípedos em perspectiva
+function vGround(D, B, FW, CWD, r, ri, pk) {
+  const X1 = FW + CWD, bot = CITY_CH;
+  ctx.fillStyle = vLG(0, B + 18, 0, bot, [[0, "#6c615b"], [.45, "#786c63"], [1, "#4e4540"]]); ctx.fillRect(FW, B + 14, CWD, bot - B - 14);
+  for (let y = B + 22; y < bot;) {
+    const h = 3.4 + (y - B) / 24, sw0 = 8 + h * 1.5, k = (y - B) / (bot - B);
+    for (let sx = FW - r() * 10; sx < X1;) {
+      const sw = sw0 + r() * 5;
+      vRR(sx + .35, y + .3, sw - .7, h - .6, 1.3, vMix(pk(CITY_STONES), "#3a3038", .22 + .2 * k));
+      vRR(sx + .8, y + .45, sw - 1.6, .8, .4, "rgba(255,240,215,.13)");
+      sx += sw;
+    }
+    y += h;
+  }
+  for (let gx0 = FW + 40; gx0 < X1; gx0 += 130 + ri(0, 60)) {               // bueiros
+    vEll(gx0 + 8, B + 36, 9, 2.4, "#2c2622"); vEll(gx0 + 8, B + 36, 8, 1.9, "#3a332e");
+    for (let q = -6; q <= 6; q += 3) vLine(gx0 + 8 + q, B + 35.2, gx0 + 8 + q, B + 37, .5, "#5a5048");
+  }
+  ctx.fillStyle = vLG(0, B, 0, B + 18, [[0, "#b8ad9c"], [1, "#a29787"]]); ctx.fillRect(FW, B, CWD, 18);   // calçada
+  for (let row = 0; row < 2; row++) for (let x = FW - (row ? 7 : 0); x < X1; x += 14) {
+    vRR(x + .35, B + row * 9 + .35, 13.3, 8.3, .9, vMix("#b6ab9a", "#8a8070", r() * .5));
+    vRR(x + .7, B + row * 9 + .5, 12.6, .8, .4, "rgba(255,248,230,.25)");
+  }
+  ctx.fillStyle = vLG(0, B + 18, 0, B + 22, [[0, "#e6dcc8"], [.22, "#cfc4b0"], [.3, "#80756a"], [1, "#40372f"]]); ctx.fillRect(FW, B + 18, CWD, 4);   // meio-fio
+  vSoft(FW, B + 22, CWD, 9, .38, "12,6,18");
+  vSoft(FW, B, CWD, 11, .5, "28,16,40");                                    // sombra das paredes na calçada
+}
+
+// ---- praça: balaústres, ciprestes, pinheiro-manso, fonte, bancos e postes
+function vPiazza(D, B, r, pk) {
+  const P = D.piazza, fx = D.fountain.x;
+  const cypress = (cx, hh) => {
+    const top = B - 10 - hh, wd = 5.2;
+    ctx.beginPath(); ctx.moveTo(cx, top); ctx.bezierCurveTo(cx + wd * 1.1, top + hh * .35, cx + wd * 1.15, top + hh * .8, cx + 1, B - 9); ctx.lineTo(cx - 1, B - 9);
+    ctx.bezierCurveTo(cx - wd * 1.15, top + hh * .8, cx - wd * 1.1, top + hh * .35, cx, top); ctx.closePath();
+    ctx.fillStyle = vLG(cx - wd, 0, cx + wd, 0, [[0, "#1f4a2c"], [.45, "#336a3e"], [1, "#183a22"]]); ctx.fill();
+    ctx.save(); ctx.clip(); ctx.strokeStyle = "rgba(10,40,20,.35)"; ctx.lineWidth = .5;
+    for (let i = 0; i < hh; i += 2.6) { ctx.beginPath(); ctx.moveTo(cx - wd, top + i + 3); ctx.quadraticCurveTo(cx, top + i - 1, cx + wd, top + i + 3); ctx.stroke(); }
+    ctx.restore(); vRR(cx - 1, B - 12, 2, 4, .5, "#2a1c14");
+  };
+  [P.x + 14, P.x + 52, P.x + 118, P.x + 158].forEach((cx, i) => { vEll(cx, B - 9, 7, 1.4, "rgba(20,8,26,.22)"); cypress(cx, 54 + (i % 2) * 14); });
+  const pn = P.x + 86;                                                      // pinheiro-manso
+  ctx.beginPath(); ctx.moveTo(pn - 1.2, B - 9); ctx.bezierCurveTo(pn - 2.5, B - 28, pn + 2, B - 36, pn + .5, B - 47); ctx.lineTo(pn + 3, B - 47); ctx.bezierCurveTo(pn + 4.5, B - 36, pn + 1.5, B - 28, pn + 2.6, B - 9); ctx.closePath(); ctx.fillStyle = vLG(pn - 2, 0, pn + 3, 0, [[0, "#6a4630"], [1, "#3c2618"]]); ctx.fill();
+  [[0, 6, 25, "#25562d"], [-13, 9, 11, "#2f6a34"], [14, 10, 12, "#245026"], [0, 4, 20, "#3b8040"], [-6, 1, 12, "#4a9448"], [8, 3, 11, "#3d8442"]].forEach(([dx, dy, q, c]) => { ctx.save(); ctx.translate(pn + 1 + dx, B - 50 + dy); ctx.scale(1, .36); vCirc(0, 0, q, c); ctx.restore(); });
+  vRR(P.x - 2, B - 12.5, P.w + 4, 3, 1.2, vLG(0, B - 12.5, 0, B - 9.5, [[0, "#ece2c8"], [1, "#c4b79a"]]));        // muretinha
+  vRR(P.x, B - 9.5, P.w, 1, .4, "#b8aa98");
+  for (let bx = P.x + 1; bx < P.x + P.w - 2; bx += 6) {                      // balaústres
+    ctx.beginPath(); ctx.moveTo(bx + .8, B - 9); ctx.quadraticCurveTo(bx + 2.4, B - 7.8, bx + 1.4, B - 6.4); ctx.quadraticCurveTo(bx + 3.2, B - 4.6, bx + 1.3, B - 3.2); ctx.lineTo(bx + 2.9, B - .6); ctx.lineTo(bx - .5, B - .6); ctx.lineTo(bx + 1.1, B - 3.2);
+    ctx.quadraticCurveTo(bx - .7, B - 4.6, bx + 1.1, B - 6.4); ctx.quadraticCurveTo(bx + .1, B - 7.8, bx + .8, B - 9); ctx.closePath();
+    ctx.fillStyle = vLG(bx - 1, 0, bx + 3.2, 0, [[0, "#f0e6cc"], [1, "#b8aa90"]]); ctx.fill();
+  }
+  vRR(P.x - 1, B - .8, P.w + 2, 1.2, .5, "#a89a82");
+  for (let bx = P.x; bx < P.x + P.w; bx += 42) { vRR(bx - 1.2, B - 14, 5.6, 14, 1, vLG(bx - 1, 0, bx + 4, 0, [[0, "#ece2c8"], [1, "#b8aa90"]])); vRR(bx - 1.8, B - 15.4, 6.8, 2, .9, "#f2e9d2"); }
+  // fonte
+  vEll(fx, B + 3, 31, 3.6, "rgba(20,8,26,.28)");
+  vRR(fx - 27, B - 4, 54, 7, 3.2, vLG(0, B - 4, 0, B + 3, [[0, "#d8ccb0"], [1, "#9a8c76"]]));
+  vEll(fx, B - 4, 27, 5.4, "#e6dbc0"); vEll(fx, B - 3.6, 24, 4.4, vLG(0, B - 8, 0, B, [[0, "#7ec0dc"], [1, "#4f93b6"]]));
+  ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.lineWidth = .4; for (let q = 0; q < 3; q++) { ctx.beginPath(); ctx.ellipse(fx, B - 3.6, 10 + q * 5, 1.8 + q * .8, 0, 3.3, 6); ctx.stroke(); }
+  vRR(fx - 3.4, B - 32, 6.8, 29, 2.4, vLG(fx - 3, 0, fx + 3, 0, [[0, "#ece2c8"], [1, "#a89a82"]]));
+  vRR(fx - 6, B - 20, 12, 3, 1.4, "#d8ccb0");
+  vEll(fx, B - 31, 13, 3.6, "#e6dbc0"); vEll(fx, B - 31.2, 10.6, 2.6, vLG(0, B - 34, 0, B - 29, [[0, "#8fcce4"], [1, "#5aa0c0"]]));
+  vRR(fx - 1.2, B - 41, 2.4, 10, 1.2, "#e6dcc2"); vCirc(fx, B - 42.4, 2.2, "#f2e9d2");
+  [fx - 62, fx + 40].forEach(bx => {                                         // bancos
+    vEll(bx + 12, B + 5, 14, 1.6, "rgba(20,8,26,.28)");
+    ctx.strokeStyle = "#2a2d35"; ctx.lineWidth = .9; ctx.lineCap = "round";
+    [bx + 2, bx + 22].forEach(lx => { ctx.beginPath(); ctx.moveTo(lx, B - 13); ctx.lineTo(lx, B - 4); ctx.quadraticCurveTo(lx, B + 4, lx + (lx < bx + 10 ? -2.2 : 2.2), B + 4); ctx.stroke(); });
+    vRR(bx, B - 6, 24, 2.8, 1, vLG(0, B - 6, 0, B - 3.2, [[0, "#b07a3e"], [1, "#7c4e26"]]));
+    [B - 13.5, B - 10.2].forEach(yy => vRR(bx + .5, yy, 23, 2, .9, vLG(0, yy, 0, yy + 2, [[0, "#a06c38"], [1, "#6e4424"]])));
+  });
+  [P.x + 20, P.x + P.w - 22].forEach(lx => {                                 // postes antigos
+    vEll(lx + 1, B, 4.2, 1, "rgba(20,8,26,.28)");
+    ctx.beginPath(); ctx.moveTo(lx - 2.6, B); ctx.quadraticCurveTo(lx, B - 3, lx - .4, B - 8); ctx.lineTo(lx + 2.4, B - 8); ctx.quadraticCurveTo(lx + 2, B - 3, lx + 4.6, B); ctx.closePath(); ctx.fillStyle = "#2a2d35"; ctx.fill();
+    vRR(lx - .1, B - 46, 2.2, 38, 1, "#2a2d35");
+    ctx.strokeStyle = "#2a2d35"; ctx.lineWidth = .7; ctx.beginPath(); ctx.arc(lx - 2.4, B - 41, 2.4, 0, 3.6); ctx.stroke();
+    vPoly([[lx - 3.4, B - 47], [lx + 5.4, B - 47], [lx + 3.6, B - 50.4], [lx - 1.6, B - 50.4]], "#2a2d35");
+    vRR(lx - 2.2, B - 47, 6.4, 6.6, 1.4, vLG(0, B - 47, 0, B - 40, [[0, "#fff0b8"], [1, "#e8b052"]]));
+    ctx.strokeStyle = "#2a2d35"; ctx.lineWidth = .4; ctx.beginPath(); ctx.moveTo(lx + 1, B - 47); ctx.lineTo(lx + 1, B - 40.4); ctx.stroke();
+    vRR(lx - 2.6, B - 40.6, 7.2, 1.2, .5, "#2a2d35"); vCirc(lx + 1, B - 51.4, 1, "#2a2d35");
+    D.lamps.push({ x: lx + 1, y: B - 44, r: 42 });
+  });
+}
+
+// ---- vielas que cortam a rua (ao fundo: escadinha, parede, portinha, lanterna)
+function vGap(D, gp, B, r, pk) {
+  const wc = CITY_WALLS[gp.p], x = gp.x, w = gp.w, top = B - 12 - gp.hh;
+  ctx.fillStyle = vLG(0, top, 0, B, [[0, vMix(wc[1], "#2a1840", .35)], [1, vMix(wc[1], "#2a1840", .62)]]); ctx.fillRect(x, top, w, gp.hh + 12);
+  vBlot(x + w / 2, B - 20, 26, "255,214,150", .22);
+  vRoofTiles(x - 1.5, x + w + 1.5, top, 5, 2, 0);
+  const dw = 8, dx = x + (w - dw) / 2;
+  vArch(dx - 1.2, B - 35.2, dw + 2.4, 23.2, "#d8ccb0"); vArch(dx, B - 34, dw, 22, "#241820"); vArch(dx + 1.6, B - 25, dw - 3.2, 13, vLG(0, B - 25, 0, B - 12, [[0, "#f6d28a"], [1, "#e3a050"]]));
+  for (let q = 0; q < 2; q++) { const wx = x + 2.5 + q * (w - 11); vShutter(wx - 2.4, top + 7, 2.2, 10, CITY_SHUT[(gp.p + q) % 7]); vShutter(wx + 6.2, top + 7, 2.2, 10, CITY_SHUT[(gp.p + q) % 7]); vGlass(wx, top + 7, 6, 10, false, true); }
+  for (let q = 0; q < 4; q++) {                                              // degraus
+    const yy = B - 12 + q * 3; vRR(x - .5, yy, w + 1, 3, .6, vLG(0, yy, 0, yy + 3, [[0, "#c2b49c"], [.35, "#9a8c76"], [1, "#6a5e52"]]));
+  }
+  const lx = x + w / 2;
+  vLine(lx, top + 2, lx, B - 46, .6, "#2a2d35"); vLine(lx, B - 46, lx, B - 48, .6, "#2a2d35");
+  vPoly([[lx - 2.4, B - 48], [lx + 2.4, B - 48], [lx + 1.4, B - 49.6], [lx - 1.4, B - 49.6]], "#2a2d35");
+  vRR(lx - 1.6, B - 48, 3.2, 4.6, .9, vLG(0, B - 48, 0, B - 43, [[0, "#fff0b8"], [1, "#e8b052"]])); vRR(lx - 2.4, B - 43.4, 4.8, .9, .4, "#2a2d35");
+  D.lamps.push({ x: lx, y: B - 45, r: 26 });
+}
+
+// ---- igreja
+function vChurch(D, b, B, r, ri, pk) {
+  const x = b.x, w = b.w, top = b.top, ht = B - top, cx = x + w / 2, dh = 52, ry = top + 34;
+  ctx.fillStyle = vLG(0, top, 0, B, [[0, "#f1e6c4"], [.5, "#e6d6a8"], [1, "#cdb98c"]]); ctx.fillRect(x, top, w, ht);
+  for (let i = 0, nn = w * ht / 220 | 0; i < nn; i++) vBlot(x + r() * w, top + r() * ht, 4 + r() * 8, r() < .5 ? "120,70,40" : "255,248,225", .07 + r() * .05);
+  for (const px0 of [x + 2, x + w - 11]) {                                   // pilastras com capitel e base
+    vRR(px0, top, 9, ht, 1, vLG(px0, 0, px0 + 9, 0, [[0, "#ece2c8"], [.55, "#d8ccb0"], [1, "#b2a384"]]));
+    vRR(px0 - 1, top + 2, 11, 3.4, 1.2, "#f2e9d2"); vRR(px0 - 1, B - 6, 11, 4.4, 1.2, "#c9bc9e");
+  }
+  vRR(x - 3, top - 3.6, w + 6, 5, 1.6, vLG(0, top - 4, 0, top + 1, [[0, "#f2e9d2"], [1, "#b8aa90"]]));
+  ctx.beginPath(); ctx.moveTo(x - 2, top - 3); ctx.lineTo(x + w + 2, top - 3); ctx.lineTo(cx, top - 3 - (w + 4) / 2 / 2.2); ctx.closePath(); ctx.fillStyle = vLG(0, top - 36, 0, top - 3, [[0, "#f2e9d2"], [1, "#d2c5a6"]]); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + 9, top - 5); ctx.lineTo(x + w - 9, top - 5); ctx.lineTo(cx, top - 5 - (w - 18) / 2 / 2.2); ctx.closePath(); ctx.fillStyle = vLG(0, top - 30, 0, top - 5, [[0, "#ecdfba"], [1, "#e0cf9c"]]); ctx.fill();
+  vSoft(x, top + 1.4, w, 8, .26, "40,24,20");
+  vRR(x, B - 79, w, 3.4, 1.2, vLG(0, B - 79, 0, B - 75.6, [[0, "#ece2c8"], [1, "#b8aa90"]])); vSoft(x, B - 75.6, w, 4, .22);
+  vCirc(cx, ry, 14.2, vLG(0, ry - 14, 0, ry + 14, [[0, "#f2e9d2"], [1, "#b8aa90"]]));      // rosácea
+  vCirc(cx, ry, 11, "#1f2f50");
+  const cols = ["#c0392b", "#2d5a8a", "#e8b838", "#2f8a5f"];
+  for (let a = 0; a < 8; a++) { ctx.beginPath(); ctx.moveTo(cx, ry); ctx.arc(cx, ry, 10.2, a * .7854 + .05, (a + 1) * .7854 - .05); ctx.closePath(); ctx.fillStyle = cols[a % 4]; ctx.fill(); }
+  vCirc(cx, ry, 10.2, vRG(cx, ry, 0, 10.2, [[0, "rgba(255,240,200,.5)"], [1, "rgba(255,240,200,0)"]]));
+  ctx.strokeStyle = "#e6dcc0"; ctx.lineWidth = .7; for (let a = 0; a < 8; a++) { ctx.beginPath(); ctx.moveTo(cx, ry); ctx.lineTo(cx + Math.cos(a * .7854) * 10.4, ry + Math.sin(a * .7854) * 10.4); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(cx, ry, 5.5, 0, 6.3); ctx.stroke(); vCirc(cx, ry, 2.4, "#f0d890");
+  D.wins.push({ x: cx - 10, y: ry - 10, w: 20, h: 20, lit: true, soft: true, round: true });
+  for (const sx of [cx - 50, cx + 40]) {                                     // nichos com estátuas
+    vArch(sx - 1.4, B - 75.4, 13, 34, "#e2d8bc"); vArch(sx, B - 74, 10, 32, vLG(0, B - 74, 0, B - 42, [[0, "#2e2220"], [1, "#4a3830"]]));
+    ctx.beginPath(); ctx.moveTo(sx + 5, B - 66); ctx.bezierCurveTo(sx + 9.6, B - 62, sx + 9.6, B - 52, sx + 8.6, B - 46); ctx.lineTo(sx + 1.4, B - 46); ctx.bezierCurveTo(sx + .4, B - 52, sx + .4, B - 62, sx + 5, B - 66); ctx.fillStyle = vLG(sx, 0, sx + 10, 0, [[0, "#f4eee0"], [1, "#b8b0a0"]]); ctx.fill();
+    vCirc(sx + 5, B - 68.4, 2.2, "#f4eee0"); vRR(sx - 1.4, B - 44.4, 13, 2.4, 1, "#d8ccb0");
+  }
+  vArch(dx0(cx, -17), B - dh - 4.2, 34, dh + 4.2, vLG(cx - 17, 0, cx + 17, 0, [[0, "#f0e6cc"], [1, "#b8aa90"]]));
+  vArch(cx - 13.4, B - dh - 2, 26.8, dh, "#241820");
+  vArch(cx - 12, B - dh, 24, dh - 2, vLG(cx - 12, 0, cx + 12, 0, [[0, "#7a5034"], [.5, "#5a3a24"], [1, "#3e2616"]]));
+  ctx.save(); vArchP(cx - 12, B - dh, 24, dh - 2); ctx.clip();
+  ctx.fillStyle = "rgba(0,0,0,.26)"; for (let xx = cx - 9.5; xx < cx + 12; xx += 3.6) ctx.fillRect(xx, B - dh + 9, .5, dh - 11);
+  ctx.fillStyle = "#2a2d35"; ctx.fillRect(cx - 12, B - 36, 24, 1.2); ctx.fillRect(cx - 12, B - 18, 24, 1.2); ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(cx - .3, B - dh + 9, .6, dh);
+  ctx.restore();
+  vCirc(cx - 3, B - 26, 1.3, "#e6bc6a"); vCirc(cx + 3, B - 26, 1.3, "#e6bc6a");
+  vRR(cx - 20, B - 4, 40, 2.6, 1, "#d8ccb0"); vRR(cx - 23, B - 2, 46, 2.4, 1, vLG(0, B - 2, 0, B + .4, [[0, "#e2d6bc"], [1, "#a89c84"]])); vSoft(cx - 23, B + .4, 46, 3, .25);
+  vLantern(cx - 27, B - 40, D); vLantern(cx + 25, B - 40, D);
+  D.doors.push({ cx, x: cx - 12, y: B - dh, w: 24, h: dh - 2, arch: true, col: "#5a3a24", kind: "church", o: 0, t: 0 });
+  vSoft(x, top, w, ht, 0);
+}
+const dx0 = (cx, o) => cx + o;
+
+// ---- prédios comuns (fachada, janelas, térreo, telhado)
+function vBuilding(D, b, bi, B, r, ri, pk) {
+  const GF = CITY_GF, FH = CITY_FH;
+  const wc = CITY_WALLS[b.p], x = b.x, w = b.w, top = b.top, ht = B - top, shc = CITY_SHUT[(b.p * 3 + bi) % CITY_SHUT.length];
+  // parede: degradê vertical, volume nas laterais e manchas de reboco
+  ctx.fillStyle = vLG(0, top, 0, B, [[0, vLight(wc[0], .1)], [.35, wc[0]], [1, vMix(wc[0], wc[1], .55)]]); ctx.fillRect(x, top, w, ht);
+  for (let i = 0, nn = w * ht / 150 | 0; i < nn; i++) vBlot(x + r() * w, top + r() * ht, 3 + r() * 7, r() < .5 ? "110,60,40" : "255,246,225", .06 + r() * .06);
+  for (let q = 0, np = ri(1, 2); q < np; q++) {                              // reboco caído, aparecendo o tijolo
+    const bw = ri(7, 12), bh = ri(6, 10), bx = x + ri(3, w - 15), by = top + ri(8, Math.max(9, ht - 34));
+    ctx.save(); ctx.beginPath(); for (let a = 0; a < 9; a++) { const an = a / 9 * 6.2832, rr = .8 + r() * .35; ctx.lineTo(bx + bw / 2 + Math.cos(an) * bw / 2 * rr, by + bh / 2 + Math.sin(an) * bh / 2 * rr); } ctx.closePath(); ctx.clip();
+    ctx.fillStyle = "#b0603f"; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4); ctx.fillStyle = "rgba(60,20,12,.35)"; for (let yy = 1.4; yy < bh + 2; yy += 2.4) ctx.fillRect(bx - 2, by + yy, bw + 4, .45);
+    ctx.restore();
+  }
+  ctx.fillStyle = vLG(x, 0, x + w, 0, [[0, "rgba(255,246,225,.22)"], [.04, "rgba(255,246,225,0)"], [.84, "rgba(30,14,44,0)"], [1, "rgba(30,14,44,.34)"]]); ctx.fillRect(x, top, w, ht);
+  if (bi % 3 === 1) {                                                        // calha
+    vRR(x + w - 5.5, top + 2, 1.9, ht - 6, .9, vLG(x + w - 6, 0, x + w - 3, 0, [[0, "#8a7a68"], [1, "#4e4338"]]));
+    for (let yy = top + 8; yy < B - 6; yy += 14) vRR(x + w - 6.2, yy, 3.3, 1, .4, "#a89886");
+    vRR(x + w - 8, B - 5.5, 4.2, 2, .9, "#5a4e42");
+  }
+  if (bi % 4 === 2 && w > 56) {                                              // trepadeira com flores
+    const vx = x + w - 28, vh = ri(46, 66);
+    for (let i = 0; i < 70; i++) { const vy = B - 4 - vh * Math.pow(r(), 1.5), vxx = vx + r() * 24, q = 1.2 + r() * 1.4; vCirc(vxx, vy, q, vMix(pk(CITY_GREENS), "#0a2010", r() * .3)); if (r() < .28) vCirc(vxx + .4, vy - .3, .65, pk(["#d6477f", "#e868a0", "#b8326a"])); }
+  }
+  for (let k = 0; k <= b.n; k++) {                                           // frisos entre os andares
+    const ly = B - GF - k * FH; vRR(x, ly - .9, w, 1.8, .7, vLG(0, ly - 1, 0, ly + 1, [[0, wc[2]], [1, vDark(wc[1], .1)]])); vSoft(x, ly + .9, w, 2.6, .2);
+  }
+  vRR(x - 1.2, top - .8, w + 2.4, 2.4, .9, vLG(0, top - .8, 0, top + 1.6, [[0, vLight(wc[2], .2)], [1, wc[1]]])); vSoft(x, top + 1.6, w, 5, .3);
+
+  // janelas dos andares de cima
+  const nc = Math.max(1, w / 24 | 0), gx = (w - nc * 18) / (nc + 1), wxAt = i => x + gx * (i + 1) + 18 * i + 4;
+  for (let k = 0; k < b.n; k++) {
+    const ty = B - GF - (k + 1) * FH;
+    for (let i = 0; i < nc; i++) {
+      const wx = wxAt(i), ww = 10;
+      let st = pk([0, 0, 1, 1, 2, 3]); if (st === 3 && !(k === 0 || (k === 1 && r() < .4))) st = 0;
+      if (st === 3) {                                                        // porta de sacada com grade de ferro
+        const by = ty + 4, bh = 18;
+        vShutter(wx - 4.2, by, 3.6, bh, shc); vShutter(wx + ww + .6, by, 3.6, bh, shc);
+        vRR(wx - 1.3, by - 1.3, ww + 2.6, bh + 1.3, 1.1, wc[2]); vGlass(wx, by, ww, bh, false, true);
+        vRR(wx - 3.6, ty + 22, ww + 7.2, 2.3, 1, vLG(0, ty + 22, 0, ty + 24.3, [[0, "#f0e7d0"], [1, "#b8ab90"]])); vSoft(wx - 3, ty + 24.4, ww + 6, 4, .3);
+        [wx - 2, wx + ww].forEach(cx => vCirc(cx + 1, ty + 26, 1, wc[1]));
+        ctx.strokeStyle = "#2a2d35"; ctx.lineCap = "round"; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(wx - 3, ty + 15.8); ctx.lineTo(wx + ww + 3, ty + 15.8); ctx.stroke();
+        ctx.lineWidth = .4; for (let q = wx - 3; q <= wx + ww + 3; q += 1.9) { ctx.beginPath(); ctx.moveTo(q, ty + 16.2); ctx.lineTo(q, ty + 22); ctx.stroke(); }
+        ctx.lineWidth = .45; for (let q = wx - 2; q < wx + ww + 2; q += 3.8) { ctx.beginPath(); ctx.arc(q + 1, ty + 19.2, 1, 0, 6.3); ctx.stroke(); }
+        if (r() < .6) vBush(wx + 8, ty + 17, 2.4, pk, r);
+        D.wins.push({ x: wx, y: by, w: ww, h: bh, lit: r() < .5 });
+        continue;
+      }
+      const wy = ty + 8, wh = 14;
+      if (st === 2) {                                                        // persiana fechada
+        vShutter(wx - 1, wy, ww + 2, wh, shc); vRR(wx - 1, wy + 2, ww + 2, .7, .3, "rgba(30,30,40,.7)"); ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(wx + ww / 2 - .2, wy, .4, wh);
+        vRR(wx - 2, wy + wh + .6, ww + 4, 1.6, .8, "#e2d8c0"); vSoft(wx - 1.5, wy + wh + 2.2, ww + 3, 3.4, .3);
+      } else {
+        vShutter(wx - 4.2, wy, 3.6, wh, shc); vShutter(wx + ww + .6, wy, 3.6, wh, shc);
+        vWin(wx, wy, ww, wh, { arch: st === 1, frame: wc[2] });
+        D.wins.push({ x: wx, y: wy, w: ww, h: wh, lit: r() < .5, arch: st === 1 });
+      }
+      if (r() < .38) vFlowerBox(wx - 1, wy + wh - 3, ww + 2, r, pk);
+    }
+  }
+  // térreo
+  vRR(x, B - 4.5, w, 4.5, 1, vLG(0, B - 4.5, 0, B, [[0, "#b0a28e"], [1, "#82766a"]]));
+  const doorAt = (dx, withLamp, kind) => {
+    const dcol = pk(CITY_DOOR); vDoor(dx, dcol, B);
+    D.wins.push({ x: dx + 3.8, y: B - 40, w: 6.4, h: 8.4, lit: r() < .6, arch: true });
+    D.doors.push({ cx: dx + 7, x: dx, y: B - 44, w: 14, h: 42, arch: true, col: dcol, kind: kind || "house", locked: r() < .5, o: 0, t: 0 });
+    if (withLamp) vLantern(dx + 19, B - 38, D);
+  };
+  const awning = (ax, aw, col, y0, hh) => {                                  // toldo listrado com a barra recortada em ondas
+    const sw = 4;
+    for (let i = 0; i < aw; i += sw) {
+      const c = (i / sw | 0) % 2 ? "#f4ead2" : col, x0 = ax + i, x1 = Math.min(ax + aw, x0 + sw);
+      ctx.beginPath(); ctx.moveTo(x0 + .6, y0); ctx.lineTo(x1 - .6, y0); ctx.lineTo(x1, y0 + hh); ctx.quadraticCurveTo((x0 + x1) / 2, y0 + hh + 2.4, x0, y0 + hh); ctx.closePath();
+      ctx.fillStyle = vLG(0, y0, 0, y0 + hh + 2, [[0, vLight(c, .12)], [1, vDark(c, .16)]]); ctx.fill();
+    }
+    vRR(ax - .5, y0 - 1.2, aw + 1, 1.8, .8, "#3a2a22"); vSoft(ax, y0 + hh + 2.4, aw, 6, .34);
+  };
+  if (b.g === "door" || b.g === "sign" || b.g === "shrine") {
+    const dx = b.g === "door" ? x + ri(10, Math.max(10, w - 30)) : x + 8; doorAt(dx, true);
+    if (b.g === "door") { if (dx - x > 18 && r() < .8) vPot(dx - 9, false, B, r, pk); if (x + w - dx > 40 && r() < .8) vPot(dx + 24, false, B, r, pk); }
+    if (b.g === "sign") {                                                    // placa azul do caminho do cais (a saída da cidade)
+      const sx = CITY.MAX - 40;
+      vRR(sx - 1.4, B - 55, 49, 17, 2.6, "#eef2e6"); vRR(sx, B - 53.6, 46.2, 14.2, 1.8, vLG(0, B - 54, 0, B - 39, [[0, "#2d6cb0"], [1, "#1a4a85"]]));
+      vSoft(sx - 1, B - 38, 48, 4, .28);
+      vText("CAIS  ›", sx + 23, B - 43, "#ffffff", 8.4, 40, "rgba(0,0,30,.4)");
+    }
+    if (b.g === "shrine") {                                                  // nichozinho com a santa e uma velinha
+      const sx = x + w - 20;
+      vArch(sx - 1.4, B - 55, 12, 20.4, "#e2d8bc"); vArch(sx, B - 53.6, 9.2, 18, vLG(0, B - 54, 0, B - 36, [[0, "#2a1a1c"], [1, "#4a3430"]]));
+      ctx.beginPath(); ctx.moveTo(sx + 4.6, B - 49); ctx.bezierCurveTo(sx + 8, B - 46, sx + 8.2, B - 41, sx + 7.4, B - 37.4); ctx.lineTo(sx + 1.8, B - 37.4); ctx.bezierCurveTo(sx + 1, B - 41, sx + 1.2, B - 46, sx + 4.6, B - 49); ctx.fillStyle = vLG(sx, 0, sx + 9, 0, [[0, "#3d72b8"], [1, "#264a82"]]); ctx.fill();
+      vCirc(sx + 4.6, B - 50.6, 1.8, "#e8c9a0"); vRR(sx + 3.2, B - 46, 2.8, 5, 1.2, "#eef2f8");
+      vRR(sx - 2, B - 36.2, 13.2, 2.2, 1, "#dccfae"); vSoft(sx - 1.5, B - 34, 12, 3, .3);
+      vRR(sx + .8, B - 40.2, 1.3, 3.6, .5, "#f6ecd2"); vRR(sx + 7, B - 40.2, 1.3, 3.6, .5, "#f6ecd2");
+      D.doors.push({ cx: sx + 4.6, kind: "shrine", glow: 0, o: 0, t: 0 });
+      D.lamps.push({ x: sx + 4.6, y: B - 40, r: 15 });
+    }
+  } else if (b.g === "shop") {
+    const sx0 = x + 6, sw = w - 12, awn = pk(["#c0392b", "#2f6b4f", "#2d5a8a", "#d98e04"]), nm = b.name;
+    vRR(x + 7.5, B - 55, w - 15, 14.4, 2, vLG(0, B - 55, 0, B - 40, [[0, "#6a4630"], [1, "#3a2414"]]));
+    vRR(x + 8.8, B - 53.7, w - 17.6, 11.8, 1.4, vLG(0, B - 54, 0, B - 42, [[0, "#4a2f1c"], [1, "#2e1c10"]]));
+    vText(nm, x + w / 2, B - 45, "#f4dca0", 6.4, w - 24, "rgba(0,0,0,.5)");
+    const ww2 = sw - 16;
+    vRR(sx0 - 1, B - 32, ww2 + 2, 28.6, 1.6, "#4a3020");
+    vRR(sx0, B - 31, ww2, 26.6, 1, vLG(0, B - 31, 0, B - 4, [[0, "#f0c880"], [1, "#b8803c"]]));
+    ctx.save(); vRR(sx0, B - 31, ww2, 26.6, 1); ctx.clip();
+    [B - 22, B - 13].forEach(yy => { vRR(sx0, yy, ww2, 1.4, .5, "#7a5230"); vSoft(sx0, yy + 1.4, ww2, 2, .25); });
+    for (let q = sx0 + 2.6; q < sx0 + ww2 - 5; q += 5.2) {
+      vRR(q, B - 26.6, 3.4, 4.6, 1.2, pk(["#c0392b", "#f2c94c", "#2f6b4f", "#e8e0c8", "#2d5a8a"]));
+      vRR(q, B - 17.6, 3.4, 4.6, 1.2, pk(["#d9b26a", "#c0392b", "#e8e0c8", "#8a4a2a"]));
+    }
+    ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.moveTo(sx0 + 3, B - 5); ctx.lineTo(sx0 + 14, B - 31); ctx.lineTo(sx0 + 24, B - 31); ctx.lineTo(sx0 + 13, B - 5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    D.wins.push({ x: sx0, y: B - 31, w: ww2, h: 26.6, lit: true, soft: true });
+    awning(sx0 - 2, sw + 4, awn, B - 41, 7);
+    const dx = sx0 + ww2 + 2;
+    vRR(dx - 1, B - 35, 14, 32, 1.6, "#4a3020"); vRR(dx, B - 34, 12, 30.4, 1, vLG(dx, 0, dx + 12, 0, [[0, "#6a4630"], [1, "#3e281a"]]));
+    vGlass(dx + 1.8, B - 32, 8.4, 13, false, true); vCirc(dx + 9.6, B - 15.6, .9, "#e6bc6a");
+    vRR(dx - 2, B - 3.2, 16, 2.6, 1, "#c6b9a0");
+    D.wins.push({ x: dx + 1.8, y: B - 32, w: 8.4, h: 13, lit: true });
+    D.doors.push({ cx: dx + 6, x: dx, y: B - 34, w: 12, h: 30, arch: false, col: "#4a3020", kind: "shop", name: nm, o: 0, t: 0 });
+    vLantern(x + w - 6, B - 32, D);
+    if (r() < .7) vPot(x + 1, false, B, r, pk);
+    if (bi % 2 === 0) for (const cx of [x + w - 30, x + w - 16]) {            // caixotes de limão
+      vEll(cx + 6, B + 5, 8, 1.3, "rgba(20,8,26,.3)");
+      vRR(cx, B - 2, 12.4, 7.4, 1, vLG(0, B - 2, 0, B + 5.4, [[0, "#c28a4a"], [1, "#8a5a2c"]])); ctx.fillStyle = "rgba(60,30,12,.45)"; ctx.fillRect(cx + .5, B + 1.2, 11.4, .5); ctx.fillRect(cx + .5, B + 3.6, 11.4, .5);
+      for (let j = 0; j < 5; j++) { vCirc(cx + 1.6 + j * 2.3, B - 2.6 + (j % 2) * .8, 1.3, vRG(cx + 1.4 + j * 2.3, B - 3 + (j % 2) * .8, 0, 1.4, [[0, "#fff09a"], [1, "#e8c020"]])); }
+    }
+  } else if (b.g === "cafe") {
+    const cx0 = x + w / 2;
+    vRR(cx0 - 24, B - 55, 48, 13.6, 2, vLG(0, B - 55, 0, B - 41, [[0, "#3a5a48"], [1, "#223a2e"]])); vRR(cx0 - 22.6, B - 53.6, 45.2, 10.8, 1.4, "#f6edd4");
+    vText("CAFFÈ", cx0, B - 45, "#a32a1c", 8.6, 38, "rgba(80,20,10,.25)");
+    vRR(x + 9, B - 29, 22, 25.6, 1.6, "#4a3020"); vRR(x + 10, B - 28, 20, 23.6, 1, vLG(0, B - 28, 0, B - 4, [[0, "#f6d68a"], [1, "#c88a44"]]));
+    ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.beginPath(); ctx.moveTo(x + 12, B - 5); ctx.lineTo(x + 20, B - 28); ctx.lineTo(x + 27, B - 28); ctx.lineTo(x + 19, B - 5); ctx.closePath(); ctx.fill();
+    D.wins.push({ x: x + 10, y: B - 28, w: 20, h: 23.6, lit: true, soft: true });
+    awning(x + 3, w - 6, "#b8321f", B - 41, 8);
+    doorAt(x + w - 26, false, "cafe");
+    vRR(x + 33.4, B - 25, 13.2, 15.4, 1.4, "#5a3a22"); vRR(x + 34.4, B - 24, 11.2, 13.4, .9, "#26352e");
+    ctx.strokeStyle = "rgba(240,236,220,.75)"; ctx.lineWidth = .4; ctx.lineCap = "round"; [[-20.5, 8], [-18, 6.4], [-15.6, 8.4], [-13.4, 5]].forEach(([yy, ln]) => { ctx.beginPath(); ctx.moveTo(x + 36, B + yy); ctx.bezierCurveTo(x + 37.5, B + yy - .8, x + 38.5, B + yy + .8, x + 36 + ln, B + yy); ctx.stroke(); });
+    for (const tx of [x + 6, x + w - 34]) {                                  // mesinhas e cadeiras vermelhas
+      vEll(tx + 5.5, B + 6.4, 10, 1.4, "rgba(20,8,26,.3)");
+      vLine(tx + 5.5, B - 1, tx + 5.5, B + 5.2, .8, "#3a3a42"); vLine(tx + 3, B + 5.6, tx + 8, B + 5.6, .8, "#3a3a42");
+      vEll(tx + 5.5, B - 2.2, 6.4, 1.8, vLG(0, B - 4, 0, B, [[0, "#f0e6c8"], [1, "#b8ac8e"]]));
+      for (const cxx of [tx - 6, tx + 14]) {
+        const sgn = cxx < tx ? -1 : 1;
+        vLine(cxx + 1, B + 2.6, cxx + .6, B + 5.8, .6, "#3a3a42"); vLine(cxx + 4.4, B + 2.6, cxx + 4.8, B + 5.8, .6, "#3a3a42");
+        vRR(cxx - .4, B + 1.2, 6, 1.8, .8, "#b53a2c");
+        ctx.strokeStyle = "#b53a2c"; ctx.lineWidth = .9; ctx.beginPath(); ctx.moveTo(cxx + (sgn < 0 ? .4 : 4.8), B + 1.2); ctx.bezierCurveTo(cxx + (sgn < 0 ? -.8 : 6), B - 2, cxx + (sgn < 0 ? -.8 : 6), B - 4, cxx + (sgn < 0 ? .6 : 4.6), B - 5.6); ctx.stroke();
+      }
+    }
+  } else if (b.g === "arch") {                                               // sottoportico: túnel por baixo do prédio
+    const tw = 28, th = 46, tx = x + (w - tw) / 2;
+    vArch(tx - 2.4, B - th - 2.4, tw + 4.8, th + 2.4, vLG(tx, 0, tx + tw, 0, [[0, "#e6dcc2"], [1, "#b8aa90"]]));
+    vArch(tx, B - th, tw, th, vLG(0, B - th, 0, B, [[0, "#1c1218"], [1, "#2e2026"]]));
+    ctx.save(); vArchP(tx, B - th, tw, th); ctx.clip();
+    ctx.fillStyle = vRG(tx + tw / 2, B - 18, 0, 20, [[0, "rgba(255,226,160,.95)"], [.5, "rgba(236,170,100,.5)"], [1, "rgba(120,70,60,0)"]]); ctx.fillRect(tx, B - th, tw, th);
+    vArch(tx + 6, B - th + 8, tw - 12, th - 10, "rgba(70,50,50,.5)");
+    ctx.restore();
+    vRR(tx, B - 3.2, tw, 3.2, 1, vLG(0, B - 3.2, 0, B, [[0, "#c2b49c"], [1, "#82766a"]])); vRR(tx + tw / 2 - 2.4, B - th - 3.4, 4.8, 4.6, 1.4, "#f0e6cc");
+    vLantern(tx - 8, B - 36, D); vLantern(tx + tw + 5, B - 36, D);
+    D.lamps.push({ x: tx + tw / 2, y: B - 22, r: 18 });
+    if (bi % 2 === 0) {                                                      // vespa estacionada
+      const vx = x + 4, vy = B + 4, vc = pk([["#8fd0c0", "#cdf2e8", "#5a9888"], ["#e8a0a8", "#fbd0d4", "#b86a74"], ["#f2d070", "#fff0b8", "#c09a3c"]]);
+      vEll(vx + 14, vy + 1.2, 16, 2, "rgba(20,8,26,.34)");
+      [[vx + 6, vy - 3.6], [vx + 23, vy - 3.6]].forEach(([wx, wy]) => { vCirc(wx, wy, 4.2, "#1c1c22"); vCirc(wx, wy, 2.4, "#8a8a92"); vCirc(wx, wy, .9, "#d0d0d6"); });
+      ctx.beginPath(); ctx.moveTo(vx + 1, vy - 8); ctx.bezierCurveTo(vx + 1, vy - 15, vx + 9, vy - 15.4, vx + 12, vy - 12); ctx.lineTo(vx + 19.4, vy - 11); ctx.bezierCurveTo(vx + 21, vy - 13, vx + 21, vy - 14, vx + 20.4, vy - 17); ctx.lineTo(vx + 22.8, vy - 17.2); ctx.lineTo(vx + 24, vy - 8); ctx.bezierCurveTo(vx + 20, vy - 5.6, vx + 9, vy - 5.6, vx + 1, vy - 8); ctx.closePath();
+      ctx.fillStyle = vLG(0, vy - 17, 0, vy - 5, [[0, vc[1]], [.35, vc[0]], [1, vc[2]]]); ctx.fill();
+      vRR(vx + 2, vy - 16.6, 10.4, 3, 1.4, "#4a3022"); vLine(vx + 19, vy - 19.6, vx + 23.6, vy - 19.6, .8, "#2a2d35"); vLine(vx + 21.4, vy - 19.6, vx + 21.4, vy - 17.4, .8, "#2a2d35");
+      vCirc(vx + 24, vy - 16.2, 1.4, "#fff0b0");
+    }
+  }
+  // luz no alto, penumbra embaixo
+  vSoft(x, B - 30, w, 30, .0);
+  // telhado
+  if (bi % 3 !== 2) {
+    const hh = 12, ins = Math.min(12, w * .22);
+    vRoofTiles(x - 3, x + w + 3, top - 2.5, hh, ins, bi);
+    vSoft(x, top - .2, w, 6, .0);
+    if (bi % 2 === 0) { const cx = x + ri(6, Math.max(6, w - 16)); vRR(cx, top - 26, 6.4, 18, .7, vLG(cx, 0, cx + 6.4, 0, [[0, "#b06a50"], [1, "#6a3c2c"]])); vRR(cx - 1.2, top - 27.8, 8.8, 2.4, .9, "#4e2a20"); ctx.fillStyle = "rgba(60,20,12,.25)"; for (let yy = top - 24; yy < top - 9; yy += 3) ctx.fillRect(cx, yy, 6.4, .4); }
+    else { const ax = x + ri(10, Math.max(10, w - 14)); ctx.strokeStyle = "#3a3d46"; ctx.lineWidth = .5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(ax, top - 24); ctx.lineTo(ax, top - 12); [[-4, 0], [-3, 3], [-4, 6]].forEach(([dx, dy]) => { ctx.moveTo(ax + dx, top - 24 + dy); ctx.lineTo(ax - dx, top - 24 + dy); }); ctx.stroke(); }
+  } else {                                                                   // terraço com altana de madeira
+    vRR(x, top - 6.4, w, 6.4, 1, vLG(0, top - 6.4, 0, top, [[0, vLight(wc[0], .1)], [1, wc[1]]])); vRR(x - 1.2, top - 8, w + 2.4, 2, .9, vLG(0, top - 8, 0, top - 6, [[0, wc[2]], [1, wc[1]]]));
+    const ax = x + ri(6, Math.max(6, w - 30));
+    vRR(ax, top - 23, 20, 15, .8, vLG(0, top - 23, 0, top - 8, [[0, "#a47c54"], [1, "#6e4e32"]]));
+    vPoly([[ax - 2.6, top - 22.4], [ax + 22.6, top - 22.4], [ax + 17, top - 27.5], [ax + 3, top - 27.5]], vLG(0, top - 27.5, 0, top - 22.4, [[0, "#d98558"], [1, "#a94a2c"]]));
+    vArch(ax + 3, top - 19, 5.4, 11, "#2a1c18"); vArch(ax + 11.6, top - 19, 5.4, 11, "#2a1c18"); vLine(ax + .4, top - 22, ax + .4, top - 8, .9, "#5a3e28"); vLine(ax + 19.6, top - 22, ax + 19.6, top - 8, .9, "#5a3e28");
+    for (let q = 0; q < 3; q++) { const ppx = x + ri(2, Math.max(2, w - 7)); if (ppx > ax - 5 && ppx < ax + 22) continue; vBush(ppx + 2.2, top - 11.5, 2.5, pk, r); vRR(ppx, top - 9, 4.6, 3, .8, "#b4532f"); }
+  }
+  // varal na fachada (só nos prédios de porta simples)
+  if (b.g === "door" && bi % 2 === 1 && nc >= 2) {
+    const ty = B - GF - FH, x1 = x + 3, x2 = x + w - 7, y1 = ty + 27, y2 = ty + 28;
+    vCirc(x1, y1, .9, "#2a2d35"); vCirc(x2, y2, .9, "#2a2d35");
+    const items = []; for (let cx = x1 + 6; cx < x2 - 8; cx += 10) items.push({ x: cx, kind: ri(0, 3), col: pk(["#f1ecdc", "#c0392b", "#2d5a8a", "#f2c94c", "#e8e0c8", "#2f6b4f"]), ph: r() * 6 });
+    D.lines.push({ x1, y1, x2, y2, sag: 2, items });
+  }
+}
+
+// ---- grão fino de pintura por cima do cenário (dá textura de papel/reboco, sem quadradinhos)
+function cityGrain(c2, FW, CWD, cs, seed) {
+  let sd = seed || 91; const rr = () => (sd = sd * 16807 % 2147483647) / 2147483647;
+  const nz = document.createElement("canvas"); nz.width = nz.height = 256; const nx = nz.getContext("2d"), im = nx.createImageData(256, 256);
+  for (let i = 0; i < im.data.length; i += 4) { const v = rr() < .5 ? 0 : 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = rr() < .4 ? 3 + rr() * 11 : 0; }
+  nx.putImageData(im, 0, 0);
+  c2.save(); c2.setTransform(1, 0, 0, 1, 0, 0); c2.globalCompositeOperation = "source-atop";
+  const pat = c2.createPattern(nz, "repeat"); c2.fillStyle = pat; c2.fillRect(0, 0, c2.canvas.width, c2.canvas.height);
+  c2.restore();
+}
+
+function cityBuild() {                                                     // pinta tudo que não se mexe, uma vez só
   const D = cityData, B = CITY_B, FW = CITY_FW, CWD = CITY_FX1 - CITY_FW, GF = CITY_GF, FH = CITY_FH, cs = CITY_HD ? CITY_CS : S * CITY_Z;
   let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647, ri = (a, b) => a + (r() * (b - a + 1) | 0), pk = a => a[r() * a.length | 0];
   D.wins = []; D.lamps = []; D.bulbs = []; D.lines = []; D.doors = [];
@@ -2454,321 +2908,35 @@ function cityBuild() {                                                   // pint
   const c2 = cv2.getContext("2d"); c2.setTransform(cs, 0, 0, cs, -FW * cs, 0);
   const main = ctx; ctx = c2;
   try {
-    // ---- chão de pedra (paralelepípedos que vão crescendo para a frente)
-    rect("#6d6259", FW, B, CWD, CITY_CH - B);
-    for (let y = B; y < CITY_CH;) {
-      const h = 3 + ((y - B) / 24 | 0);
-      for (let sx = FW - r() * 10; sx < CITY_FX1;) {
-        const sw = 7 + h * 1.5 + r() * 5 | 0;
-        rect(pk(CITY_STONES), sx | 0, y, sw - 1, h - 1); rect("rgba(255,240,210,.13)", sx | 0, y, sw - 1, 1);
-        sx += sw;
-      }
-      y += h;
-    }
-    rect("#5b5149", FW, B + 48, CWD, 3); rect("rgba(255,240,210,.16)", FW, B + 51, CWD, 1); rect("rgba(0,0,0,.25)", FW, B + 48, CWD, 1);   // sarjeta
-    for (let gx0 = FW + 40; gx0 < CITY_FX1; gx0 += 130 + ri(0, 60)) { rect("#2f2a26", gx0, B + 47, 16, 5); for (let q = 1; q < 16; q += 3) rect("#6b6058", gx0 + q, B + 47, 1, 5); }   // bueiros
-    rect("#a39889", FW, B, CWD, 18); rect("#b4a999", FW, B, CWD, 1);                    // calçada de lajotas rente às fachadas
-    for (let lx = FW + 3; lx < CITY_FX1; lx += 15) rect("rgba(40,28,20,.16)", lx, B + 1, 1, 17);
-    rect("rgba(40,28,20,.12)", FW, B + 9, CWD, 1);
-    rect("#d2c8b6", FW, B + 18, CWD, 1); rect("#6a5f55", FW, B + 19, CWD, 2); rect("#3f3731", FW, B + 21, CWD, 1);   // meio-fio: quina clara, face e sombra no asfalto
-    let g = c2.createLinearGradient(0, B, 0, B + 22); g.addColorStop(0, "rgba(28,16,40,.55)"); g.addColorStop(1, "rgba(28,16,40,0)");
-    ctx.fillStyle = g; ctx.fillRect(FW, B, CWD, 22);                      // sombra das paredes no chão
-
-    // ---- praça: muretinha com balaústres, ciprestes e pinheiro, fonte, bancos e postes
-    {
-      const P = D.piazza, fx = D.fountain.x;
-      const cypress = (cx, hh) => { for (let i = 0; i < hh; i++) { const u = i / hh, hf = Math.max(1, Math.round(5 * Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.05)), .6) + .5)); rect(i % 5 < 2 ? "#2f5a34" : "#25482b", cx - hf, B - 10 - hh + i, hf * 2, 1); } rect("#1d3a22", cx - 1, B - 12, 2, 4); };
-      [P.x + 14, P.x + 52, P.x + 118, P.x + 158].forEach((cx, i) => cypress(cx, 54 + (i % 2) * 14));
-      const pn = P.x + 86; rect("#5a3a24", pn, B - 44, 3, 36); cityEll(pn + 1, B - 50, 24, 6, "#2f6a34"); cityEll(pn + 1, B - 53, 20, 4, "#468a3c"); cityEll(pn - 10, B - 47, 9, 4, "#2f6a34"); cityEll(pn + 12, B - 47, 9, 4, "#25482b");
-      rect("#cfc3a8", P.x - 2, B - 12, P.w + 4, 3); rect("#e0d5bc", P.x - 2, B - 12, P.w + 4, 1); rect("#b8aa98", P.x, B - 9, P.w, 9);
-      for (let bx = P.x; bx < P.x + P.w; bx += 6) { rect("#e0d5bc", bx, B - 9, 2, 8); rect("rgba(0,0,0,.2)", bx + 2, B - 9, 1, 8); }
-      for (let bx = P.x; bx < P.x + P.w; bx += 42) { rect("#cfc3a8", bx - 1, B - 14, 5, 14); rect("#e0d5bc", bx - 1, B - 14, 5, 1); }
-      rect("rgba(0,0,0,.25)", fx - 28, B + 2, 56, 3);                    // fonte
-      rect("#b8aa98", fx - 26, B - 3, 52, 6); rect("#8f8274", fx - 26, B + 1, 52, 2); cityEll(fx, B - 3, 26, 5, "#d8ccb0"); cityEll(fx, B - 3, 23, 4, "#6fb0d0"); cityEll(fx, B - 4, 17, 2, "#8fd0ea");
-      rect("#d8ccb0", fx - 3, B - 30, 6, 28); rect("#b8aa98", fx + 1, B - 30, 2, 28); cityEll(fx, B - 30, 12, 3, "#d8ccb0"); rect("#b8aa98", fx - 10, B - 30, 20, 2); cityEll(fx, B - 31, 9, 2, "#6fb0d0");
-      rect("#d8ccb0", fx - 1, B - 40, 2, 10); rect("#e8dcc0", fx - 2, B - 42, 4, 3);
-      [fx - 62, fx + 40].forEach(bx => {                                  // bancos
-        rect("rgba(0,0,0,.22)", bx, B + 4, 24, 2); rect("#2a2d35", bx + 1, B - 4, 2, 8); rect("#2a2d35", bx + 21, B - 4, 2, 8);
-        rect("#8a5a2e", bx, B - 5, 24, 3); rect("#a87238", bx, B - 5, 24, 1); rect("#6b4a30", bx, B - 13, 24, 2); rect("#6b4a30", bx, B - 10, 24, 2);
-      });
-      [P.x + 20, P.x + P.w - 22].forEach(lx => { rect("#2a2d35", lx, B - 46, 2, 46); rect("#2a2d35", lx - 3, B - 2, 8, 2); rect("#2a2d35", lx - 2, B - 50, 6, 1); rect("#e8c070", lx - 1, B - 49, 4, 5); rect("#2a2d35", lx - 2, B - 44, 6, 1); D.lamps.push({ x: lx + 1, y: B - 47, r: 42 }); });
-    }
-
-    // ---- vielas que cortam a rua (ao fundo: escadinha, parede, portinha, lanterna)
-    D.gaps.forEach(gp => {
-      const wc = CITY_WALLS[gp.p], x = gp.x, w = gp.w, top = B - 12 - gp.hh;
-      ctx.fillStyle = "rgba(255,226,160,.07)"; ctx.beginPath();           // poça de luz no chão
-      ctx.moveTo(x, B); ctx.lineTo(x + w, B); ctx.lineTo(x + w + 36, B + 86); ctx.lineTo(x + 24, B + 86); ctx.closePath(); ctx.fill();
-      rect(wc[1], x, top, w, gp.hh); rect("rgba(40,20,60,.30)", x, top, w, gp.hh);
-      rect("#5a2f20", x - 1, top - 3, w + 2, 3); rect("#b4532f", x - 1, top - 6, w + 2, 3); rect("rgba(255,200,150,.25)", x - 1, top - 6, w + 2, 1);
-      const dw = 8, dx = x + (w - dw >> 1);
-      cityArch("#d8ccb0", dx - 1, B - 12 - 22, dw + 2, 22); cityArch("#2a1c22", dx, B - 12 - 21, dw, 21); cityArch("#e8b868", dx + 2, B - 12 - 12, dw - 4, 12);
-      for (let q = 0; q < 2; q++) { const wx = x + 2 + q * (w - 10), wy = top + 8; rect("#3a4f66", wx, wy, 6, 9); rect("#5d85a6", wx + 1, wy + 1, 4, 7); rect(CITY_SHUT[(gp.p + q) % 7], wx - 2, wy, 2, 9); rect(CITY_SHUT[(gp.p + q) % 7], wx + 6, wy, 2, 9); }
-      rect("#7a6c60", x, B - 12, w, 12);                                  // degraus
-      for (let q = 0; q < 4; q++) { rect("#b8aa98", x, B - 12 + q * 3, w, 1); rect("#5a4e46", x, B - 11 + q * 3, w, 1); }
-      const lx = x + (w >> 1);
-      rect("#2a2d35", lx - 1, top + 2, 2, 1); rect("#2a2d35", lx, top + 3, 1, B - 44 - top - 6); rect("#2a2d35", lx - 2, B - 48, 5, 1); rect("#e8c070", lx - 1, B - 47, 3, 4); rect("#2a2d35", lx - 2, B - 43, 5, 1);
-      D.lamps.push({ x: lx, y: B - 45, r: 26 });
-    });
-
-    // ---- prédios
-    D.blds.forEach((b, bi) => {
-      const wc = CITY_WALLS[b.p], x = b.x, w = b.w, top = b.top, ht = B - top, shc = CITY_SHUT[(b.p * 3 + bi) % CITY_SHUT.length];
-      const lantern = (lx, ly) => { rect("#2a2d35", lx - 1, ly, 5, 1); rect("#e8c070", lx, ly + 1, 3, 4); rect("#2a2d35", lx - 1, ly + 5, 5, 1); rect("#2a2d35", lx + 1, ly - 3, 1, 3); D.lamps.push({ x: lx + 1.5, y: ly + 3, r: 34 }); };
-      const pot = (px0, big) => {
-        const hh = big ? 6 : 5; rect("#b4532f", px0, B - hh, 5, hh); rect("#cf6d3f", px0 - 1, B - hh, 7, 1); rect("#8a3c22", px0 + 4, B - hh + 1, 1, hh - 1);
-        cityBlob(px0 + 2, B - hh - 4, big ? 4 : 3, CITY_GREENS); if (r() < .7) { rect(pk(CITY_FLOWER), px0 + 1, B - hh - 6, 2, 2); rect(pk(CITY_FLOWER), px0 + 3, B - hh - 4, 1, 1); }
-      };
-      if (b.g === "church") {
-        const cx = x + (w >> 1), dh = 52, ry = top + 34;
-        rect("#e6d6a8", x, top, w, ht); rect("#c9b888", x + w - 5, top, 5, ht); rect("#f2e6c0", x + 1, top, 1, ht);
-        for (let i = 0, nn = w * ht / 50 | 0; i < nn; i++) rect(r() < .5 ? "rgba(90,40,20,.10)" : "rgba(255,245,220,.16)", x + ri(0, w - 3), top + ri(0, ht - 3), ri(1, 3), 1);
-        rect("#d8ccb0", x + 2, top, 7, ht); rect("#d8ccb0", x + w - 11, top, 7, ht); rect("#b8a888", x + 8, top, 1, ht); rect("#b8a888", x + w - 5, top, 1, ht);
-        rect("#cfc3a8", x - 2, top - 3, w + 4, 4);
-        for (let i = 0; i < 32; i++) { const hw = (w + 4) / 2 - i * 2.2; if (hw < 2) break; rect(i % 2 ? "#d8ccb0" : "#cfc3a8", Math.round(cx - hw), top - 4 - i, Math.round(hw * 2), 1); }
-        for (let i = 0; i < 26; i++) { const hw = (w - 18) / 2 - i * 2.2; if (hw < 2) break; rect("#e6d6a8", Math.round(cx - hw), top - 4 - i, Math.round(hw * 2), 1); }
-        rect("#cfc3a8", x, B - 78, w, 3); rect("rgba(0,0,0,.15)", x, B - 75, w, 1);
-        cityBlob(cx, ry, 13, ["#d8ccb0", "#d8ccb0", "#b8aa98"]); cityBlob(cx, ry, 10, ["#2a3a5a", "#2a3a5a", "#223050"]);
-        for (let a = 0; a < 8; a++) rect(["#c0392b", "#2d5a8a", "#f2c94c", "#2f6b4f"][a % 4], cx + Math.round(Math.cos(a * .785) * 6) - 1, ry + Math.round(Math.sin(a * .785) * 6) - 1, 3, 3);
-        rect("#d8ccb0", cx - 10, ry, 20, 1); rect("#d8ccb0", cx, ry - 10, 1, 20); rect("#e8d8a0", cx - 2, ry - 2, 4, 4);
-        D.wins.push({ x: cx - 7, y: ry - 7, w: 14, h: 14, lit: true, soft: true });
-        for (const sx of [cx - 50, cx + 40]) {                            // nichos com estátuas
-          cityArch("#d8ccb0", sx - 1, B - 74, 12, 32); cityArch("#3a2a26", sx, B - 73, 10, 30);
-          rect("#e8e0d0", sx + 3, B - 62, 4, 16); rect("#e8e0d0", sx + 3, B - 67, 4, 4); rect("#e8e0d0", sx + 1, B - 60, 8, 2); rect("#cfc3a8", sx - 1, B - 43, 12, 2);
-        }
-        cityArch("#d8ccb0", cx - 16, B - dh - 4, 32, dh + 4); cityArch("#a8987a", cx - 14, B - dh - 2, 28, dh + 2); cityArch("#5a3a24", cx - 12, B - dh, 24, dh - 2);
-        for (let xx = cx - 9; xx < cx + 12; xx += 4) rect("rgba(0,0,0,.25)", xx, B - dh + 8, 1, dh - 10);
-        rect("#2a2d35", cx - 12, B - 36, 24, 1); rect("#2a2d35", cx - 12, B - 18, 24, 1); rect("#d9b26a", cx - 4, B - 26, 2, 3); rect("#d9b26a", cx + 2, B - 26, 2, 3);
-        rect("#b8aa98", cx - 18, B - 2, 36, 2); rect("#cfc3a8", cx - 21, B - 4, 42, 2); rect("#e0d5bc", cx - 18, B - 4, 36, 1);
-        lantern(cx - 26, B - 40); lantern(cx + 24, B - 40);
-        D.doors.push({ cx, x: cx - 12, y: B - dh, w: 24, h: dh - 2, arch: true, col: "#5a3a24", kind: "church", o: 0, t: 0 });
-        g = c2.createLinearGradient(0, top, 0, B); g.addColorStop(0, "rgba(255,236,190,.14)"); g.addColorStop(.55, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,14,44,.28)");
-        ctx.fillStyle = g; ctx.fillRect(x, top, w, ht);
-        return;
-      }
-      rect(wc[0], x, top, w, ht);
-      for (let i = 0, nn = w * ht / 60 | 0; i < nn; i++) rect(r() < .5 ? "rgba(90,40,20,.10)" : "rgba(255,245,220,.16)", x + ri(0, w - 3), top + ri(0, ht - 3), ri(1, 3), 1);   // reboco manchado
-      for (let q = 0, np = ri(1, 2); q < np; q++) {                       // reboco caído, aparecendo o tijolo
-        const bw = ri(6, 11), bh = ri(5, 9), bx = x + ri(3, w - 15), by = top + ri(8, Math.max(9, ht - 34));
-        rect("#a8583a", bx, by, bw, bh); for (let yy = 1; yy < bh; yy += 2) rect("#8c4630", bx, by + yy, bw, 1);
-        rect(wc[0], bx, by, 1, 1); rect(wc[0], bx + bw - 1, by + bh - 1, 1, 1);
-      }
-      rect(wc[1], x + w - 4, top, 4, ht); rect("rgba(30,14,44,.35)", x, top, 1, ht); rect(wc[2], x + 1, top, 1, ht);
-      if (bi % 3 === 1) { rect("#6a5a4a", x + w - 5, top, 2, ht - 4); for (let yy = top + 6; yy < B - 6; yy += 14) rect("#9a8a78", x + w - 6, yy, 4, 1); rect("#6a5a4a", x + w - 7, B - 5, 4, 2); }   // calha
-      if (bi % 4 === 2 && w > 56) {                                       // trepadeira com flores
-        const vx = x + w - 28, vh = ri(46, 66);
-        for (let i = 0; i < 80; i++) { const vy = B - 4 - vh * Math.pow(r(), 1.5), vxx = vx + ri(0, 22); rect(pk(CITY_GREENS), vxx, vy | 0, 3, 2); if (r() < .4) rect(pk(["#d6477f", "#e868a0", "#b8326a"]), vxx + 1, vy | 0, 1, 1); }
-      }
-      for (let k = 0; k <= b.n; k++) { const ly = B - GF - k * FH; rect(wc[2], x, ly - 1, w, 1); rect(wc[1], x, ly, w, 1); }   // frisos entre os andares
-      rect(wc[2], x - 1, top - 1, w + 2, 1); rect(wc[1], x - 1, top, w + 2, 1);
-
-      // janelas dos andares de cima
-      const nc = Math.max(1, w / 24 | 0), gx = (w - nc * 18) / (nc + 1);
-      const wxAt = i => Math.round(x + gx * (i + 1) + 18 * i + 4);
-      const shut = (sx, sy, hh) => { rect(shc, sx, sy, 4, hh); for (let q = 1; q < hh; q += 2) rect("rgba(0,0,0,.28)", sx, sy + q, 4, 1); rect("rgba(255,255,255,.2)", sx, sy, 1, hh); };
-      for (let k = 0; k < b.n; k++) {
-        const ty = B - GF - (k + 1) * FH;
-        for (let i = 0; i < nc; i++) {
-          const wx = wxAt(i), ww = 10;
-          let st = pk([0, 0, 1, 1, 2, 3]); if (st === 3 && !(k === 0 || (k === 1 && r() < .4))) st = 0;
-          if (st === 3) {                                                  // porta de sacada com grade de ferro
-            const by = ty + 4, bh = 18;
-            shut(wx - 4, by, bh); shut(wx + ww, by, bh);
-            rect("#3a4f66", wx, by, ww, bh); rect("#5d85a6", wx + 1, by + 1, ww - 2, bh - 2); rect("#86aac4", wx + 1, by + 1, ww - 2, 4); rect("#e8e0c8", wx + 4, by + 1, 1, bh - 2);
-            rect("#cfc3a8", wx - 3, ty + 22, ww + 6, 2); rect("rgba(30,15,30,.35)", wx - 3, ty + 24, ww + 6, 1); rect(wc[1], wx - 1, ty + 25, 2, 2); rect(wc[1], wx + ww - 1, ty + 25, 2, 2);
-            rect("#2a2d35", wx - 3, ty + 16, ww + 6, 1); for (let q = wx - 3; q < wx + ww + 3; q += 2) rect("#2a2d35", q, ty + 17, 1, 5);
-            if (r() < .6) { rect("#b4532f", wx + 6, ty + 19, 4, 3); rect(pk(CITY_GREENS), wx + 5, ty + 15, 6, 4); rect(pk(CITY_FLOWER), wx + 6 + ri(0, 3), ty + 15, 1, 1); }
-            D.wins.push({ x: wx + 1, y: by + 1, w: ww - 2, h: bh - 2, lit: r() < .5 });
-            continue;
-          }
-          const wy = ty + 8, wh = 14;
-          if (st === 2) {                                                  // persiana fechada
-            rect(shc, wx - 1, wy, ww + 2, wh); for (let q = 1; q < wh; q += 2) rect("rgba(0,0,0,.28)", wx - 1, wy + q, ww + 2, 1);
-            rect("rgba(0,0,0,.45)", wx + 4, wy, 1, wh); rect("rgba(255,255,255,.2)", wx - 1, wy, 1, wh); rect("#3a3a42", wx - 1, wy + 2, ww + 2, 1);
-          } else {
-            shut(wx - 4, wy, wh); shut(wx + ww, wy, wh);
-            if (st === 1) { cityArch("#3a4f66", wx, wy, ww, wh); cityArch("#5d85a6", wx + 1, wy + 1, ww - 2, wh - 2); }
-            else { rect("#3a4f66", wx, wy, ww, wh); rect("#5d85a6", wx + 1, wy + 1, ww - 2, wh - 2); rect(wc[2], wx - 1, wy - 2, ww + 2, 1); }
-            rect("#86aac4", wx + 1, wy + 2, ww - 2, 3); rect("#e8e0c8", wx + 4, wy + 1, 1, wh - 2); rect("#e8e0c8", wx + 1, wy + 7, ww - 2, 1);
-            D.wins.push({ x: wx + 1, y: wy + 1, w: ww - 2, h: wh - 2, lit: r() < .5 });
-          }
-          rect("#d8cdb4", wx - 1, wy + wh, ww + 2, 1); rect("rgba(30,15,30,.35)", wx - 1, wy + wh + 1, ww + 2, 1);
-          if (r() < .38) {                                                 // jardineira com flores
-            rect("#7a4a2e", wx - 1, wy + wh - 3, ww + 2, 3);
-            for (let q = 0; q < ww + 2; q += 2) { rect(pk(CITY_GREENS), wx - 1 + q, wy + wh - 5 - ri(0, 1), 2, 3); if (r() < .7) rect(pk(CITY_FLOWER), wx - 1 + q + ri(0, 1), wy + wh - 6 - ri(0, 1), 1, 1); }
-          }
-        }
-      }
-
-      // térreo
-      rect("#8f8274", x, B - 4, w, 4); rect("#a89a88", x, B - 4, w, 1);
-      const doorAt = (dx, withLamp, kind) => {
-        const dcol = pk(CITY_DOOR);
-        cityArch("#d8ccb0", dx - 2, B - 46, 18, 46); cityArch(dcol, dx, B - 44, 14, 42);
-        for (let xx = dx + 3; xx < dx + 14; xx += 3) rect("rgba(0,0,0,.25)", xx, B - 28, 1, 26);
-        cityArch("#3a4f66", dx + 4, B - 40, 6, 8); rect("#86aac4", dx + 5, B - 38, 2, 3); rect("#d9b26a", dx + 11, B - 18, 1, 2);
-        rect("#b8aa98", dx - 3, B - 2, 20, 2); rect("#d8ccb0", dx - 3, B - 2, 20, 1);
-        D.wins.push({ x: dx + 5, y: B - 38, w: 4, h: 6, lit: r() < .6 });
-        D.doors.push({ cx: dx + 7, x: dx, y: B - 44, w: 14, h: 42, arch: true, col: dcol, kind: kind || "house", locked: r() < .5, o: 0, t: 0 });
-        if (withLamp) lantern(dx + 19, B - 38);
-      };
-      if (b.g === "door" || b.g === "sign" || b.g === "shrine") {
-        const dx = b.g === "door" ? x + ri(10, Math.max(10, w - 30)) : x + 8; doorAt(dx, true);
-        if (b.g === "door") { if (dx - x > 18 && r() < .8) pot(dx - 9); if (x + w - dx > 40 && r() < .8) pot(dx + 24); }
-        if (b.g === "sign") {                                              // placa azul do caminho do cais (a saída da cidade)
-          const sx = CITY.MAX - 40; rect("#e8f0e0", sx - 1, B - 54, 48, 15); rect("#1f4f8a", sx, B - 53, 46, 13);
-          rect("#c8d0c0", sx + 2, B - 51, 1, 1); rect("#c8d0c0", sx + 43, B - 51, 1, 1); rect("#c8d0c0", sx + 2, B - 43, 1, 1); rect("#c8d0c0", sx + 43, B - 43, 1, 1);
-          text("CAIS >", sx + 23, B - 43, "#fff", "center");
-        }
-        if (b.g === "shrine") {                                            // nichozinho com a santa e uma velinha
-          const sx = x + w - 20;
-          cityArch("#d8ccb0", sx - 1, B - 54, 11, 19); cityArch("#2a1a1c", sx, B - 53, 9, 17);
-          rect("#2f5a9a", sx + 2, B - 45, 5, 8); rect("#e8ecf4", sx + 3, B - 44, 3, 6); rect("#e8c9a0", sx + 3, B - 48, 3, 3);
-          rect("#d8ccb0", sx - 2, B - 36, 13, 2); rect("rgba(30,15,30,.35)", sx - 2, B - 34, 13, 1);
-          rect("#f2e6c9", sx + 1, B - 40, 1, 3); rect("#f2e6c9", sx + 7, B - 40, 1, 3);
-          D.doors.push({ cx: sx + 4.5, kind: "shrine", glow: 0, o: 0, t: 0 });
-          D.lamps.push({ x: sx + 4.5, y: B - 40, r: 15 });
-        }
-      } else if (b.g === "shop") {
-        const sx0 = x + 6, sw = w - 12, awn = pk(["#c0392b", "#2f6b4f", "#2d5a8a", "#d98e04"]), nm = b.name;
-        rect("#3a2414", x + 8, B - 54, w - 16, 13); rect("#5a3a24", x + 9, B - 53, w - 18, 11);
-        text(nm, x + (w >> 1), B - 43, "#f3e3b5", "center");
-        for (let i = 0; i < sw; i += 4) { const col = i / 4 % 2 ? "#f2e6c9" : awn; rect(col, sx0 + i, B - 40, 4, 7); rect(col, sx0 + i + 1, B - 33, 2, 1); }
-        rect("rgba(20,10,20,.35)", sx0, B - 32, sw, 4);
-        const ww2 = sw - 16;
-        rect("#4a3020", sx0, B - 31, ww2, 26); rect("#3a2a3a", sx0 + 1, B - 30, ww2 - 2, 24); rect("#8a6a4a", sx0 + 1, B - 30, ww2 - 2, 3);
-        rect("#6b4a30", sx0 + 1, B - 19, ww2 - 2, 1); rect("#6b4a30", sx0 + 1, B - 11, ww2 - 2, 1);
-        for (let q = sx0 + 3; q < sx0 + ww2 - 5; q += 5) { rect(pk(["#c0392b", "#f2c94c", "#2f6b4f", "#e8e0c8", "#2d5a8a"]), q, B - 23, 3, 4); rect(pk(["#d9b26a", "#c0392b", "#e8e0c8", "#8a4a2a"]), q, B - 15, 3, 4); }
-        D.wins.push({ x: sx0 + 1, y: B - 30, w: ww2 - 2, h: 24, lit: true, soft: true });
-        const dx = sx0 + ww2 + 2; rect("#4a3020", dx, B - 34, 12, 30); rect("#3a2a3a", dx + 2, B - 32, 8, 12); rect("#d9b26a", dx + 9, B - 16, 1, 2); rect("#b8aa98", dx - 1, B - 4, 14, 2);
-        D.wins.push({ x: dx + 2, y: B - 32, w: 8, h: 12, lit: true });
-        D.doors.push({ cx: dx + 6, x: dx, y: B - 34, w: 12, h: 30, arch: false, col: "#4a3020", kind: "shop", name: nm, o: 0, t: 0 });
-        lantern(x + w - 6, B - 32);
-        if (r() < .7) pot(x + 1);
-        if (bi % 2 === 0) for (const cx of [x + w - 30, x + w - 16]) {      // caixotes de limão na calçada
-          rect("#a8763a", cx, B - 2, 12, 7); rect("#7a5028", cx, B + 1, 12, 1); rect("#7a5028", cx, B + 4, 12, 1);
-          for (let j = 0; j < 6; j++) { rect("#f2d03c", cx + 1 + j * 2, B - 4 + (j % 2), 2, 2); rect("#fff0a0", cx + 1 + j * 2, B - 4 + (j % 2), 1, 1); }
-        }
-      } else if (b.g === "cafe") {
-        rect("#2f4a3a", x + (w >> 1) - 23, B - 54, 46, 12); rect("#f2e6c9", x + (w >> 1) - 22, B - 53, 44, 10); text("CAFFE", x + (w >> 1), B - 44, "#a02a1c", "center");
-        for (let i = 0; i < w - 8; i += 4) { const col = i / 4 % 2 ? "#f2e6c9" : "#b8321f"; rect(col, x + 4 + i, B - 40, 4, 8); rect(col, x + 5 + i, B - 32, 2, 1); }
-        rect("rgba(20,10,20,.35)", x + 4, B - 31, w - 8, 4);
-        rect("#4a3020", x + 10, B - 28, 20, 24); rect("#3a2a3a", x + 11, B - 27, 18, 22); rect("#e8c070", x + 11, B - 27, 18, 3);
-        D.wins.push({ x: x + 11, y: B - 27, w: 18, h: 22, lit: true, soft: true });
-        doorAt(x + w - 26, false, "cafe"); rect("#222a26", x + 34, B - 24, 12, 14); rect("#e8e0c8", x + 36, B - 21, 6, 1); rect("#e8e0c8", x + 36, B - 18, 8, 1);   // lousa do cardápio
-        for (const tx of [x + 6, x + w - 34]) {                            // mesinhas e cadeiras vermelhas na calçada
-          rect("#d9cdb0", tx, B - 3, 11, 2); rect("#a89c82", tx + 1, B - 1, 9, 1); rect("#3a3a42", tx + 5, B, 1, 5); rect("#3a3a42", tx + 3, B + 5, 5, 1);
-          for (const cx of [tx - 7, tx + 13]) { rect("#b53a2c", cx, B, 5, 1); rect("#b53a2c", cx + (cx < tx ? 0 : 4), B - 6, 1, 6); rect("#3a3a42", cx, B + 1, 1, 4); rect("#3a3a42", cx + 4, B + 1, 1, 4); }
-        }
-      } else if (b.g === "arch") {                                         // sottoportico: túnel por baixo do prédio
-        const tw = 28, th = 46, tx = x + (w - tw >> 1);
-        cityArch("#cfc3a8", tx - 2, B - th - 2, tw + 4, th + 2); cityArch("#241820", tx, B - th, tw, th);
-        cityArch("#4d3a36", tx + 5, B - th + 7, 18, th - 10); cityArch("#6a4e44", tx + 8, B - th + 12, 12, th - 18); cityArch("#f6d9a0", tx + 10, B - th + 16, 8, th - 24);
-        rect("#7a6c60", tx, B - 3, tw, 3); rect("#b8aa98", tx, B - 3, tw, 1); rect("#e0d5bc", tx + (tw >> 1) - 2, B - th - 3, 4, 4);
-        lantern(tx - 8, B - 36); lantern(tx + tw + 5, B - 36);
-        D.lamps.push({ x: tx + (tw >> 1), y: B - 22, r: 18 });
-        if (bi % 2 === 0) {                                                // vespa estacionada na frente
-          const vx = x + 4, vy = B + 4;
-          rect("rgba(0,0,0,.28)", vx - 1, vy - 1, 30, 2);
-          [[vx + 5, vy - 4], [vx + 22, vy - 4]].forEach(([wx, wy]) => { cityBlob(wx, wy, 4, ["#2a2a32", "#23232a", "#1c1c22"]); rect("#9a9aa0", wx - 1, wy - 1, 2, 2); });
-          const vc = pk([["#8fd0c0", "#a9e0d2", "#6aa898"], ["#e8a0a8", "#f4bcc2", "#c07880"], ["#f2d070", "#f8e394", "#c8a448"]]);
-          rect(vc[0], vx + 1, vy - 13, 12, 8); rect(vc[1], vx + 2, vy - 13, 10, 1); rect(vc[2], vx + 1, vy - 7, 12, 2); rect(vc[0], vx + 10, vy - 8, 9, 2);
-          rect(vc[0], vx + 18, vy - 17, 3, 11); rect(vc[1], vx + 18, vy - 17, 1, 11); rect(vc[0], vx + 18, vy - 9, 8, 1);
-          rect("#4a3022", vx + 3, vy - 16, 9, 3); rect("#2a2d35", vx + 17, vy - 19, 6, 1); rect("#ffe9a0", vx + 22, vy - 17, 2, 2); rect("#c0392b", vx, vy - 10, 1, 2);
-        }
-      }
-      g = c2.createLinearGradient(0, top, 0, B); g.addColorStop(0, "rgba(255,236,190,.14)"); g.addColorStop(.55, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,14,44,.30)");
-      ctx.fillStyle = g; ctx.fillRect(x, top, w, ht);                      // luz no alto, penumbra embaixo
-
-      // telhado
-      if (bi % 3 !== 2) {
-        rect("#5a2f20", x - 3, top - 3, w + 6, 2);
-        [[x - 3, w + 6], [x + 1, w - 2], [x + 5, w - 10], [x + 9, w - 18]].forEach(([rx, rw], i) => {
-          const ry = top - 6 - 3 * i; rect(i % 2 ? "#c4623a" : "#b4532f", rx, ry, rw, 3);
-          for (let tx = rx + i % 2; tx < rx + rw; tx += 3) rect("rgba(70,25,15,.35)", tx, ry, 1, 3);
-          rect("rgba(255,200,150,.25)", rx, ry, rw, 1);
-        });
-        if (bi % 2 === 0) { const cx = x + ri(6, Math.max(6, w - 16)); rect("#9a5a42", cx, top - 26, 6, 15); rect("#5a3022", cx - 1, top - 27, 8, 2); rect("rgba(0,0,0,.2)", cx + 4, top - 26, 2, 15); }
-        else { const ax = x + ri(10, Math.max(10, w - 14)); rect("#3a3d46", ax, top - 24, 1, 10); rect("#3a3d46", ax - 3, top - 24, 7, 1); rect("#3a3d46", ax - 2, top - 21, 5, 1); rect("#3a3d46", ax - 3, top - 18, 7, 1); }
-      } else {                                                             // terraço com altana de madeira
-        rect(wc[0], x, top - 6, w, 6); rect(wc[2], x, top - 7, w, 1); rect(wc[1], x + w - 4, top - 6, 4, 6);
-        const ax = x + ri(6, Math.max(6, w - 30));
-        rect("#8a6a48", ax, top - 22, 20, 15); rect("#b4532f", ax - 2, top - 25, 24, 3); rect("rgba(255,200,150,.25)", ax - 2, top - 25, 24, 1);
-        rect("#2a1c18", ax + 3, top - 18, 5, 11); rect("#2a1c18", ax + 12, top - 18, 5, 11); rect("#6b4a30", ax, top - 22, 1, 15); rect("#6b4a30", ax + 19, top - 22, 1, 15);
-        for (let q = 0; q < 3; q++) { const ppx = x + ri(2, Math.max(2, w - 6)); if (ppx > ax - 4 && ppx < ax + 22) continue; rect("#b4532f", ppx, top - 10, 4, 3); cityBlob(ppx + 2, top - 13, 2, CITY_GREENS); }
-      }
-      // varal na fachada (só nos prédios de porta simples)
-      if (b.g === "door" && bi % 2 === 1 && nc >= 2) {
-        const ty = B - GF - FH, x1 = x + 3, x2 = x + w - 7, y1 = ty + 27, y2 = ty + 28;
-        rect("#2a2d35", x1 - 1, y1 - 1, 2, 3); rect("#2a2d35", x2, y2 - 1, 2, 3);
-        const items = []; for (let cx = x1 + 6; cx < x2 - 8; cx += 10) items.push({ x: cx, kind: ri(0, 3), col: pk(["#f1ecdc", "#c0392b", "#2d5a8a", "#f2c94c", "#e8e0c8", "#2f6b4f"]), ph: r() * 6 });
-        D.lines.push({ x1, y1, x2, y2, sag: 2, items });
-      }
-    });
-
-    // ---- varais atravessando as vielas e festões de luzes
+    ctx.imageSmoothingEnabled = true;
+    vGround(D, B, FW, CWD, r, ri, pk);
+    vPiazza(D, B, r, pk);
+    D.gaps.forEach(gp => vGap(D, gp, B, r, pk));
+    D.blds.forEach((b, bi) => { if (b.g === "church") vChurch(D, b, B, r, ri, pk); else vBuilding(D, b, bi, B, r, ri, pk); });
+    // varais atravessando as vielas e festões de luzes
     D.gaps.forEach((gp, gi) => {
       const x1 = gp.x - 6, x2 = gp.x + gp.w + 6, y1 = B - GF - FH + 8, y2 = y1 + 1;
       if (gi % 3 === 1) return;
-      rect("#2a2d35", x1 - 1, y1 - 1, 2, 3); rect("#2a2d35", x2, y2 - 1, 2, 3);
+      vCirc(x1, y1, .9, "#2a2d35"); vCirc(x2, y2, .9, "#2a2d35");
       const items = []; for (let cx = x1 + 7; cx < x2 - 6; cx += 9) items.push({ x: cx, kind: ri(0, 3), col: pk(["#f1ecdc", "#c0392b", "#2d5a8a", "#f2c94c", "#e8e0c8", "#2f6b4f"]), ph: r() * 6 });
       D.lines.push({ x1, y1, x2, y2, sag: 3, items });
     });
     for (let x1 = -110, fi = 0; x1 < CITY_FX1 - 120; fi++) {
       const x2 = x1 + 150 + ri(0, 30), y1 = B - 86 - ri(0, 8), y2 = B - 86 - ri(0, 8), sag = ri(8, 11), kind = fi % 2 ? "flag" : "bulb";
-      for (let x = x1; x <= x2; x++) rect("#2a2d35", x, cityWireY(x1, y1, x2, y2, sag, x), 1, 1);
-      rect("#2a2d35", x1 - 1, y1 - 2, 2, 5); rect("#2a2d35", x2 - 1, y2 - 2, 2, 5);
+      vWire(x1, y1, x2, y2, sag, .55, "rgba(34,36,44,.9)"); vCirc(x1, y1 - .3, 1, "#2a2d35"); vCirc(x2, y2 - .3, 1, "#2a2d35");
       for (let x = x1 + 8, q = 0; x < x2 - 4; x += kind === "bulb" ? 11 : 8, q++) {
         const y = cityWireY(x1, y1, x2, y2, sag, x);
-        if (kind === "bulb") { rect("#2a2d35", x, y + 1, 1, 1); rect("#e8dcb0", x - 1, y + 2, 3, 3); rect("#fff6d8", x, y + 2, 1, 1); D.bulbs.push({ x, y: y + 3 }); }
-        else { const col = ["#c0392b", "#f2e6c9", "#2f6b4f"][q % 3]; [5, 4, 2, 1].forEach((fw, j) => rect(col, x + ((5 - fw) >> 1) - 2, y + 1 + j, fw, 1)); }
+        if (kind === "bulb") { vLine(x, y, x, y + 1.6, .4, "#2a2d35"); vCirc(x, y + 3, 1.7, vRG(x - .4, y + 2.5, 0, 1.9, [[0, "#fffbe6"], [1, "#e8d49a"]])); D.bulbs.push({ x, y: y + 3 }); }
+        else { const col = ["#c0392b", "#f2e6c9", "#2f6b4f"][q % 3]; vPoly([[x - 2.8, y], [x + 2.8, y + .3], [x, y + 5.6]], vLG(0, y, 0, y + 5.6, [[0, vLight(col, .1)], [1, vDark(col, .15)]])); }
       }
       x1 = x2 + ri(8, 30);
     }
-    g = c2.createLinearGradient(0, B + 30, 0, CITY_CH); g.addColorStop(0, "rgba(20,10,30,0)"); g.addColorStop(1, "rgba(20,10,30,.40)");
-    ctx.fillStyle = g; ctx.fillRect(FW, B + 30, CWD, CITY_CH - B - 30);    // a beirada de baixo escurece, o pescador fica em destaque
-    if (CITY_HD) cityPolish(c2, cv2, D, cs, B, FW, CWD, sd);
+    ctx.fillStyle = vLG(0, B + 30, 0, CITY_CH, [[0, "rgba(20,10,30,0)"], [1, "rgba(20,10,30,.42)"]]); ctx.fillRect(FW, B + 30, CWD, CITY_CH - B - 30);   // a beirada de baixo escurece, o pescador fica em destaque
+    cityGrain(c2, FW, CWD, cs, sd);
   } finally { ctx = main; }
-  cityCache = { cv: cv2, s: CITY_HD ? 0 : S, cs, font: cityFontOK() };
+  cityCache = { cv: cv2, s: CITY_HD ? 0 : S, cs, font: true };
 }
-// Acabamento "HD" do cenário (roda uma vez, no cache): suaviza as escadinhas do pixel art, dá volume às fachadas (luz no alto, sombra no pé e nos cantos, beiral),
-// recesso e reflexo nas janelas e uma textura fina de reboco/pedra. Só pinta onde já existe cenário (source-atop).
-function cityPolish(c2, cv2, D, cs, B, FW, CWD, seed) {
-  const w = cv2.width, h = cv2.height;
-  if ("filter" in c2) {                                                   // 1) suavização: cópia levemente borrada + original por cima (cantos arredondam, bordas seguem definidas)
-    const cp = document.createElement("canvas"); cp.width = w; cp.height = h; cp.getContext("2d").drawImage(cv2, 0, 0);
-    c2.save(); c2.setTransform(1, 0, 0, 1, 0, 0); c2.globalCompositeOperation = "copy"; c2.filter = "blur(" + (cs * 0.45).toFixed(2) + "px)"; c2.drawImage(cp, 0, 0);
-    c2.filter = "none"; c2.globalCompositeOperation = "source-over"; c2.globalAlpha = .6; c2.drawImage(cp, 0, 0); c2.restore();
-  }
-  c2.save(); c2.setTransform(cs, 0, 0, cs, -FW * cs, 0); c2.globalCompositeOperation = "source-atop";
-  D.blds.forEach(b => {                                                   // 2) volume das fachadas
-    const y0 = b.top - 14, hh = B - y0;
-    let g = c2.createLinearGradient(0, b.top, 0, B);
-    g.addColorStop(0, "rgba(255,240,220,.12)"); g.addColorStop(.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(30,14,34,.26)");
-    c2.fillStyle = g; c2.fillRect(b.x, y0, b.w, hh);
-    g = c2.createLinearGradient(b.x, 0, b.x + b.w, 0);
-    g.addColorStop(0, "rgba(0,0,0,.16)"); g.addColorStop(.07, "rgba(0,0,0,0)"); g.addColorStop(.9, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.24)");
-    c2.fillStyle = g; c2.fillRect(b.x, y0, b.w, hh);
-    g = c2.createLinearGradient(0, b.top, 0, b.top + 12);                 // sombra do beiral
-    g.addColorStop(0, "rgba(20,8,26,.32)"); g.addColorStop(1, "rgba(20,8,26,0)");
-    c2.fillStyle = g; c2.fillRect(b.x, b.top, b.w, 12);
-  });
-  D.wins.forEach(wn => {                                                  // 3) janelas: recesso, reflexo e peitoril
-    c2.fillStyle = "rgba(10,5,20,.34)"; c2.fillRect(wn.x, wn.y, wn.w, 1.4); c2.fillRect(wn.x, wn.y, 1, wn.h);
-    const g = c2.createLinearGradient(wn.x, wn.y, wn.x + wn.w, wn.y + wn.h);
-    g.addColorStop(0, "rgba(255,255,255,.20)"); g.addColorStop(.45, "rgba(255,255,255,0)"); g.addColorStop(1, "rgba(10,10,50,.18)");
-    c2.fillStyle = g; c2.fillRect(wn.x, wn.y, wn.w, wn.h);
-    c2.fillStyle = "rgba(0,0,0,.2)"; c2.fillRect(wn.x - 1, wn.y + wn.h, wn.w + 2, 1.6);
-  });
-  let sd = seed || 91; const rr = () => (sd = sd * 16807 % 2147483647) / 2147483647;   // 4) grão de reboco e de pedra
-  const nz = document.createElement("canvas"); nz.width = nz.height = 192; const nx = nz.getContext("2d"), im = nx.createImageData(192, 192);
-  for (let i = 0; i < im.data.length; i += 4) { const v = rr() < .5 ? 0 : 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = rr() < .35 ? 4 + rr() * 22 : 0; }
-  nx.putImageData(im, 0, 0);
-  const pat = c2.createPattern(nz, "repeat");
-  if (pat && pat.setTransform) pat.setTransform(new DOMMatrix().scale(.5));
-  c2.fillStyle = pat; c2.fillRect(FW, 0, CWD, CITY_CH);
-  c2.restore();
-}
+
 function cityEnsure() {
   if (!cityData) cityInit();
   if (!cityCache || cityCache.s !== (CITY_HD ? 0 : S) || (!cityCache.font && cityFontOK())) cityBuild();
@@ -2784,51 +2952,49 @@ function cityFarEach(arr, f, l, r, x0, y0, y1, sx, sy, fn) {              // per
   });
 }
 const cityHillH = x => 46 + 16 * Math.sin(x * .011 + 1) + 11 * Math.sin(x * .027 + 2) + 5 * Math.sin(x * .071);
-function cityFarDraw(fog, l, r) {                                        // colinas, prédios distantes e campanários: cada camada anda numa velocidade (parallax) e recebe mais névoa quanto mais longe
+function cityFarDraw(fog, l, r) {                                        // colinas, prédios distantes e campanários (vetor); cada camada anda numa velocidade (parallax) e recebe mais névoa quanto mais longe
   const D = cityData, B = CITY_B, mx = (c, f = .5) => "rgb(" + c.map((v, i) => Math.round(v + (fog[i] - v) * f)) + ")";
-  // 1) colinas lá no fundo (quase paradas)
-  {
-    const f = CITY_FARF[0], s = l * (1 - f), a = Math.floor((l - s - 6) / 3) * 3, b = r - s + 6;
+  { // 1) colinas suaves lá no fundo (quase paradas)
+    const f = CITY_FARF[0], s = l * (1 - f), a = Math.floor((l - s - 6) / 4) * 4, b = r - s + 6;
     ctx.save(); ctx.translate(s, 0);
-    const c1 = mx([118, 104, 142], .8), c2 = mx([96, 112, 120], .86);
-    for (let x = a; x < b; x += 3) { const h = cityHillH(x), h2 = cityHillH(x * .8 + 400) - 14; rect(c2, x, B - h2, 3, h2); rect(c1, x, B - h, 3, h); }
+    const hill = (fn, col) => { ctx.beginPath(); ctx.moveTo(a, B); for (let x = a; x <= b; x += 4) ctx.lineTo(x, B - fn(x)); ctx.lineTo(b, B); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+    hill(x => cityHillH(x * .8 + 400) - 14, vLG(0, B - 70, 0, B, [[0, mx([96, 112, 120], .86)], [1, mx([96, 112, 120], .93)]]));
+    hill(x => cityHillH(x), vLG(0, B - 80, 0, B, [[0, mx([118, 104, 142], .8)], [1, mx([118, 104, 142], .9)]]));
     ctx.restore();
   }
-  // 2) prédios bem longe + campanários
-  {
+  { // 2) prédios bem longe + campanários
     const f = CITY_FARF[1], s = l * (1 - f), FC = CITY_FARC.map(c => mx(c, .72)), RC = mx([150, 78, 58], .72), RL = mx([176, 98, 70], .72), WD = CITY_FARC.map(c => mx(c.map(v => v * .62), .55));
     ctx.save(); ctx.translate(s, 0);
     D.far2.forEach(b => {
       if (b.x + s > r || b.x + b.w + s < l) return;
       const top = B - b.h;
-      rect(FC[b.c], b.x, top, b.w, b.h); rect("rgba(30,20,50,.12)", b.x + b.w - 5, top, 5, b.h);
-      rect(RC, b.x - 1, top - 3, b.w + 2, 3); rect(RL, b.x + 3, top - 6, b.w - 6, 3);
+      vRR(b.x, top, b.w, b.h + 2, 1.4, vLG(0, top, 0, B, [[0, FC[b.c]], [1, vDark(FC[b.c], .12)]])); vRR(b.x + b.w - 5, top, 5, b.h, 1, "rgba(30,20,50,.14)");
+      vPoly([[b.x - 1.5, top + .5], [b.x + b.w + 1.5, top + .5], [b.x + b.w - 4, top - 7], [b.x + 4, top - 7]], vLG(0, top - 7, 0, top, [[0, RL], [1, RC]]));
     });
     const tc = mx([232, 206, 160], .72), td = mx([150, 120, 100], .7), tb = mx([205, 190, 150], .72);
     D.towers.forEach(tx => {
       if (tx + s > r || tx + 16 + s < l) return;
       const tt = B - 128;
-      rect(tc, tx, tt + 12, 15, 130); rect("rgba(30,20,50,.14)", tx + 11, tt + 12, 4, 130);
-      rect(tb, tx - 1, tt + 10, 17, 3); rect(tb, tx - 1, tt + 28, 17, 2);
-      cityArch(td, tx + 3, tt + 14, 4, 12); cityArch(td, tx + 8, tt + 14, 4, 12);
-      for (let i = 0; i < 12; i++) rect(i % 2 ? RC : RL, tx + 7 - (1 + i * .55 | 0), tt + i, 2 + 2 * (1 + i * .55 | 0) - 1, 1);
-      rect(RC, tx + 7, tt - 4, 1, 4);
+      vRR(tx, tt + 12, 15, 130, 1, vLG(tx, 0, tx + 15, 0, [[0, vLight(tc, .1)], [1, vDark(tc, .12)]]));
+      vRR(tx - 1.2, tt + 10, 17.4, 3.2, 1, tb); vRR(tx - 1.2, tt + 28, 17.4, 2.4, 1, tb);
+      vArch(tx + 3, tt + 14, 4, 12, td); vArch(tx + 8.4, tt + 14, 4, 12, td);
+      vPoly([[tx - 1, tt + 12], [tx + 16, tt + 12], [tx + 7.5, tt - 2]], vLG(0, tt - 2, 0, tt + 12, [[0, RL], [1, RC]]));
+      vLine(tx + 7.5, tt - 2, tx + 7.5, tt - 7, .7, RC); vLine(tx + 5.8, tt - 5, tx + 9.2, tt - 5, .7, RC);
     });
     ctx.restore();
-    cityFarEach(D.far2, f, l, r, 4, 10, 30, 8, 12, (b, wx, wy) => rect(WD[b.c], wx, wy, 2, 4));
+    cityFarEach(D.far2, f, l, r, 4, 10, 30, 8, 12, (b, wx, wy) => vRR(wx, wy, 2.4, 4.2, 1, WD[b.c]));
   }
-  // 3) prédios do meio (os que aparecem pelas vielas)
-  {
+  { // 3) prédios do meio (os que aparecem pelas vielas)
     const f = CITY_FARF[2], s = l * (1 - f), FC = CITY_FARC.map(c => mx(c)), RC = mx([150, 78, 58]), RL = mx([176, 98, 70]), WD = CITY_FARC.map(c => mx(c.map(v => v * .62), .4));
     ctx.save(); ctx.translate(s, 0);
     D.far.forEach(b => {
-      if (b.x + s > r || b.x + b.w + s < l) return;
+      if (b.x + b.w + s < l || b.x + s > r) return;
       const top = B - b.h;
-      rect(FC[b.c], b.x, top, b.w, b.h); rect("rgba(30,20,50,.12)", b.x + b.w - 4, top, 4, b.h);
-      rect(RC, b.x - 1, top - 3, b.w + 2, 3); rect(RL, b.x + 2, top - 6, b.w - 4, 3); if (b.w > 26) rect(RC, b.x + 6, top - 9, b.w - 12, 3);
+      vRR(b.x, top, b.w, b.h + 2, 1.2, vLG(0, top, 0, B, [[0, vLight(FC[b.c], .06)], [1, vDark(FC[b.c], .14)]])); vRR(b.x + b.w - 4, top, 4, b.h, 1, "rgba(30,20,50,.13)");
+      vPoly([[b.x - 1.5, top + .5], [b.x + b.w + 1.5, top + .5], [b.x + b.w - 4, top - 8], [b.x + 4, top - 8]], vLG(0, top - 8, 0, top, [[0, RL], [1, RC]]));
     });
     ctx.restore();
-    cityFarEach(D.far, f, l, r, 4, 8, 70, 9, 16, (b, wx, wy) => rect(WD[b.c], wx, wy, 3, 5));
+    cityFarEach(D.far, f, l, r, 4, 8, 70, 9, 16, (b, wx, wy) => { vRR(wx - .6, wy - .6, 4.2, 6.2, 1, "rgba(235,225,200,.5)"); vRR(wx, wy, 3, 5, .8, WD[b.c]); });
   }
 }
 
@@ -2852,26 +3018,31 @@ function cityFront(now, l, r) { cityBlurred(3, () => cityFrontDraw(now, l, r)); 
 function cityFrontDraw(now, l, r) {
   const f = CITY_FRONT_F, s = l * (1 - f), GAP = CITY_FRONT_GAP, a = Math.floor((l - s - 40) / GAP), b = Math.ceil((r - s + 40) / GAP);
   const s0 = DAY.sky[0], tint = (c, k = .3) => "rgb(" + c.map((v, i) => Math.round(v + (s0[i] - v) * k)).join(",") + ")";
-  const iron = tint([34, 26, 42]), potC = tint([108, 52, 34]), G = [tint([54, 110, 56]), tint([40, 88, 46]), tint([28, 64, 36])];
+  const iron = tint([34, 26, 42]), potC = tint([138, 66, 40]), G = [tint([54, 110, 56]), tint([40, 88, 46]), tint([66, 130, 66])];
   const base = PIER_Y + 40;
   ctx.save(); ctx.translate(s, 0);
   for (let i = a; i <= b; i++) {
     const j = ((i * 2654435761) >>> 0) % 100, X = i * GAP + (j - 50);
     if (X + s < l - 40 || X + s > r + 40) continue;
-    if (i % 2 === 0) {                                                  // poste
-      rect(iron, X - 2, 6, 4, base - 6); rect(iron, X - 4, base - 16, 8, 16); rect(iron, X - 3, base - 20, 6, 4);
-      rect(iron, X - 1, 6, 15, 2); rect(iron, X + 12, 8, 3, 3); rect(iron, X + 8, 10, 10, 2); rect(iron, X + 8, 11, 10, 11); rect(iron, X + 10, 22, 6, 2);
-      rect(tint([255, 214, 140], .1), X + 10, 12, 6, 9);
+    if (i % 2 === 0) {                                                  // poste ornamentado
+      vPoly([[X - 6, base], [X + 6, base], [X + 3, base - 14], [X - 3, base - 14]], iron);
+      vRR(X - 1.8, 8, 3.6, base - 20, 1.6, iron); vRR(X - 4, base - 20, 8, 4, 1.8, iron);
+      ctx.strokeStyle = iron; ctx.lineWidth = 1.7; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(X, 16); ctx.bezierCurveTo(X + 4, 5, X + 11, 4, X + 14, 11); ctx.stroke();
+      ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(X - 5, 40, 5, 0, 3.6); ctx.stroke();
+      vPoly([[X + 8, 11], [X + 20, 11], [X + 17, 6], [X + 11, 6]], iron);
+      vRR(X + 9.4, 11, 9.2, 13, 3, tint([255, 214, 140], .1)); vRR(X + 8, 24, 12, 2.4, 1, iron); vCirc(X + 14, 4.2, 1.6, iron);
+      ctx.strokeStyle = iron; ctx.lineWidth = .6; ctx.beginPath(); ctx.moveTo(X + 14, 11); ctx.lineTo(X + 14, 24); ctx.stroke();
       if (DAY.lamp > .01) {
-        ctx.globalAlpha = DAY.lamp;
-        ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(X + 13, 17, 2, X + 13, 17, 55); g.addColorStop(0, "rgba(255,210,140,.28)"); g.addColorStop(1, "rgba(255,200,120,0)");
-        ctx.fillStyle = g; ctx.fillRect(X - 42, -40, 110, 110); ctx.globalCompositeOperation = "source-over"; rect("#fff0b8", X + 11, 13, 4, 6);
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = DAY.lamp; ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = vRG(X + 14, 17, 2, 55, [[0, "rgba(255,210,140,.3)"], [1, "rgba(255,200,120,0)"]]); ctx.fillRect(X - 42, -40, 112, 112);
+        ctx.globalCompositeOperation = "source-over"; vRR(X + 10.6, 12.4, 6.8, 10, 2.6, "#fff0c0"); ctx.globalAlpha = 1;
       }
-    } else {                                                            // vaso com arbusto
-      rect(potC, X - 12, base - 24, 24, 24); rect("rgba(255,230,200,.18)", X - 12, base - 24, 24, 2); rect("rgba(0,0,0,.22)", X + 7, base - 22, 5, 22); rect(potC, X - 14, base - 28, 28, 5);
-      cityBlob(X, base - 38, 15, G); cityBlob(X - 11, base - 33, 8, G); cityBlob(X + 12, base - 34, 9, G);
-      for (let q = 0; q < 6; q++) rect(["#d6334a", "#f2c94c", "#e86aa0"][q % 3], X - 12 + ((q * 37 + j) % 24), base - 48 + ((q * 19 + j) % 18), 2, 2);
+    } else {                                                            // vaso grande com arbusto florido
+      const gx = X, gy = base - 36;
+      [[0, 0, 15], [-11, 5, 9], [12, 4, 10], [-3, -8, 10], [6, -7, 8]].forEach(([dx, dy, q], k) => vCirc(gx + dx, gy + dy, q, G[k % 3]));
+      for (let q = 0; q < 8; q++) vCirc(gx - 13 + ((q * 37 + j) % 26), gy - 14 + ((q * 19 + j) % 20), 1.8, ["#e04a68", "#f4d050", "#ee78b0"][q % 3]);
+      vPoly([[X - 14, base - 28], [X + 14, base - 28], [X + 10, base], [X - 10, base]], vLG(X - 14, 0, X + 14, 0, [[0, tint([176, 92, 58], .2)], [.6, potC], [1, tint([96, 44, 28])]]));
+      vRR(X - 16, base - 32, 32, 6, 2.4, tint([196, 108, 68], .2));
     }
   }
   ctx.restore();
@@ -2923,12 +3094,22 @@ function cityLit(now, l, r) {                                            // à n
   const WTONE = ["#ffd98a", "#ffe6a8", "#ffc46e", "#f6e4bc", "#ffd07a"];       // janelas com tons de luz diferentes (amarela, âmbar, quase branca)
   D.wins.forEach(w => {
     if (w.x < l - 30 || w.x > r + 30 || !w.lit) return;
-    const hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0);
-    ctx.fillStyle = "rgba(255,190,110,.06)"; ctx.fillRect(w.x - 1, w.y - 1, w.w + 2, w.h + 2);               // só um respingo de luz na parede
-    ctx.fillStyle = w.soft ? "rgba(255,217,138,.5)" : WTONE[hs % WTONE.length]; ctx.fillRect(w.x, w.y, w.w, w.h);
-    ctx.fillStyle = "rgba(200,120,60,.4)"; ctx.fillRect(w.x, w.y, w.w, 2);
-    if (!w.soft && w.w >= 6 && w.h >= 8) { ctx.fillStyle = "rgba(70,36,24,.5)"; ctx.fillRect(w.x + (w.w >> 1), w.y, 1, w.h); ctx.fillRect(w.x, w.y + (w.h >> 1), w.w, 1); }   // caixilho: dá forma à janela
-    if (!w.soft && hs % 3 === 0) { ctx.fillStyle = "rgba(120,60,40,.35)"; ctx.fillRect(w.x, w.y, 2, w.h); }       // cortina de um lado
+    const hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0), cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+    const shape = () => { if (w.round) { ctx.beginPath(); ctx.arc(cx, cy, w.w / 2, 0, 6.2832); } else if (w.arch) vArchP(w.x, w.y, w.w, w.h); else vRR(w.x, w.y, w.w, w.h, .7); };
+    ctx.globalCompositeOperation = "lighter"; const hr = Math.max(w.w, w.h) * .85 + 3;
+    ctx.fillStyle = vRG(cx, cy, 0, hr, [[0, "rgba(255,190,110,.2)"], [1, "rgba(255,190,110,0)"]]); ctx.fillRect(cx - hr, cy - hr, hr * 2, hr * 2);   // respingo de luz na parede
+    ctx.globalCompositeOperation = "source-over";
+    const tone = WTONE[hs % WTONE.length];
+    ctx.save(); shape(); ctx.clip();
+    ctx.fillStyle = w.soft ? vLG(0, w.y, 0, w.y + w.h, [[0, "rgba(255,226,150,.62)"], [1, "rgba(255,190,100,.5)"]]) : vLG(0, w.y, 0, w.y + w.h, [[0, tone], [1, vMix(tone, "#e8923e", .55)]]);
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    if (!w.soft) {
+      if (hs % 7 === 0 && w.h >= 12) { ctx.fillStyle = "rgba(60,30,24,.55)"; ctx.beginPath(); ctx.arc(cx + (hs % 3 - 1) * 1.2, w.y + w.h - 6.2, 1.5, 0, 6.2832); ctx.fill(); vRR(cx - 2.4 + (hs % 3 - 1) * 1.2, w.y + w.h - 4.6, 4.8, 5, 2, "rgba(60,30,24,.55)"); }   // silhueta de alguém em casa
+      else if (hs % 3 === 0) { ctx.fillStyle = "rgba(150,70,44,.34)"; ctx.beginPath(); ctx.moveTo(w.x, w.y); ctx.lineTo(w.x + w.w * .34, w.y); ctx.quadraticCurveTo(w.x + w.w * .2, w.y + w.h * .5, w.x + w.w * .3, w.y + w.h); ctx.lineTo(w.x, w.y + w.h); ctx.closePath(); ctx.fill(); }   // cortina
+      vSoft(w.x, w.y, w.w, Math.min(3.5, w.h * .3), .3, "130,60,26");
+      if (w.w >= 6 && w.h >= 8) { ctx.fillStyle = "rgba(80,44,28,.55)"; ctx.fillRect(cx - .4, w.y, .8, w.h); ctx.fillRect(w.x, cy - .4, w.w, .8); }
+    }
+    ctx.restore();
   });
   ctx.globalCompositeOperation = "lighter";                              // luz soma na cena (não vira uma mancha laranja por cima)
   D.lamps.forEach(lp => {
@@ -2941,10 +3122,15 @@ function cityLit(now, l, r) {                                            // à n
     ctx.save(); ctx.translate(lp.x, CITY_B + 10); ctx.scale(1, .26);
     g = ctx.createRadialGradient(0, 0, 2, 0, 0, PR); g.addColorStop(0, "rgba(255,200,120,.34)"); g.addColorStop(.5, "rgba(255,170,90,.12)"); g.addColorStop(1, "rgba(255,160,80,0)");
     ctx.fillStyle = g; ctx.fillRect(-PR, -PR, PR * 2, PR * 2); ctx.restore();
-    ctx.fillStyle = "rgba(255,236,180,.8)"; ctx.fillRect(lp.x - 1, lp.y - 1, 2, 2);
+    ctx.fillStyle = "rgba(255,238,190,.85)"; ctx.beginPath(); ctx.arc(lp.x, lp.y, 1.1, 0, 6.2832); ctx.fill();
   });
   ctx.globalCompositeOperation = "source-over";
-  D.bulbs.forEach((bu, i) => { if (bu.x < l - 10 || bu.x > r + 10) return; ctx.fillStyle = "rgba(255,220,140," + (0.1 + 0.04 * Math.sin(now / 400 + i)).toFixed(2) + ")"; ctx.fillRect(bu.x - 2, bu.y - 2, 4, 4); ctx.fillStyle = "#fff0b8"; ctx.fillRect(bu.x - 1, bu.y - 1, 2, 2); });
+  D.bulbs.forEach((bu, i) => {
+    if (bu.x < l - 10 || bu.x > r + 10) return;
+    const pul = .85 + .15 * Math.sin(now / 400 + i);
+    ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = vRG(bu.x, bu.y, 0, 7, [[0, "rgba(255,220,140," + (.34 * pul).toFixed(2) + ")"], [1, "rgba(255,200,110,0)"]]); ctx.fillRect(bu.x - 7, bu.y - 7, 14, 14);
+    ctx.globalCompositeOperation = "source-over"; vCirc(bu.x, bu.y, 1.35, "#fff4cc");
+  });
   ctx.restore();
 }
 
@@ -2958,41 +3144,54 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
   if (ex > sx) ctx.drawImage(cityCache.cv, sx, 0, ex - sx, cityCache.cv.height, CITY_FW + sx / cs, 0, (ex - sx) / cs, cityCache.cv.height / cs);
   { // fonte: jatinhos de água caindo
     const fx = D.fountain.x;
-    if (fx > l - 40 && fx < r + 40) for (let i = 0; i < 10; i++) {
-      const u = (t * .9 + i / 10) % 1, vx = (i - 4.5) * 3.2, x = Math.round(fx + vx * u * 1.2), y = Math.round(B - 40 + (-14 * u + 40 * u * u));
-      rect("#bfe8f8", x, y, 1, 2);
-      if (u > .93) rect("rgba(220,245,255,.6)", x - 1, B - 6, 3, 1);
+    if (fx > l - 40 && fx < r + 40) for (let i = 0; i < 16; i++) {
+      const u = (t * .9 + i / 16) % 1, vx = (i - 7.5) * 2.1, x = fx + vx * u * 1.2, y = B - 42 + (-14 * u + 40 * u * u);
+      ctx.fillStyle = "rgba(210,240,252," + (.9 - u * .3).toFixed(2) + ")"; ctx.beginPath(); ctx.arc(x, y, .8, 0, 6.2832); ctx.fill();
+      if (u > .93) { ctx.strokeStyle = "rgba(235,250,255,.65)"; ctx.lineWidth = .4; ctx.beginPath(); ctx.ellipse(x, B - 5.4, 2.6, .75, 0, 0, 6.2832); ctx.stroke(); }
     }
   }
   D.lines.forEach(L => {                                                 // varais: fio e roupas balançando de leve
     if (L.x2 < l - 12 || L.x1 > r + 12) return;
-    for (let x = L.x1; x <= L.x2; x++) rect("#3a3440", x, cityWireY(L.x1, L.y1, L.x2, L.y2, L.sag, x), 1, 1);
+    vWire(L.x1, L.y1, L.x2, L.y2, L.sag, .45, "rgba(58,52,64,.95)");
     L.items.forEach(it => {
-      const yy = cityWireY(L.x1, L.y1, L.x2, L.y2, L.sag, it.x) + 1, sn = Math.sin(t * 1.6 + it.ph), sh = sn > .6 ? 1 : sn < -.6 ? -1 : 0, c = it.col;
-      rect("#c0392b", it.x + 1, yy - 1, 1, 1);
-      if (it.kind === 0) { rect(c, it.x, yy, 9, 5); rect(c, it.x + sh, yy + 5, 9, 6); rect("rgba(0,0,0,.12)", it.x + 8 + sh, yy + 5, 1, 6); }
-      else if (it.kind === 1) { rect(c, it.x, yy, 7, 3); rect(c, it.x + 1 + sh, yy + 3, 5, 4); rect(c, it.x - 1, yy, 2, 3); rect(c, it.x + 6, yy, 2, 3); }
-      else if (it.kind === 2) { rect(c, it.x + 1, yy, 5, 2); rect(c, it.x + 1 + sh, yy + 2, 2, 7); rect(c, it.x + 4 + sh, yy + 2, 2, 7); }
-      else { rect(c, it.x + 1, yy, 5, 3); rect(c, it.x + 1 + sh, yy + 3, 5, 4); rect("rgba(255,255,255,.35)", it.x + 1 + sh, yy + 4, 5, 1); }
+      const yy = cityWireY(L.x1, L.y1, L.x2, L.y2, L.sag, it.x) + .6, sw = Math.sin(t * 1.6 + it.ph) * 1.1, c = it.col, g = vLG(0, yy, 0, yy + 12, [[0, vLight(c, .12)], [1, vDark(c, .14)]]), x0 = it.x;
+      if (it.kind === 0) { ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 + 9, yy); ctx.lineTo(x0 + 9 + sw, yy + 11); ctx.quadraticCurveTo(x0 + 4.5 + sw * 1.5, yy + 12.8, x0 + sw * .6, yy + 11); ctx.closePath(); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,.1)"; ctx.lineWidth = .4; ctx.beginPath(); ctx.moveTo(x0 + 4.5, yy + .5); ctx.quadraticCurveTo(x0 + 4.5 + sw * .8, yy + 6, x0 + 4.5 + sw, yy + 11.6); ctx.stroke(); }
+      else if (it.kind === 1) vPoly([[x0 - 1.5, yy], [x0 + 1.5, yy], [x0 + 3.5, yy + 1.2], [x0 + 5.5, yy], [x0 + 8.5, yy], [x0 + 9, yy + 3], [x0 + 6.6 + sw * .5, yy + 3.6], [x0 + 6.4 + sw, yy + 8], [x0 + 1.6 + sw, yy + 8], [x0 + 1.4 + sw * .5, yy + 3.6], [x0 - 1.2, yy + 3]], g);
+      else if (it.kind === 2) { vPoly([[x0 + 1, yy], [x0 + 7, yy], [x0 + 6.4 + sw * .5, yy + 3], [x0 + 6 + sw, yy + 10], [x0 + 4.2 + sw, yy + 10], [x0 + 4 + sw * .6, yy + 4], [x0 + 3.8 + sw, yy + 10], [x0 + 1.6 + sw, yy + 10], [x0 + 1.6 + sw * .5, yy + 3]], g); }
+      else { vRR(x0 + 1 + sw * .3, yy, 6, 8, 1, g); ctx.fillStyle = "rgba(255,255,255,.4)"; ctx.fillRect(x0 + 1 + sw * .3, yy + 3, 6, .9); ctx.fillRect(x0 + 1 + sw * .3, yy + 5, 6, .9); }
+      vCirc(x0 + 1.5, yy - .2, .55, "#c0392b"); vCirc(x0 + 7, yy - .2, .55, "#c0392b");
     });
   });
   D.doors.forEach(d => {                                                 // portas abrindo (e velinha acesa no nicho)
     if (d.t > 0) d.t -= dt;
-    if (d.kind === "shrine") { if (d.glow > 0) { d.glow -= dt; if (d.cx > l - 10 && d.cx < r + 10) { const fl = Math.sin(t * 20) > 0 ? 1 : 0; rect("#ffd060", d.cx - 3.5, B - 41 - fl, 1, 1 + fl); rect("#ffd060", d.cx + 2.5, B - 41 - fl, 1, 1 + fl); rect("rgba(255,210,120,.35)", d.cx - 5, B - 45, 10, 8); } } return; }
+    if (d.kind === "shrine") {
+      if (d.glow > 0) { d.glow -= dt; if (d.cx > l - 10 && d.cx < r + 10) { const fl = .8 + .25 * Math.sin(t * 20); [d.cx - 3.15, d.cx + 3.05].forEach(fx2 => { ctx.fillStyle = "#ffcf60"; ctx.beginPath(); ctx.ellipse(fx2, B - 41.4, .6, 1.3 * fl, 0, 0, 6.2832); ctx.fill(); }); ctx.fillStyle = vRG(d.cx, B - 41, 0, 7, [[0, "rgba(255,210,120,.45)"], [1, "rgba(255,210,120,0)"]]); ctx.fillRect(d.cx - 7, B - 48, 14, 14); } }
+      return;
+    }
     d.o += ((d.t > 0 ? 1 : 0) - d.o) * Math.min(1, dt * 7);
     if (d.o < .02 || d.cx < l - 20 || d.cx > r + 20) return;
-    const paint = (col, x, y, w, h) => d.arch ? cityArch(col, x, y, w, h) : rect(col, x, y, w, h);
-    paint("#2a1810", d.x, d.y, d.w, d.h); paint("#8a5a30", d.x + 1, d.y + 4, d.w - 2, d.h - 4); paint("#e0a860", d.x + 2, d.y + 9, d.w - 4, d.h - 9);
-    rect("#5a3a24", d.x + 2, d.y + d.h - 12, d.w - 4, 2); rect("#3a2418", d.x + 3, d.y + d.h - 10, 2, 10); rect("#3a2418", d.x + d.w - 5, d.y + d.h - 10, 2, 10);   // mesinha lá dentro
-    rect("#2a1810", d.x + (d.w >> 1) - 1, d.y + d.h - 24 - (Math.sin(t * 2) > .5 ? 1 : 0), 3, 11);                                                                  // alguém passando
-    const lw = Math.max(2, Math.round(d.w * (1 - d.o) * .9 + 2));
-    ctx.save(); ctx.beginPath(); ctx.rect(d.x, d.y - 1, lw, d.h + 2); ctx.clip(); paint(d.col, d.x, d.y, d.w, d.h); rect("rgba(0,0,0,.3)", d.x + lw - 1, d.y, 1, d.h); ctx.restore();
+    const shape = (x, y, w, h) => d.arch ? vArchP(x, y, w, h) : vRR(x, y, w, h, .8);
+    ctx.save(); shape(d.x, d.y, d.w, d.h); ctx.clip();                   // interior iluminado
+    ctx.fillStyle = vLG(0, d.y, 0, d.y + d.h, [[0, "#3a2214"], [.3, "#c48a48"], [1, "#f4c878"]]); ctx.fillRect(d.x, d.y, d.w, d.h);
+    vRR(d.x + 2, d.y + d.h - 12, d.w - 4, 1.8, .6, "#5a3a24"); vLine(d.x + 3.4, d.y + d.h - 10, d.x + 3.4, d.y + d.h, .8, "#3a2418"); vLine(d.x + d.w - 3.4, d.y + d.h - 10, d.x + d.w - 3.4, d.y + d.h, .8, "#3a2418");
+    const py = d.y + d.h - 24 - (Math.sin(t * 2) > .5 ? .8 : 0); vCirc(d.x + d.w / 2, py, 1.9, "#2a1810"); vRR(d.x + d.w / 2 - 2.4, py + 2, 4.8, 9, 2, "#2a1810");   // alguém passando
+    ctx.restore();
+    const lw = Math.max(2, d.w * (1 - d.o) * .9 + 2);
+    ctx.save(); ctx.beginPath(); ctx.rect(d.x - 1, d.y - 2, lw + 1, d.h + 4); ctx.clip();                    // folha da porta
+    shape(d.x, d.y, d.w, d.h); ctx.fillStyle = vLG(d.x, 0, d.x + d.w, 0, [[0, vLight(d.col, .12)], [.5, d.col], [1, vDark(d.col, .3)]]); ctx.fill();
+    ctx.fillStyle = "rgba(0,0,0,.2)"; for (let xx = d.x + 2.3; xx < d.x + d.w; xx += 2.3) ctx.fillRect(xx, d.y + 10, .45, d.h - 10);
+    ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(d.x + lw - 1, d.y, 1, d.h);
+    ctx.restore();
   });
-  const drawCat = (cx, cy) => {
-    const tail = Math.sin(t * 3) > 0;
-    rect("#d98a3c", cx - 4, cy - 5, 8, 5); rect("#c0712a", cx - 4, cy - 2, 8, 2); rect("#8f4f1c", cx - 2, cy - 5, 1, 3); rect("#8f4f1c", cx, cy - 5, 1, 2);
-    rect("#d98a3c", cx + 2, cy - 9, 5, 5); rect("#d98a3c", cx + 2, cy - 11, 1, 2); rect("#d98a3c", cx + 6, cy - 11, 1, 2); rect("#2a2d35", cx + 5, cy - 7, 1, 1);
-    rect("#d98a3c", cx - 6, cy - 1, 3, 1); if (tail) rect("#d98a3c", cx - 7, cy - 3, 1, 3); else { rect("#d98a3c", cx - 7, cy - 2, 1, 2); rect("#d98a3c", cx - 8, cy - 3, 1, 1); }
+  const drawCat = (cx, cy) => {                                          // gato laranja sentado, com o rabo balançando
+    const sw = Math.sin(t * 2.4), O = "#e0913f", O2 = "#c3722a";
+    ctx.strokeStyle = O; ctx.lineWidth = 1.7; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(cx - 3.6, cy - 1.6); ctx.bezierCurveTo(cx - 8, cy - 1, cx - 8.5 + sw, cy - 5, cx - 6.4 + sw * 2, cy - 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 4, cy); ctx.bezierCurveTo(cx - 5.2, cy - 6, cx - 1, cy - 9.6, cx + 2.8, cy - 7); ctx.lineTo(cx + 4.6, cy); ctx.closePath(); ctx.fillStyle = vLG(0, cy - 9, 0, cy, [[0, O], [1, O2]]); ctx.fill();
+    ctx.strokeStyle = "rgba(120,60,20,.5)"; ctx.lineWidth = .5; [[-2.4, -6, -1.4, -3.4], [-.4, -7.2, .4, -4.2], [1.6, -6.4, 2.2, -3.8]].forEach(([a, b2, c, d2]) => { ctx.beginPath(); ctx.moveTo(cx + a, cy + b2); ctx.lineTo(cx + c, cy + d2); ctx.stroke(); });
+    vCirc(cx + 3.4, cy - 9.2, 3, O); vPoly([[cx + 1, cy - 11], [cx + 1.4, cy - 14], [cx + 3.4, cy - 11.8]], O); vPoly([[cx + 3.8, cy - 11.8], [cx + 5.8, cy - 14], [cx + 6.2, cy - 10.8]], O);
+    vPoly([[cx + 1.5, cy - 11.2], [cx + 1.6, cy - 13], [cx + 2.9, cy - 11.8]], "#f0a0a0");
+    ctx.fillStyle = "#2a2d35"; ctx.beginPath(); ctx.ellipse(cx + 4.4, cy - 9.6, .45, .7, 0, 0, 6.2832); ctx.fill(); ctx.beginPath(); ctx.ellipse(cx + 2.4, cy - 9.6, .4, .65, 0, 0, 6.2832); ctx.fill();
+    vCirc(cx + 5.9, cy - 8.4, .5, "#e88a96"); vEll(cx + 2.2, cy - .2, 1.6, .9, "#f4dcc0"); vEll(cx + 4, cy - .2, 1.6, .9, "#f4dcc0");
   };
   D.cats.forEach(cx => { if (cx > l - 12 && cx < r + 12) drawCat(cx, B - 6); });   // gatos sentados nos degraus
   ctx.restore();
