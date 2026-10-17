@@ -3373,109 +3373,159 @@ function vClothes(D, b, bi, B) {                                              //
   for (let i = nd; i < D.doors.length; i++) { const o = D.doors[i]; o.cx = tx(o.cx); o.x = tx(o.x); o.y = ty(o.y); o.w *= k; o.h *= k; }
 }
 function vClothesBase(D, b, bi, B) {
+  // Fachada de grife (inspirada em lojas minimalistas de luxo): parede de travertino liso, letreiro preto com fio dourado,
+  // toldos escuros sobre vitrines enormes de moldura preta, entrada central em granito preto com porta dupla de vidro.
   const x = b.x, w = 128, q = vDetRng(5150), pc = a => a[q() * a.length | 0];
-  const GOLD = "#e6c27a", GOLD_D = "#9c6e28", CREAM = "#f4ead2", PLUM = "#17151b";
-  const wy = B - 46, gh = 32, ww = 42, lx = x + 5, dX = x + 53, dW = 22, rx = x + 81, fl = B - 15.5;     // vitrines (topo, altura, largura), porta e o chão das vitrines
-  const plumG = (y0, y1) => vLG(0, y0, 0, y1, [[0, "#2a272f"], [1, "#0e0d12"]]);
-  const OUT = [[{ shirt: "#1d1b22", pants: "#2a2830", hair: "#2a1a10" }, { shirt: "#f1c40f", pants: "#1a1a1f", hat: "#2c3e50" }, { shirt: "#16a085", pants: "#d9d2c0", hat: "#d98e04" }],
-               [{ shirt: "#c0392b", pants: "#26384a", hair: "#3a2414" }, { shirt: "#ecf0f1", pants: "#3a3d46", hair: "#1a1a1f" }, { shirt: "#8e44ad", pants: "#2f3a4a", hat: "#17151b" }]];   // roupa de cada manequim (mesmas cores do personalizar)
+  const GOLD = "#e6c27a", GOLD_L = "#f8e3a6", GOLD_D = "#9c6e28", CREAM = "#fff6e0";
+  const SERIF = "'Didot','Bodoni MT','Playfair Display',Georgia,'Times New Roman',serif";
+  const wy = B - 46, gh = 37, ww = 41, lx = x + 5, rx = x + 82, FL = B - 19;           // vitrines: topo, altura, largura; FL = onde começa o piso lá dentro
+  const dX = x + 51, dW = 26, dY = B - 42.6, dH = 40;                                  // porta dupla de vidro
+  const inkG = (y0, y1) => vLG(0, y0, 0, y1, [[0, "#2a2930"], [1, "#0b0a0f"]]);
+  const stoneG = (x0, x1) => vLG(x0, 0, x1, 0, [[0, "#f7eedc"], [.55, "#e8dec4"], [1, "#d2c5a6"]]);
+  const goldG = (x0, x1) => vLG(x0, 0, x1, 0, [[0, GOLD_L], [.5, GOLD], [1, GOLD_D]]);
 
-  // ---- pilastras de pedra com caneluras, capitel e base
-  const pil = (px, pw) => {
-    vRR(px, B - 47.2, pw, 43, .3, vLG(px, 0, px + pw, 0, [[0, "#f2e8d0"], [.55, "#e4d8bc"], [1, "#cfc2a4"]]));
-    ctx.fillStyle = "rgba(90,70,50,.18)"; for (let fx = px + 1.1; fx < px + pw - .6; fx += 1.5) ctx.fillRect(fx, B - 44, .3, 36);
-    vRR(px - .8, B - 48.4, pw + 1.6, 2.2, .5, vLG(0, B - 48.4, 0, B - 46.2, [[0, "#fbf3df"], [1, "#cdbf9e"]]));
-    vRR(px - .6, B - 7, pw + 1.2, 2.4, .5, vLG(0, B - 7, 0, B - 4.6, [[0, "#e8dcc0"], [1, "#b4a688"]]));
+  // ---- parede de travertino com juntas finas, poros e pilares laterais
+  ctx.fillStyle = stoneG(x, x + w); ctx.fillRect(x, B - 58.6, w, 54.6);
+  for (let yy = B - 56; yy < B - 6; yy += 6.2) { ctx.fillStyle = "rgba(120,92,56,.13)"; ctx.fillRect(x, yy, w, .22); ctx.fillStyle = "rgba(255,252,240,.5)"; ctx.fillRect(x, yy + .22, w, .18); }
+  for (let i = 0; i < 150; i++) { ctx.fillStyle = "rgba(110,84,50," + (.05 + q() * .08).toFixed(2) + ")"; ctx.fillRect(x + q() * w, B - 58 + q() * 52, .5 + q() * 1.4, .3); }
+  [[x, 5], [x + w - 5, 5]].forEach(([px, pw]) => { ctx.fillStyle = "rgba(90,66,40,.1)"; ctx.fillRect(px, B - 58.6, pw, 54.6); ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillRect(px + (px === x ? 0 : pw - .3), B - 58.6, .3, 54.6); });
+  // cornija de pedra no topo e base de granito preto
+  vRR(x - 1.6, B - 61.2, w + 3.2, 2.8, .5, vLG(0, B - 61.2, 0, B - 58.4, [[0, "#fbf4e2"], [1, "#cfc2a4"]])); vSoft(x, B - 58.4, w, 4, .32, "20,14,10");
+  ctx.fillStyle = inkG(B - 4.6, B); ctx.fillRect(x, B - 4.6, w, 4.6); ctx.fillStyle = goldG(x, x + w); ctx.fillRect(x, B - 4.6, w, .3);
+
+  // ---- letreiro: faixa preta com fio dourado, nome em serifa clara com halo de luz
+  vRR(x + 2, B - 58.2, w - 4, 9.2, .6, vLG(0, B - 58.2, 0, B - 49, [[0, "#24232a"], [1, "#0d0c11"]]));
+  ctx.fillStyle = goldG(x, x + w); ctx.fillRect(x + 2, B - 58.2, w - 4, .3); ctx.fillRect(x + 2, B - 49.3, w - 4, .3);
+  vBlot(x + w / 2, B - 53.6, 24, "255,214,140", .13);
+  vTxt("NOBILE", x + w / 2, B - 53.1, CREAM, 6.2, { ls: 2.2, font: SERIF, shadow: "rgba(255,200,110,.5)" });
+  vTxt("BOUTIQUE  ·  MODA & ACESSÓRIOS", x + w / 2, B - 50.5, GOLD, 1.7, { ls: .55, font: SERIF, style: "normal", maxW: 44 });
+  [[x + 14, x + 42], [x + w - 42, x + w - 14]].forEach(([a, c]) => { ctx.fillStyle = goldG(x, x + w); ctx.fillRect(a, B - 54.2, c - a, .3); [a, c].forEach(dx => vPoly([[dx, B - 55.3], [dx + 1.1, B - 54.05], [dx, B - 52.8], [dx - 1.1, B - 54.05]], GOLD)); });
+  D.lamps.push({ x: x + 30, y: B - 54, r: 16 }); D.lamps.push({ x: x + w - 30, y: B - 54, r: 16 });
+
+  // ---- objetos de vitrine
+  const bag = (sx, sy, s, c) => {                                                       // bolsa de grife: corpo, aba, alça e fecho dourado
+    ctx.strokeStyle = GOLD_D; ctx.lineWidth = .35; ctx.beginPath(); ctx.arc(sx + 2.3 * s, sy - 3.4 * s, 1.5 * s, Math.PI, 0); ctx.stroke();
+    vRR(sx, sy - 3.4 * s, 4.6 * s, 3.4 * s, .7, vFabric(sx, sx + 4.6 * s, c));
+    ctx.fillStyle = "rgba(0,0,0,.2)"; ctx.fillRect(sx, sy - 2.2 * s, 4.6 * s, .3); ctx.fillStyle = "rgba(255,255,255,.25)"; ctx.fillRect(sx + .5, sy - 3.1 * s, 1.2 * s, .25);
+    vCirc(sx + 2.3 * s, sy - 2.2 * s, .5, GOLD);
   };
-  [[x, 5], [x + 47, 6], [x + 75, 6], [x + 123, 5]].forEach(([px, pw]) => pil(px, pw));
+  const shoe = (sx, sy, c) => {                                                         // sapato: cabedal, bico e brilho
+    vPoly([[sx, sy], [sx, sy - 2.5], [sx + 1.3, sy - 2.5], [sx + 1.7, sy - 1.1], [sx + 4, sy - .8], [sx + 4.3, sy - .3], [sx + 4, sy]], vFabric(sx, sx + 4.3, c));
+    ctx.fillStyle = "rgba(255,255,255,.4)"; ctx.fillRect(sx + 2, sy - 1, 1.6, .22);
+  };
 
-  // ---- vitrines: moldura, fundo, piso de madeira, manequins, cortininha listrada, vidro com reflexo e painéis embaixo
+  // ---- toldos escuros sobre as vitrines (nome bordado na bambolina) e vitrines de moldura preta
+  const awning = (ax, aw) => {
+    vPoly([[ax + 2.2, B - 49.2], [ax + aw - 2.2, B - 49.2], [ax + aw, B - 44.3], [ax, B - 44.3]], vLG(0, B - 49.2, 0, B - 44.3, [[0, "#35343c"], [1, "#1c1b21"]]));
+    ctx.fillStyle = "rgba(255,255,255,.08)"; for (let sx = ax + 3; sx < ax + aw - 2; sx += 3.2) ctx.fillRect(sx, B - 49, .25, 4.6);
+    vRR(ax, B - 44.3, aw, 3.9, .3, vLG(0, B - 44.3, 0, B - 40.4, [[0, "#26252c"], [1, "#101015"]]));
+    ctx.fillStyle = goldG(ax, ax + aw); ctx.fillRect(ax, B - 44.3, aw, .3); ctx.fillRect(ax, B - 40.7, aw, .3);
+    vTxt("NOBILE", ax + aw / 2, B - 41.6, CREAM, 2.3, { ls: .9, font: SERIF });
+    vSoft(ax + 1, B - 40.4, aw - 2, 9, .42, "0,0,0");                                   // sombra do toldo sobre o vidro (desenhada de novo por cima, depois do vidro)
+  };
+
   const win = (wx, side) => {
-    vRR(wx - 1.6, wy - 1.6, ww + 3.2, gh + 3.2, 1, plumG(wy - 1.6, wy + gh));
-    vRR(wx - .5, wy - .5, ww + 1, gh + 1, .6, "#1c0e18");
-    ctx.save(); vRR(wx, wy, ww, gh, .5); ctx.clip();
-    ctx.fillStyle = vLG(0, wy, 0, wy + gh, [[0, "#fbe6b8"], [.5, "#f0cd8c"], [1, "#c99a58"]]); ctx.fillRect(wx, wy, ww, gh);                // parede de fundo
-    ctx.strokeStyle = "rgba(255,248,230,.55)"; ctx.lineWidth = .35;                                                           // almofadas de moldura
-    for (let px = wx + 2.5; px < wx + ww - 9; px += 13.5) { vRR(px, wy + 7, 11, gh - 17, .6); ctx.stroke(); }
-    ctx.fillStyle = "rgba(110,70,50,.1)"; for (let px = wx + 1; px < wx + ww; px += 2.4) ctx.fillRect(px, wy, .3, gh - 3);    // listrado do papel de parede
-    vBlot(wx + ww / 2, wy + 12, 34, "255,236,190", .5);
-    for (let i = 0; i < 26; i++) { const lx2 = wx + 2 + q() * (ww - 4), ly2 = wy + 5 + q() * 14; ctx.fillStyle = "rgba(255,240,200," + (.3 + q() * .4).toFixed(2) + ")"; ctx.fillRect(lx2, ly2, .5, .5); }   // luzinhas douradas (como a vitrine da foto)
-    ctx.fillStyle = vLG(0, fl - 1.3, 0, wy + gh, [[0, "#d2a878"], [1, "#8e6540"]]); ctx.fillRect(wx, fl - 1.3, ww, gh - (fl - 1.3 - wy));   // piso
-    ctx.fillStyle = "rgba(60,30,14,.35)"; for (let px = wx + 2; px < wx + ww; px += 5) { ctx.beginPath(); ctx.moveTo(px, fl - 1.3); ctx.lineTo(px + (px - wx - ww / 2) * .12, wy + gh); ctx.lineWidth = .3; ctx.strokeStyle = "rgba(60,30,14,.35)"; ctx.stroke(); }
-    ctx.fillStyle = "rgba(255,240,210,.35)"; ctx.fillRect(wx, fl - 1.3, ww, .35);
-    const py = fl - 3.4, dx = [wx + 9, wx + 21, wx + 33];                                                                      // palquinho de madeira escura com friso dourado
-    vRR(wx + 2, py + .5, ww - 4, 3.4, .5, "rgba(10,4,12,.35)"); vRR(wx + 2, py, ww - 4, 3.4, .5, plumG(py, py + 3.4)); ctx.fillStyle = GOLD; ctx.fillRect(wx + 2, py, ww - 4, .5);
-    dx.forEach(sx => { ctx.fillStyle = vLG(0, wy + 4, 0, py, [[0, "rgba(255,238,190,.3)"], [1, "rgba(255,238,190,0)"]]); ctx.beginPath(); ctx.moveTo(sx - 1, wy + 4); ctx.lineTo(sx + 1, wy + 4); ctx.lineTo(sx + 7, py); ctx.lineTo(sx - 7, py); ctx.closePath(); ctx.fill(); });   // cones de luz dos spots
-    dx.forEach((sx, i) => vBlockDoll(sx, py, .5, OUT[side][i]));
-    for (let sx = wx, i = 0; sx < wx + ww; sx += 3.5, i++) {                                                                   // cortininha listrada no alto da vitrine
-      const c = i % 2 ? CREAM : "#e6d5b4", x1 = Math.min(wx + ww, sx + 3.5);
-      ctx.beginPath(); ctx.moveTo(sx, wy); ctx.lineTo(x1, wy); ctx.lineTo(x1, wy + 2.6); ctx.quadraticCurveTo((sx + x1) / 2, wy + 4.2, sx, wy + 2.6); ctx.closePath();
-      ctx.fillStyle = vLG(0, wy, 0, wy + 4, [[0, vLight(c, .1)], [1, vDark(c, .18)]]); ctx.fill();
-    }
-    vRR(wx - .5, wy - .6, ww + 1, 1.6, .5, "#2a1420"); vSoft(wx, wy + 6, ww, 5, .3, "30,12,20");
-    vShopGlass(wx, wy, ww, gh, 1);                                                                                             // caixilhos finos, bisel e sombra do batente
-    ctx.fillStyle = "rgba(255,255,255,.07)"; ctx.beginPath(); ctx.moveTo(wx + 7, wy); ctx.lineTo(wx + 14, wy); ctx.lineTo(wx + 3, wy + gh); ctx.lineTo(wx - 4, wy + gh); ctx.closePath(); ctx.fill();   // reflexo em diagonal
-    ctx.fillStyle = "rgba(255,255,255,.045)"; ctx.beginPath(); ctx.moveTo(wx + 17, wy); ctx.lineTo(wx + 20, wy); ctx.lineTo(wx + 9, wy + gh); ctx.lineTo(wx + 6, wy + gh); ctx.closePath(); ctx.fill();
+    vRR(wx - 1.3, wy - 1.3, ww + 2.6, gh + 2.6, .6, inkG(wy - 1.3, wy + gh + 1.3));
+    ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, gh); ctx.clip();
+    // parede de fundo champagne com painéis finos
+    ctx.fillStyle = vLG(0, wy, 0, FL, [[0, "#fff5da"], [.45, "#f7e6b9"], [1, "#e4c88e"]]); ctx.fillRect(wx, wy, ww, FL - wy + 1);
+    for (let px = wx + 5; px < wx + ww - 2; px += 7.3) { ctx.fillStyle = "rgba(120,86,40,.12)"; ctx.fillRect(px, wy + 5, .3, FL - wy - 5); ctx.fillStyle = "rgba(255,255,255,.4)"; ctx.fillRect(px + .3, wy + 5, .25, FL - wy - 5); }
+    vBlot(wx + ww / 2, wy + 14, 36, "255,240,200", .55);
+    // prateleiras de vidro com bolsas e sapatos (atrás dos manequins)
+    [wy + 16.5, wy + 24.5].forEach((sy, r) => {
+      for (let i = 0; i < 6; i++) {
+        const px = wx + 2 + i * 6.4 + (r ? 3 : 0); if (px > wx + ww - 6) continue;
+        if ((i + r + side) % 3 === 1) { shoe(px, sy, pc(["#17151b", "#7a1f2b", "#d8c3a0"])); shoe(px + 4.6, sy, pc(["#17151b", "#7a1f2b", "#d8c3a0"])); i++; }
+        else bag(px, sy, .85 + q() * .25, pc(["#17151b", "#b5651d", "#7a1f2b", "#f1e7d0", "#2b3f5e", "#c9a86a"]));
+      }
+      ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fillRect(wx + 1, sy, ww - 2, .5); ctx.fillStyle = goldG(wx, wx + ww); ctx.fillRect(wx + 1, sy + .5, ww - 2, .25);
+      vSoft(wx + 1, sy + .75, ww - 2, 3.2, .14, "70,44,10");
+    });
+    // forro com friso de luz (LED) e trilho com spots, cones de luz e poças no piso
+    ctx.fillStyle = vLG(0, wy, 0, wy + 3.4, [[0, "#fff3cf"], [1, "#ffffff"]]); ctx.fillRect(wx, wy, ww, 3.4);
+    ctx.fillStyle = vLG(0, wy + 3.4, 0, wy + 17, [[0, "rgba(255,246,214,.75)"], [1, "rgba(255,246,214,0)"]]); ctx.fillRect(wx, wy + 3.4, ww, 13.6);
+    ctx.fillStyle = "#17161b"; ctx.fillRect(wx + 2, wy + 3.4, ww - 4, .55);
+    // piso polido com brilho
+    ctx.fillStyle = vLG(0, FL, 0, wy + gh, [[0, "#f3e8cf"], [1, "#c1a97d"]]); ctx.fillRect(wx, FL, ww, wy + gh - FL);
+    ctx.fillStyle = "rgba(90,66,36,.18)"; for (let px = wx + 3; px < wx + ww; px += 8) { ctx.beginPath(); ctx.moveTo(px, FL); ctx.lineTo(px + (px - wx - ww / 2) * .28, wy + gh); ctx.lineWidth = .25; ctx.strokeStyle = "rgba(90,66,36,.2)"; ctx.stroke(); }
+    ctx.fillStyle = "#2a2228"; ctx.fillRect(wx, FL - .8, ww, .8); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fillRect(wx, FL, ww, .4);
+    const fy = FL + 4.2;                                                                 // chão dos manequins
+    [.2, .5, .8].forEach(f => {
+      const sx = wx + ww * f;
+      ctx.fillStyle = vLG(0, wy + 4, 0, FL + 4, [[0, "rgba(255,240,196,.34)"], [1, "rgba(255,240,196,0)"]]);
+      ctx.beginPath(); ctx.moveTo(sx - .9, wy + 4); ctx.lineTo(sx + .9, wy + 4); ctx.lineTo(sx + 8, FL + 4); ctx.lineTo(sx - 8, FL + 4); ctx.closePath(); ctx.fill();
+      vEll(sx, FL + 4.4, 7.4, 1.5, "rgba(255,246,214,.5)");
+      vRR(sx - 1.1, wy + 3.9, 2.2, 1.7, .4, "#17161b"); vCirc(sx, wy + 5.7, .7, "#fff4c8");
+    });
+    // manequins elegantes (corpo do pescador, só que de grife) em plintos pretos e um pedestal de pedra com bolsa
+    const OUT = [[{ shirt: "#17161b", pants: "#222128", hair: "#1a1109" }, { shirt: "#d8c3a0", pants: "#f1ead8", hat: "#2a2a30" }],
+                 [{ shirt: "#8c2433", pants: "#1e1e24", hair: "#2c1a0e" }, { shirt: "#f2efe8", pants: "#2a3446", hair: "#c9a86a" }]];
+    [wx + 11, wx + ww - 11].forEach((sx, i) => {
+      vRR(sx - 5.4, fy - .4, 10.8, 1.8, .6, inkG(fy - .4, fy + 1.4)); ctx.fillStyle = goldG(sx - 5, sx + 5); ctx.fillRect(sx - 5.4, fy - .4, 10.8, .3);
+      vBlockDoll(sx, fy - .4, .5, OUT[side][i]);
+    });
+    { const px = wx + ww / 2;
+      vRR(px - 2.8, fy - 6.4, 5.6, 6.6, .3, stoneG(px - 2.8, px + 2.8)); ctx.fillStyle = goldG(px - 3, px + 3); ctx.fillRect(px - 3, fy - 6.4, 6, .35);
+      bag(px - 2.3, fy - 6.4, 1, side ? "#17161b" : "#b5651d"); }
+    // acabamento do vidro: sombra do batente, céu refletido e reflexos em diagonal
+    vSoft(wx, wy, ww, 7, .3, "10,8,20");
+    ctx.fillStyle = vLG(0, wy, 0, wy + gh * .5, [[0, "rgba(180,210,240,.14)"], [1, "rgba(180,210,240,0)"]]); ctx.fillRect(wx, wy, ww, gh * .5);
+    ctx.fillStyle = vLG(wx, 0, wx + 2.4, 0, [[0, "rgba(10,10,20,.3)"], [1, "rgba(10,10,20,0)"]]); ctx.fillRect(wx, wy, 2.4, gh);
+    ctx.fillStyle = "rgba(255,255,255,.075)"; ctx.beginPath(); ctx.moveTo(wx + 8, wy); ctx.lineTo(wx + 16, wy); ctx.lineTo(wx + 5, wy + gh); ctx.lineTo(wx - 3, wy + gh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.05)"; ctx.beginPath(); ctx.moveTo(wx + 19, wy); ctx.lineTo(wx + 22.5, wy); ctx.lineTo(wx + 11.5, wy + gh); ctx.lineTo(wx + 8, wy + gh); ctx.closePath(); ctx.fill();
+    vTxt("NOBILE · MILANO", wx + ww / 2, wy + gh - 1.5, "rgba(255,248,226,.85)", 1.7, { ls: .5, font: SERIF, style: "normal", maxW: 30 });   // adesivo no vidro
     ctx.restore();
-    vRR(wx - 1.6, B - 12.4, ww + 3.2, 7.9, .6, plumG(B - 12.4, B - 4.5));                                                      // painéis de madeira embaixo da vitrine
-    for (let i = 0; i < 2; i++) {
-      const px = wx + 1.2 + i * (ww / 2), pw = ww / 2 - 2.4;
-      vRR(px + .3, B - 11.2, pw, 5.2, .5, "rgba(0,0,0,.26)"); vRR(px, B - 11.5, pw, 5.2, .5, vLG(0, B - 11.5, 0, B - 6.3, [[0, "#2c2932"], [1, "#121116"]]));
-      ctx.strokeStyle = "rgba(226,182,92,.7)"; ctx.lineWidth = .3; vRR(px + .9, B - 10.6, pw - 1.8, 3.4, .3); ctx.stroke();
-    }
-    vRR(wx - 2.4, B - 13.4, ww + 4.8, 1.4, .5, vLG(0, B - 13.4, 0, B - 12, [[0, "#f4ead2"], [1, "#b8ab90"]])); vSoft(wx - 2, B - 12, ww + 4, 3, .22);   // peitoril
+    ctx.strokeStyle = "rgba(230,194,122,.85)"; ctx.lineWidth = .28; ctx.strokeRect(wx - .1, wy - .1, ww + .2, gh + .2);   // fio dourado na moldura
+    vRR(wx - 1.9, B - 8.2, ww + 3.8, 3.7, .4, inkG(B - 8.2, B - 4.5)); ctx.fillStyle = goldG(wx, wx + ww); ctx.fillRect(wx - 1.9, B - 8.2, ww + 3.8, .3);   // painel de granito preto embaixo
+    ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(wx - 1.5, B - 6.8, ww + 3, .25);
+    awning(wx - 2, ww + 4);
   };
   win(lx, 0); win(rx, 1);
 
-  // ---- porta de vidro em arco: moldura de pedra, vidro com roupas lá dentro, painel de madeira, maçaneta, plaquinha ABERTO e degrau
-  vArch(dX - 1.8, B - 46.4, dW + 3.6, 46.4, vLG(dX, 0, dX + dW, 0, [[0, "#f2e8d0"], [1, "#cdbf9f"]]));
-  vArch(dX - .3, B - 45, dW + .6, 45, "#1c0e18");
-  vArch(dX, B - 44.6, dW, 44.6, vLG(dX, 0, dX + dW, 0, [[0, "#2c2932"], [.5, PLUM], [1, "#0b0a0e"]]));
-  const gx0 = dX + 2, gy0 = B - 42.4, gw = dW - 4, ghd = 28;
-  vGlass(gx0, gy0, gw, ghd, true, true, () => {                                                                               // o que se vê pelo vidro da porta
-    ctx.fillStyle = vLG(0, gy0, 0, gy0 + ghd, [[0, "#e9d6b4"], [1, "#a77d50"]]); ctx.fillRect(gx0, gy0, gw, ghd);
-    [gy0 + 11, gy0 + 17.5].forEach((sy, k) => { ctx.fillStyle = "#7a5230"; ctx.fillRect(gx0, sy, gw, .8);
-      for (let sx = gx0 + .8; sx < gx0 + gw - 2; sx += 3.6) { const c = pc(["#c0392b", "#f2c94c", "#2d5a8a", "#e8e0c8", "#b8587a", "#2f6b4f"]); vRR(sx, sy - 2.2 - k * .3, 3, 2.2, .4, vFabric(sx, sx + 3, c)); vRR(sx + .3, sy - 4 - k * .3, 2.4, 1.8, .4, vFabric(sx, sx + 3, pc(["#e8b8c0", "#9bb6d8", "#f4efe2"]))); } });
-    ctx.fillStyle = "rgba(226,182,92,.9)"; ctx.fillRect(gx0 + 2, gy0 + 22.4, gw - 4, .5);                                      // arara no fundo
-    ["#c0392b", "#27385e", "#2f6b4f", "#e8b8c0"].forEach((c, i) => vHung(gx0 + 3.2 + i * 3.6, gy0 + 22.8, 4.6, 2.8, c, i % 2 ? "shirt" : "dress"));
-    vLine(gx0 + gw / 2, gy0, gx0 + gw / 2, gy0 + 5, .3, "#2a1420"); vPoly([[gx0 + gw / 2 - 2, gy0 + 7], [gx0 + gw / 2 + 2, gy0 + 7], [gx0 + gw / 2 + 1, gy0 + 5], [gx0 + gw / 2 - 1, gy0 + 5]], "#e2b65c"); vBlot(gx0 + gw / 2, gy0 + 8, 11, "255,226,160", .5);   // pendente
-  });
-  vRR(dX + 1.4, B - 14.2, dW - 2.8, 11.4, .6, "rgba(0,0,0,.28)"); vRR(dX + 1.2, B - 14.5, dW - 2.4, 11.4, .6, vLG(0, B - 14.5, 0, B - 3, [[0, "#2c2932"], [1, "#121116"]]));   // painel de baixo
-  ctx.strokeStyle = "rgba(226,182,92,.7)"; ctx.lineWidth = .3; vRR(dX + 2.4, B - 13.2, dW - 4.8, 9, .4); ctx.stroke();
-  vRR(dX + 1, B - 4.4, dW - 2, 1.6, .3, vLG(dX, 0, dX + dW, 0, [[0, "#d6b45c"], [.5, "#f4dc92"], [1, "#a8822c"]]));              // chapa de latão
-  vRR(dX + dW - 5, B - 31, 1.3, 13, .6, vLG(dX + dW - 5, 0, dX + dW - 3.7, 0, [[0, "#f6dc90"], [1, "#9c6e28"]])); vCirc(dX + dW - 4.35, B - 30.4, .7, "#e2b65c"); vCirc(dX + dW - 4.35, B - 18.6, .7, "#e2b65c");   // puxador
-  { const cx0 = dX + dW / 2 - 2.6, cy0 = B - 37.6; vLine(cx0 + 4.2, gy0 + 3, cx0 + 4.2, cy0, .2, "#9a8a70");                        // plaquinha ABERTO pendurada no vidro
-    vRR(cx0 + .3, cy0 + .5, 8.4, 5, .5, "rgba(20,8,16,.3)"); vRR(cx0, cy0, 8.4, 5, .5, "#f4ead2"); ctx.strokeStyle = "#a8222c"; ctx.lineWidth = .3; vRR(cx0 + .6, cy0 + .6, 7.2, 3.8, .3); ctx.stroke();
-    vTxt("ABERTO", cx0 + 4.2, cy0 + 3.2, "#a8222c", 1.9, { ls: .1 }); }
-  vRR(dX - 2.8, B - 2.6, dW + 5.6, 3, .8, vLG(0, B - 2.6, 0, B + .4, [[0, "#e6dac0"], [1, "#a89c82"]])); vSoft(dX - 2.8, B + .4, dW + 5.6, 2.6, .25);   // degrau
+  // ---- entrada: moldura de granito preto, medalhão com monograma, porta dupla de vidro com loja iluminada ao fundo
+  vRR(x + 47, B - 49.4, 34, 45, .5, inkG(B - 49.4, B)); ctx.fillStyle = goldG(x + 47, x + 81); ctx.fillRect(x + 47, B - 49.4, 34, .3);
+  ctx.fillStyle = "rgba(255,255,255,.08)"; ctx.fillRect(x + 47.6, B - 49, .3, 44); ctx.fillRect(x + 77.6, B - 49, .3, 44);
+  ctx.strokeStyle = GOLD; ctx.lineWidth = .3; ctx.beginPath(); ctx.arc(x + 64, B - 46.5, 2.3, 0, 6.2832); ctx.stroke();
+  vTxt("N", x + 64, B - 45.4, GOLD, 3.1, { font: SERIF });
+  ctx.strokeStyle = "rgba(230,194,122,.8)"; ctx.lineWidth = .3; vRR(dX - .9, dY - .9, dW + 1.8, dH + .9, .3); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.rect(dX, dY, dW, dH); ctx.clip();
+  const gx0 = dX + 1.1, gy0 = dY + 1.4, gw = dW - 2.2, cxm = dX + dW / 2;
+  ctx.fillStyle = vLG(0, gy0, 0, gy0 + 33, [[0, "#fff1cc"], [.5, "#f4dfae"], [1, "#d9bb82"]]); ctx.fillRect(dX, dY, dW, dH);                // interior iluminado
+  vBlot(cxm, gy0 + 12, 22, "255,238,190", .6);
+  vRR(cxm - 3.9, gy0 + 4, 7.8, 17, .4, goldG(cxm - 3.9, cxm + 3.9)); vRR(cxm - 3.2, gy0 + 4.7, 6.4, 15.6, .3, vLG(cxm - 3.2, gy0, cxm + 3.2, gy0 + 16, [[0, "#e8f0f4"], [.5, "#b9c8d2"], [1, "#8ea0ad"]]));   // espelho de moldura dourada
+  ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.beginPath(); ctx.moveTo(cxm - 1, gy0 + 4.7); ctx.lineTo(cxm + 1.2, gy0 + 4.7); ctx.lineTo(cxm - 2.2, gy0 + 20.3); ctx.lineTo(cxm - 3.2, gy0 + 20.3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#4a3a28"; ctx.fillRect(gx0, gy0 + 9, gw, .45);                                                                           // arara de roupas
+  ["#17161b", "#f4efe2", "#c19a6b", "#7a1f2b", "#2b3f5e", "#17161b", "#d8c3a0"].forEach((c, i) => vHung(gx0 + 2 + i * 3.2, gy0 + 9.6, 8.6, 2.7, c, i % 3 === 1 ? "dress" : "shirt"));
+  ctx.fillStyle = vLG(0, gy0 + 24, 0, gy0 + 34, [[0, "#f1e4c8"], [1, "#bfa77c"]]); ctx.fillRect(dX, gy0 + 24, dW, 12);                  // piso polido
+  ctx.fillStyle = "#2a2228"; ctx.fillRect(dX, gy0 + 23.2, dW, .8);
+  vRR(cxm - 5.2, gy0 + 24.6, 10.4, 1, .3, inkG(gy0, gy0 + 1)); [["#c9a86a", 0], ["#f2efe8", 1], ["#7a1f2b", 2]].forEach(([c, i]) => vRR(cxm - 4.2 + i * 2.9, gy0 + 22.4, 2.7, 2.2, .3, vFabric(0, 3, c)));   // mesa baixa com suéteres dobrados
+  vLine(cxm, dY, cxm, gy0 + 1.6, .25, "#2a2228"); vCirc(cxm, gy0 + 2.3, 1.5, "#fffbea"); vBlot(cxm, gy0 + 2.3, 8, "255,240,190", .6);          // pendente globo
+  ctx.fillStyle = vLG(0, dY, 0, dY + 4, [[0, "#fff6d8"], [1, "rgba(255,246,216,0)"]]); ctx.fillRect(dX, dY, dW, 4);                           // friso de luz no forro
+  vSoft(dX, dY, dW, 5, .3, "10,8,20");
+  ctx.fillStyle = "rgba(255,255,255,.08)"; ctx.beginPath(); ctx.moveTo(dX + 3, dY); ctx.lineTo(dX + 9, dY); ctx.lineTo(dX + 2, dY + dH); ctx.lineTo(dX - 4, dY + dH); ctx.closePath(); ctx.fill();   // reflexo
+  ctx.fillStyle = "#14131a"; ctx.fillRect(dX, dY, dW, 1.4); ctx.fillRect(dX, dY, 1.1, dH); ctx.fillRect(dX + dW - 1.1, dY, 1.1, dH); ctx.fillRect(cxm - .55, dY, 1.1, dH);   // caixilhos finos pretos
+  ctx.fillStyle = inkG(dY + dH - 4.6, dY + dH); ctx.fillRect(dX, dY + dH - 4.6, dW, 4.6); ctx.fillStyle = goldG(dX, dX + dW); ctx.fillRect(dX, dY + dH - 4.6, dW, .3);   // rodapé da porta
+  ctx.restore();
+  [cxm - 2.7, cxm + 1.7].forEach(px => vRR(px, dY + 14, 1, 15, .5, goldG(px, px + 1)));                                                      // puxadores longos de latão
+  { const cx0 = dX + dW - 9.6, cy0 = dY + 8;                                                                                                // plaquinha ABERTO
+    vRR(cx0, cy0, 7.6, 3.8, .4, "#14131a"); ctx.strokeStyle = GOLD; ctx.lineWidth = .22; vRR(cx0 + .4, cy0 + .4, 6.8, 3, .25); ctx.stroke();
+    vTxt("ABERTO", cx0 + 3.8, cy0 + 2.6, GOLD_L, 1.6, { ls: .12, font: SERIF }); }
+  vRR(dX - 3, B - 2.6, dW + 6, 3, .8, vLG(0, B - 2.6, 0, B + .4, [[0, "#ece1c6"], [1, "#a89c82"]])); vSoft(dX - 3, B + .4, dW + 6, 2.6, .25);   // degrau de pedra
+  ctx.fillStyle = goldG(dX, dX + dW); ctx.fillRect(dX, B - 2.7, dW, .4);
 
-  // ---- lampiões nas pilastras ao lado da porta e plaquinha de horário
-  vLantern(x + 48.7, B - 38, D); vLantern(x + 76.7, B - 38, D);
-  vRR(x + 77, B - 27, 3.6, 5.4, .4, vLG(x + 77, 0, x + 80.6, 0, [[0, "#f1d27c"], [1, "#9c6e28"]])); ctx.fillStyle = "rgba(60,36,10,.65)"; [0, 1, 2, 3].forEach(i => ctx.fillRect(x + 77.6, B - 26 + i * 1.1, 2.4 - (i === 3 ? 1 : 0), .35));
-
-  // ---- letreiro: placa de madeira vinho com fio dourado, nome, subtítulo, cabides e luminárias
-  vRR(x + 3.6, B - 58.6, w - 6, 12.4, 1.4, "rgba(30,12,22,.3)");
-  vRR(x + 3, B - 59, w - 6, 12.4, 1.4, plumG(B - 59, B - 46.6));
-  ctx.strokeStyle = GOLD; ctx.lineWidth = .45; vRR(x + 4.5, B - 57.5, w - 9, 9.4, .9); ctx.stroke();
-  ctx.strokeStyle = "rgba(226,182,92,.4)"; ctx.lineWidth = .2; vRR(x + 5.4, B - 56.6, w - 10.8, 7.6, .6); ctx.stroke();
-  [[x + 6.6, B - 55.6], [x + w - 6.6, B - 55.6], [x + 6.6, B - 49.8], [x + w - 6.6, B - 49.8]].forEach(([sx, sy]) => { vCirc(sx, sy, .55, vRG(sx - .15, sy - .15, 0, .6, [[0, "#fff0b8"], [1, "#9c6e28"]])); });   // rebites
-  vTxt("BOUTIQUE", x + w / 2, B - 52.4, "#fff6e0", 6.3, { ls: 1.6, shadow: "rgba(255,214,130,.65)" });
-  vTxt("MODA  ·  ROUPAS  ·  ACESSÓRIOS", x + w / 2, B - 49.5, GOLD, 2.3, { ls: .5, maxW: 62 });
-  vHanger(x + 18, B - 56.4, 8.4, GOLD, .6); vHanger(x + w - 18, B - 56.4, 8.4, GOLD, .6);
-  [x + 27.7, x + 52, x + 76.3, x + 100.7].forEach(gx => {                                                                                   // luminárias de braço iluminando o letreiro
-    ctx.save(); ctx.beginPath(); ctx.rect(x + 3, B - 59, w - 6, 12.4); ctx.clip();
-    ctx.fillStyle = vLG(0, B - 61, 0, B - 47, [[0, "rgba(255,232,170,.28)"], [1, "rgba(255,232,170,0)"]]); ctx.beginPath(); ctx.moveTo(gx - 1.6, B - 61); ctx.lineTo(gx + 1.6, B - 61); ctx.lineTo(gx + 11, B - 46); ctx.lineTo(gx - 11, B - 46); ctx.closePath(); ctx.fill();
-    ctx.restore();
-    vLine(gx, B - 66, gx, B - 62.6, .55, "#24262c"); vRR(gx - 1.6, B - 67, 3.2, 1.2, .4, "#3a3d46");
-    vPoly([[gx - 2.6, B - 60.6], [gx + 2.6, B - 60.6], [gx + 1.2, B - 63.2], [gx - 1.2, B - 63.2]], vLG(gx - 2.6, 0, gx + 2.6, 0, [[0, "#d6b45c"], [1, "#8a6420"]])); vRR(gx - 1.4, B - 60.9, 2.8, .7, .3, "#fff0b8");
-    D.lamps.push({ x: gx, y: B - 59, r: 13 });
+  // ---- arandelas modernas na moldura da entrada (cilindro de latão com luz para cima e para baixo)
+  [x + 49, x + 79].forEach(sx => {
+    vBlot(sx, B - 31.5, 8, "255,228,160", .4); vBlot(sx, B - 24.5, 8, "255,228,160", .4);
+    vRR(sx - 1, B - 31, 2, 6.4, .9, vLG(sx - 1, 0, sx + 1, 0, [[0, GOLD_L], [.5, "#fff2c4"], [1, GOLD_D]]));
+    vRR(sx - 1.3, B - 31.5, 2.6, .8, .3, GOLD_D); vRR(sx - 1.3, B - 25.1, 2.6, .8, .3, GOLD_D);
+    D.lamps.push({ x: sx, y: B - 28, r: 30 });
   });
 
-  [x + 50, x + 78].forEach(cx => {                                                                                            // vasos pretos com topiaria
+  // ---- vasos pretos com topiaria ladeando a entrada
+  [x + 47.4, x + 80.6].forEach(cx => {
     const y0 = B + 2.4;
     vEll(cx + .6, y0 + .3, 4.6, 1, "rgba(20,8,26,.34)");
     vLine(cx, y0 - 6, cx, y0 - 12, .8, "#4a3422");
-    ctx.beginPath(); for (let i = 0; i < 9; i++) { const a = i / 9 * 6.2832; ctx.arc(cx + Math.cos(a) * 3.4, y0 - 16 + Math.sin(a) * 3.4, 1.9, 0, 6.2832); } ctx.fillStyle = vMix(CITY_GREENS[2], "#0a2010", .2); ctx.fill();
     vCirc(cx, y0 - 16, 3.8, vRG(cx - 1.2, y0 - 17.4, 0, 4.4, [[0, vLight(CITY_GREENS[0], .12)], [.6, CITY_GREENS[1]], [1, vMix(CITY_GREENS[2], "#0a2010", .2)]]));
     for (let i = 0; i < 14; i++) { const a = q() * 6.2832, d = q() * 3.2; vCirc(cx + Math.cos(a) * d, y0 - 16 + Math.sin(a) * d, .35, i % 3 ? "rgba(190,230,150,.5)" : "rgba(10,36,16,.35)"); }
     vPoly([[cx - 3.2, y0 - 6.2], [cx + 3.2, y0 - 6.2], [cx + 2.4, y0], [cx - 2.4, y0]], vLG(cx - 3, 0, cx + 3, 0, [[0, "#3a363e"], [.4, "#26222a"], [1, "#16131a"]]));
@@ -3483,12 +3533,12 @@ function vClothesBase(D, b, bi, B) {
     vRR(cx - 3, y0 - 4.2, 6, .5, .2, GOLD);
   });
 
-  // ---- luz da noite: vitrines (brilho suave, os manequins continuam aparecendo), vidro da porta e poças de luz
-  D.wins.push({ x: lx, y: wy, w: ww, h: gh, lit: true, soft: true, big: true, cols: 1, ga: .38 });
-  D.wins.push({ x: rx, y: wy, w: ww, h: gh, lit: true, soft: true, big: true, cols: 1, ga: .38 });
-  D.wins.push({ x: gx0, y: gy0, w: gw, h: ghd, lit: true, soft: true, arch: true, ga: .6 });
-  D.lamps.push({ x: lx + ww / 2, y: B - 28, r: 22 }); D.lamps.push({ x: rx + ww / 2, y: B - 28, r: 22 });
-  D.doors.push({ cx: dX + dW / 2, x: dX, y: B - 44.6, w: dW, h: 44.6, arch: true, col: PLUM, kind: "clothes", name: b.name || "BOUTIQUE", o: 0, t: 0 });
+  // ---- luz da noite: vitrines (brilho suave, os manequins continuam aparecendo), vidro da porta e poças de luz no chão
+  D.wins.push({ x: lx, y: wy, w: ww, h: gh, lit: true, soft: true, big: true, cols: 1, ga: .34 });
+  D.wins.push({ x: rx, y: wy, w: ww, h: gh, lit: true, soft: true, big: true, cols: 1, ga: .34 });
+  D.wins.push({ x: dX, y: dY, w: dW, h: dH - 4.6, lit: true, soft: true, ga: .5 });
+  D.lamps.push({ x: lx + ww / 2, y: B - 26, r: 28 }); D.lamps.push({ x: rx + ww / 2, y: B - 26, r: 28 }); D.lamps.push({ x: cxm, y: B - 24, r: 20 });
+  D.doors.push({ cx: dX + dW / 2, x: dX, y: dY, w: dW, h: dH, arch: false, col: "#1a1920", kind: "clothes", name: b.name || "BOUTIQUE", o: 0, t: 0 });
 }
 
 function vBuilding(D, b, bi, B, r, ri, pk) {
