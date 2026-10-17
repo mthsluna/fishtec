@@ -4323,18 +4323,19 @@ function cityNearDoor() {                                                // a po
   return best;
 }
 // ---- Boutique: aviso "Entrar" com uma camiseta pixelada (as outras portas continuam desligadas em cityNearDoor) ----
-const SHIRT_PX = [".##...##...", ".#oo###oo#.", "#ooooooooo#", "#ooooooooo#", "##ooooooo##", ".#ooooooo#.", ".#ooooooo#.", ".#ooooooo#.", ".#########."].map((r, i) => i ? r : "..##...##..");   // # contorno, o = tecido (cor da minha camiseta)
+const SHIRT_PX = ["..##.##..", ".#o###o#.", "#ooooooo#", "##ooooo##", ".#ooooo#.", ".#ooooo#.", ".#ooooo#.", ".#######."];   // 9x8: # contorno, o = tecido (cor da minha camiseta)
 function boutiqueNear() {                                                // a porta da loja de roupas, se o pescador estiver bem na frente dela
   if (!cityData || !CITY.on) return null;
   const d = cityData.doors.find(o => o.kind === "clothes");
   return d && Math.abs(px - d.cx) < 24 ? d : null;
 }
 function drawBoutiquePrompt(d, now) {                                    // [camiseta] Entrar, flutuando acima do pescador, com um fio até a porta
-  const lab = "Entrar"; ctx.font = UI_PX + "px " + UI_FONT; const tw = Math.ceil(ctx.measureText(lab).width), bw = 15, gap = 4, tot = bw + gap + tw;
+  const lab = "Entrar"; ctx.font = UI_PX + "px " + UI_FONT; const tw = Math.ceil(ctx.measureText(lab).width), bw = 13, gap = 4, tot = bw + gap + tw;
   const kx = Math.round(px - tot / 2), ky = Math.round(PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 32 + Math.sin(now / 260) * 1.5);
   const dx = Math.round(d.cx), dy = Math.round(d.y + d.h * .42);
-  ctx.save(); ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.lineWidth = .8; ctx.beginPath(); ctx.moveTo(kx + bw, ky + bw / 2); ctx.lineTo(dx, dy); ctx.stroke();   // fio até a porta
-  ctx.fillStyle = "#1b2619"; ctx.beginPath(); ctx.arc(dx, dy, 2.4, 0, 6.2832); ctx.fill(); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(dx, dy, 1.6, 0, 6.2832); ctx.fill(); ctx.restore();
+  { let x0 = kx + bw, y0 = ky + (bw >> 1), x1 = dx, y1 = dy; const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, ax = Math.abs(x1 - x0), ay = -Math.abs(y1 - y0); let er = ax + ay;   // fio em pixels (Bresenham, quadradinhos de 1x1)
+    for (let n = 0; n < 400; n++) { rect("rgba(255,255,255,.9)", x0, y0, 1, 1); if (x0 === x1 && y0 === y1) break; const e2 = 2 * er; if (e2 >= ay) { er += ay; x0 += sx; } if (e2 <= ax) { er += ax; y0 += sy; } } }
+  rect("#1b2619", dx - 1, dy - 2, 3, 5); rect("#1b2619", dx - 2, dy - 1, 5, 3); rect("#fff", dx - 1, dy - 1, 3, 3);                          // bolinha em pixels
   rect("#1b2619", kx, ky, bw, bw); rect("#bccdac", kx + 1, ky + 1, bw - 2, bw - 3); rect("#7d8f71", kx + 1, ky + bw - 2, bw - 2, 1);
   SHIRT_PX.forEach((row, j) => { for (let i = 0; i < row.length; i++) { const c = row[i]; if (c !== ".") rect(c === "#" ? "#1b2619" : me.shirt, kx + 2 + i - 0, ky + 2 + j, 1, 1); } });   // camiseta 11x9 px
   text(lab, kx + bw + gap, ky + 11, "#fff", "left");
@@ -4770,7 +4771,7 @@ function drawCity(now) {
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
     ctx.restore();
   }, [PIER_Y - 70, PIER_Y + 12], c => cityFisherLight(c, now)); } finally { shadeEnd(); }
-  text(myName, px, PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 6, "#ffd166", "center");              // o nome fica FORA da lavagem de cor (à noite ela escurecia o texto)
+  ctx.save(); ctx.translate(px, PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 5); ctx.scale(.68, .68); text(myName, 0, 0, "#ffd166", "center"); ctx.restore();   // nome menor na cidade (fica FORA da lavagem de cor (à noite ela escurecia o texto)
   const dn = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open ? cityNearDoor() : null;
   if (dn) {                                                                              // "E" quando há uma porta ao alcance
     const ky = PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 30 + Math.round(Math.sin(now / 260) * 1.5), kx = Math.round(px) - 6;   // o "E" flutua em cima do nome do pescador
