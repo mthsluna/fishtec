@@ -3023,8 +3023,159 @@ function vChurch(D, b, B, r, ri, pk) {
 const dx0 = (cx, o) => cx + o;
 
 // ---- prédios comuns (fachada, janelas, térreo, telhado)
+2.6.7// ---------- Detalhes extras das fachadas: reboco com grão e manchas, cantaria, rodapé de pedra, cornijas, lintéis, cortinas,
+// ar-condicionado, cartazes, caixa de luz, capachos e bicicletas. Usam um sorteio PRÓPRIO: não mudam o traçado nem a semente do resto da cidade.
+// Para desligar tudo: CITY_DETAIL = 0. Para mais/menos textura no reboco: CITY_TEX (1 = como está, 0 = liso).
+const CITY_DETAIL = 1, CITY_TEX = 1;
+function vDetRng(seed) { let s = Math.abs(Math.floor(seed * 2654435761)) % 2147483647 || 12345; return () => (s = s * 16807 % 2147483647) / 2147483647; }
+
+function vFacadePre(b, bi, B, wc) {                                        // por baixo de janelas e portas: textura da parede, cantaria e rodapé
+  const x = b.x, w = b.w, top = b.top, ht = B - top, q = vDetRng(bi * 131 + x + 7);
+  const n1 = w * ht / 6 * CITY_TEX | 0;
+  for (let i = 0; i < n1; i++) {                                           // grão do reboco: pontinhos claros e escuros
+    const px = x + q() * w, py = top + q() * ht, sz = .28 + q() * .62, lit = q() < .5;
+    ctx.fillStyle = lit ? `rgba(255,248,230,${(.05 + q() * .08).toFixed(3)})` : `rgba(70,40,30,${(.04 + q() * .08).toFixed(3)})`;
+    ctx.fillRect(px, py, sz * (1 + q() * 1.6), sz);
+  }
+  for (let i = 0, n = n1 / 16 | 0; i < n; i++) {                           // marcas de desempenadeira
+    ctx.fillStyle = q() < .5 ? "rgba(255,246,226,.06)" : "rgba(80,46,34,.055)";
+    ctx.fillRect(x + q() * (w - 6), top + q() * ht, 2 + q() * 5, .22);
+  }
+  for (let i = 0, n = 2 + (q() * 3 | 0); i < n && CITY_TEX > 0; i++) {     // manchas de chuva escorrendo do alto
+    const sx = x + 4 + q() * (w - 8), sw = 1.4 + q() * 3, sh = 16 + q() * 38, sy = top + 4 + q() * 20;
+    ctx.fillStyle = vLG(0, sy, 0, sy + sh, [[0, "rgba(64,46,36,0)"], [.25, "rgba(64,46,36,.075)"], [1, "rgba(64,46,36,0)"]]); ctx.fillRect(sx, sy, sw, sh);
+  }
+  // cantaria nos cantos (pedras alternadas, como nos prédios antigos)
+  const qc = vMix(wc[0], wc[2], .72);
+  for (let y = top + 9, k = 0; y < B - 14; y += 6.6, k++) {
+    [[x, k % 2 ? 3.1 : 4.8], [null, k % 2 ? 4.8 : 3.1]].forEach(([qx0, wq]) => {
+      const qx = qx0 === null ? x + w - wq : qx0;
+      vRR(qx, y, wq, 5.8, .5, vLG(0, y, 0, y + 5.8, [[0, vLight(qc, .12)], [1, vMix(qc, wc[1], .25)]]));
+      ctx.fillStyle = "rgba(255,248,230,.22)"; ctx.fillRect(qx, y, wq, .35);
+      ctx.fillStyle = "rgba(40,20,30,.18)"; ctx.fillRect(qx, y + 5.45, wq, .4);
+      ctx.fillStyle = "rgba(40,20,30,.12)"; ctx.fillRect(qx0 === null ? qx : qx + wq - .45, y, .45, 5.8);
+    });
+  }
+  // rodapé de pedra (duas fileiras de blocos) e umidade subindo pela parede
+  ctx.fillStyle = vLG(0, B - 30, 0, B - 4.5, [[0, "rgba(70,50,40,0)"], [1, "rgba(70,50,40,.15)"]]); ctx.fillRect(x, B - 30, w, 25.5);
+  const pb = B - 12.5;
+  vRR(x, pb, w, 8.2, .4, vLG(0, pb, 0, B - 4.3, [[0, "#b4a694"], [1, "#8a7d70"]]));
+  for (let j = 0; j < 2; j++) {
+    const yy = pb + j * 4.1; ctx.fillStyle = "rgba(40,26,20,.3)"; ctx.fillRect(x, yy, w, .38);
+    for (let px = x + (j ? 3.4 : 0) + 6.8; px < x + w - 1; px += 6.8 + q() * 1.2) ctx.fillRect(px, yy, .34, 4.1);
+    for (let i = 0; i < w / 4; i++) { ctx.fillStyle = q() < .5 ? "rgba(255,246,226,.1)" : "rgba(40,26,20,.1)"; ctx.fillRect(x + q() * w, yy + .5 + q() * 3, .7 + q(), .5); }
+  }
+  vRR(x - .8, pb - 1, w + 1.6, 1.5, .6, vLG(0, pb - 1, 0, pb + .5, [[0, "#d4c8b2"], [1, "#a89a86"]])); vSoft(x, pb + .5, w, 2, .22);
+  for (let c = 0, nc = q() < .6 ? 1 : 2; c < nc; c++) {                    // rachadura fina
+    let cx = x + 6 + q() * (w - 12), cy = top + 16 + q() * ht * .3; const L = 7 + q() * 11;
+    ctx.beginPath(); ctx.moveTo(cx, cy); for (let s = 0; s < 5; s++) { cx += (q() - .5) * 2.8; cy += L / 5; ctx.lineTo(cx, cy); }
+    ctx.lineWidth = .28; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(50,30,26,.36)"; ctx.stroke();
+    ctx.lineWidth = .2; ctx.strokeStyle = "rgba(255,246,226,.18)"; ctx.translate(.35, 0); ctx.stroke(); ctx.translate(-.35, 0);
+  }
+}
+
+function vBike(bx, by, col) {                                              // bicicleta encostada na parede (by = chão)
+  const wr = 4.6, cx1 = bx + 4.8, cx2 = bx + 17.4, cy = by - wr;
+  vEll(bx + 11, by + .8, 11.5, 1.3, "rgba(20,8,26,.3)");
+  ctx.lineCap = "round";
+  [cx1, cx2].forEach(cx => {
+    ctx.strokeStyle = "#202228"; ctx.lineWidth = .8; ctx.beginPath(); ctx.arc(cx, cy, wr, 0, 6.2832); ctx.stroke();
+    ctx.strokeStyle = "rgba(190,196,204,.5)"; ctx.lineWidth = .18;
+    for (let a = 0; a < 3.1416; a += .52) { ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * wr, cy + Math.sin(a) * wr); ctx.lineTo(cx - Math.cos(a) * wr, cy - Math.sin(a) * wr); ctx.stroke(); }
+    vCirc(cx, cy, .7, "#8a8e96");
+  });
+  const px = bx + 10.4, py = cy;                                           // pedal
+  ctx.strokeStyle = col; ctx.lineWidth = .85;
+  ctx.beginPath(); ctx.moveTo(cx1, cy); ctx.lineTo(px, py); ctx.lineTo(bx + 8.6, cy - 6.8); ctx.lineTo(cx1, cy); ctx.moveTo(bx + 8.6, cy - 6.8); ctx.lineTo(cx2 - 1.2, cy - 7.4); ctx.lineTo(px, py); ctx.moveTo(cx2 - 1.2, cy - 7.4); ctx.lineTo(cx2, cy); ctx.stroke();
+  vLine(bx + 8.6, cy - 6.8, bx + 8.2, cy - 8.6, .7, "#202228"); vRR(bx + 6.6, cy - 9.7, 3.6, 1.2, .6, "#2a2018");   // canote e selim
+  vLine(cx2 - 1.2, cy - 7.4, cx2 - 2, cy - 9.6, .7, "#202228"); vLine(cx2 - 3.2, cy - 9.8, cx2 + .6, cy - 9.4, .6, "#202228");   // guidão
+  vRR(cx2 + .6, cy - 8.8, 3.6, 2.8, .5, "#8a6a3a"); ctx.strokeStyle = "rgba(40,24,12,.5)"; ctx.lineWidth = .18; for (let g = cx2 + 1.6; g < cx2 + 4; g += .9) { ctx.beginPath(); ctx.moveTo(g, cy - 8.6); ctx.lineTo(g, cy - 6.2); ctx.stroke(); }   // cesto
+  vLine(px - .8, py + .6, px + .9, py + 1.3, .6, "#202228");
+}
+
+function vFacadePost(D, b, bi, B, wc, w0, d0) {                            // por cima: cornija, janelas, portas e objetos na parede
+  const x = b.x, w = b.w, top = b.top, q = vDetRng(bi * 977 + x + 3), pc = a => a[q() * a.length | 0];
+  // cornija com dentículos sob o telhado (ou balaústres no terraço)
+  vRR(x - 1.8, top + .3, w + 3.6, 2.1, .5, vLG(0, top, 0, top + 2.4, [[0, vLight(wc[2], .12)], [1, vMix(wc[2], wc[1], .55)]]));
+  if (bi % 3 === 2) {
+    for (let px = x + 2; px < x + w - 3; px += 3.5) { vRR(px, top - 5.6, 1.2, 4.7, .4, "rgba(255,248,230,.5)"); ctx.fillStyle = "rgba(40,20,30,.2)"; ctx.fillRect(px + 1.2, top - 5.6, .5, 4.7); }
+  } else {
+    for (let px = x + .6; px < x + w - 1.6; px += 3.2) { ctx.fillStyle = vMix(wc[2], wc[1], .35); ctx.fillRect(px, top + 2.4, 1.5, 1.5); ctx.fillStyle = "rgba(40,20,30,.22)"; ctx.fillRect(px, top + 3.9, 1.5, .5); }
+  }
+  vSoft(x, top + 4.4, w, 4.5, .26);
+  if (bi % 2 === 0 && w > 48) {                                            // fio elétrico em frente à fachada
+    const y1 = top + 8.5, y2 = top + 10; vWire(x - 3, y1, x + w + 3, y2, 1.1, .32, "rgba(30,28,34,.5)"); vCirc(x - 3, y1, .6, "#2a2d35"); vCirc(x + w + 3, y2, .6, "#2a2d35");
+  }
+  for (let i = w0; i < D.wins.length; i++) {                               // janelas
+    const o = D.wins[i]; if (o.soft) continue;
+    const std = o.h === 14, bal = o.h === 18, cx = o.x + o.w / 2;
+    if (!std && !bal) continue;
+    if (std) {
+      if (!o.arch) {
+        vRR(o.x - 2.7, o.y - 3.7, o.w + 5.4, 2.1, .5, vLG(0, o.y - 3.7, 0, o.y - 1.6, [[0, vLight(wc[2], .1)], [1, vMix(wc[2], wc[1], .5)]]));
+        vPoly([[cx - 1.6, o.y - 4], [cx + 1.6, o.y - 4], [cx + 1.1, o.y - 1.5], [cx - 1.1, o.y - 1.5]], vLight(wc[2], .3));
+        ctx.fillStyle = "rgba(40,20,30,.16)"; ctx.fillRect(o.x - 2.7, o.y - 1.7, o.w + 5.4, .35);
+      } else vPoly([[cx - 1.3, o.y - 3.3], [cx + 1.3, o.y - 3.3], [cx + .9, o.y - 1], [cx - .9, o.y - 1]], vLight(wc[2], .3));
+      if (q() < .5) {                                                      // cortinas por dentro do vidro
+        const cc = pc(["#f4ead2", "#e8b8b0", "#b8d0b8", "#f0f0ea", "#d8c090", "#c8b8d8"]), wd = o.w * (.26 + q() * .18), both = q() < .65;
+        ctx.save(); if (o.arch) vArchP(o.x, o.y, o.w, o.h); else vRR(o.x, o.y, o.w, o.h, .7); ctx.clip();
+        const drape = (x0, dir) => {
+          vPoly([[x0, o.y], [x0 + dir * wd, o.y], [x0 + dir * wd * .62, o.y + o.h], [x0, o.y + o.h]], vLG(x0, 0, x0 + dir * wd, 0, [[0, vLight(cc, .12)], [.5, cc], [1, vDark(cc, .14)]]));
+          ctx.strokeStyle = "rgba(60,40,40,.16)"; ctx.lineWidth = .22; for (let f = 1; f < 4; f++) { ctx.beginPath(); ctx.moveTo(x0 + dir * wd * f / 4, o.y); ctx.lineTo(x0 + dir * wd * f / 4 * .7, o.y + o.h); ctx.stroke(); }
+        };
+        drape(o.x, 1); if (both) drape(o.x + o.w, -1);
+        ctx.fillStyle = vDark(cc, .25); ctx.fillRect(o.x, o.y, o.w, 1.1);
+        ctx.restore();
+      }
+      if (!o.arch && q() < .2) {                                           // ar-condicionado embaixo do peitoril
+        const ax = cx - 4.2, ay = o.y + o.h + 2.9;
+        vRR(ax, ay, 8.4, 3.4, .6, vLG(0, ay, 0, ay + 3.4, [[0, "#eceff0"], [1, "#a9b0b6"]]));
+        ctx.fillStyle = "rgba(40,50,60,.42)"; for (let g = .8; g < 3.1; g += .7) ctx.fillRect(ax + .6, ay + g, 5.1, .26);
+        vCirc(ax + 7, ay + 1.7, .85, "#7a828a"); vSoft(ax - .5, ay + 3.4, 9.4, 3, .3);
+        vLine(ax + 3.6, ay + 3.4, ax + 3.6, ay + 10.5, .3, "rgba(50,72,92,.2)");
+      }
+    }
+    for (let s = 0, ns = 1 + (q() < .45); s < ns; s++) {                   // manchas de chuva embaixo do peitoril
+      const sx = o.x + .8 + q() * (o.w - 4), sh = 8 + q() * 14, sy = o.y + o.h + 2.6;
+      ctx.fillStyle = vLG(0, sy, 0, sy + sh, [[0, "rgba(60,44,34,.11)"], [1, "rgba(60,44,34,0)"]]); ctx.fillRect(sx, sy, .9 + q() * 1.7, sh);
+    }
+  }
+  for (let i = d0; i < D.doors.length; i++) {                              // portas: capacho, número e campainha
+    const d = D.doors[i]; if (!d.w || d.kind === "shrine") continue;
+    vRR(d.cx - 5.6, B + .1, 11.2, 1.9, .5, "#6a3a2c"); ctx.fillStyle = "rgba(240,220,170,.38)"; ctx.fillRect(d.cx - 4.6, B + .75, 9.2, .3);
+    if (d.kind === "house") {
+      const nx = d.x - 6.5, ny = B - 31;
+      vRR(nx + .3, ny + .5, 5.2, 3.3, .5, "rgba(30,16,40,.25)"); vRR(nx, ny, 5.2, 3.3, .5, "#eef0f2"); vRR(nx + .35, ny + .35, 4.5, 2.6, .35, "#2d5a8a");
+      vText(String(1 + (q() * 98 | 0)), nx + 2.6, ny + 2.55, "#f4f6f8", 2.5, 4.2);
+      const bx = d.x + d.w + 1.3, by = B - 24; vRR(bx, by, 2.2, 4.6, .5, "#b8923c"); vCirc(bx + 1.1, by + 1.4, .45, "#f6e6a8"); vCirc(bx + 1.1, by + 3.2, .45, "#f6e6a8");
+    }
+  }
+  if (b.g === "door" && D.doors[d0]) {                                     // cartaz, caixa de luz e bicicleta nos trechos livres da parede
+    const dr = D.doors[d0], zl = dr.x - 12, zr = dr.x + dr.w + 22, Ll = zl - (x + 3), Lr = x + w - 3 - zr;
+    const spot = (len, wd) => { const side = (Lr >= len && (Ll < len || q() < .6)) ? 1 : (Ll >= len ? -1 : 0); if (!side) return null; return side > 0 ? zr + q() * (Lr - wd) : x + 3 + q() * (Ll - wd); };
+    const pxs = q() < .75 ? spot(11, 9.5) : null;
+    if (pxs !== null) {
+      const px = pxs, py = B - 40 + q() * 3, pw = 8.5 + q(), ph = 11 + q() * 3, paper = pc(["#f2e8c9", "#e9d9a8", "#d9e2e8", "#f0c9c0"]), ac = pc(["#c0392b", "#2d5a8a", "#2f6b4f", "#d98e04"]);
+      vRR(px + .4, py + .6, pw, ph, .3, "rgba(30,16,40,.28)"); vRR(px, py, pw, ph, .25, paper);
+      ctx.fillStyle = ac; ctx.fillRect(px + .8, py + .8, pw - 1.6, 2.6);
+      ctx.fillStyle = "rgba(40,30,30,.5)"; for (let l = 0; l < 4; l++) ctx.fillRect(px + .9, py + 4.4 + l * 1.5, pw - 1.8 - (l === 3 ? 3 : 0), .4);
+      ctx.fillStyle = "rgba(240,230,190,.75)"; ctx.fillRect(px - .3, py - .3, 2, 1); ctx.fillRect(px + pw - 1.7, py - .3, 2, 1);
+      vPoly([[px + pw, py + ph - 2.4], [px + pw, py + ph], [px + pw - 2.4, py + ph]], vDark(paper, .22));
+    }
+    const mxs = q() < .6 ? spot(9, 5.2) : null;
+    if (mxs !== null) {
+      const mx = mxs, my = B - 31;
+      vLine(mx + 2.6, my, mx + 2.6, my - 8, .7, "#6a6e72");
+      vRR(mx + .4, my + .5, 5.2, 7, .5, "rgba(30,16,40,.25)"); vRR(mx, my, 5.2, 7, .5, vLG(mx, 0, mx + 5.2, 0, [[0, "#cdd1d4"], [1, "#8d949a"]]));
+      vRR(mx + .8, my + .8, 3.6, 3.4, .3, "#2a3238"); vCirc(mx + 2.6, my + 2.5, 1.1, "#e8ecee"); vLine(mx + 2.6, my + 2.5, mx + 3.2, my + 1.9, .25, "#c0392b");
+      ctx.fillStyle = "rgba(40,50,60,.5)"; ctx.fillRect(mx + .9, my + 5, 3.4, .35); ctx.fillRect(mx + .9, my + 5.9, 3.4, .35);
+    }
+    if (bi % 5 === 1) { const bxs = spot(19, 18); if (bxs !== null) vBike(bxs, B + 4.2, pc(["#b83a2c", "#2f6b8a", "#2f7a5a", "#c8982c"])); }
+  }
+}
+
 function vBuilding(D, b, bi, B, r, ri, pk) {
-  const GF = CITY_GF, FH = CITY_FH;
+  const GF = CITY_GF, FH = CITY_FH, w0 = D.wins.length, d0 = D.doors.length;
   const wc = CITY_WALLS[b.p], x = b.x, w = b.w, top = b.top, ht = B - top, shc = CITY_SHUT[(b.p * 3 + bi) % CITY_SHUT.length];
   // parede: degradê vertical, volume nas laterais e manchas de reboco
   ctx.fillStyle = vLG(0, top, 0, B, [[0, vLight(wc[0], .1)], [.35, wc[0]], [1, vMix(vMix(wc[0], wc[1], .7), "#3a2468", .2)]]); ctx.fillRect(x, top, w, ht);
@@ -3036,6 +3187,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     ctx.restore();
   }
   ctx.fillStyle = vLG(x, 0, x + w, 0, [[0, "rgba(255,246,225,.22)"], [.04, "rgba(255,246,225,0)"], [.84, "rgba(30,14,44,0)"], [1, "rgba(44,22,86,.5)"]]); ctx.fillRect(x, top, w, ht);
+  if (CITY_DETAIL) vFacadePre(b, bi, B, wc);                                 // textura, cantaria e rodapé (por baixo de tudo)
   if (bi % 3 === 1) {                                                        // calha
     vRR(x + w - 5.5, top + 2, 1.9, ht - 6, .9, vLG(x + w - 6, 0, x + w - 3, 0, [[0, "#8a7a68"], [1, "#4e4338"]]));
     for (let yy = top + 8; yy < B - 6; yy += 14) vRR(x + w - 6.2, yy, 3.3, 1, .4, "#a89886");
@@ -3216,6 +3368,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     const items = []; for (let cx = x1 + 6; cx < x2 - 8; cx += 10) items.push({ x: cx, kind: ri(0, 3), col: pk(["#f1ecdc", "#c0392b", "#2d5a8a", "#f2c94c", "#e8e0c8", "#2f6b4f"]), ph: r() * 6 });
     D.lines.push({ x1, y1, x2, y2, sag: 2, items });
   }
+  if (CITY_DETAIL) vFacadePost(D, b, bi, B, wc, w0, d0);                      // cornija, lintéis, cortinas, objetos na parede
 }
 
 // ---- grão fino de pintura por cima do cenário (dá textura de papel/reboco, sem quadradinhos)
