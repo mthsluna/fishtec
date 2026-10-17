@@ -4322,10 +4322,29 @@ function cityNearDoor() {                                                // a po
   for (const d of cityData.doors) { const dd = Math.abs(px - d.cx); if (dd < (d.kind === "shrine" ? 11 : 13) && dd < bd) { best = d; bd = dd; } }
   return best;
 }
+// ---- Boutique: aviso "Entrar" com uma camiseta pixelada (as outras portas continuam desligadas em cityNearDoor) ----
+const SHIRT_PX = [".##...##...", ".#oo###oo#.", "#ooooooooo#", "#ooooooooo#", "##ooooooo##", ".#ooooooo#.", ".#ooooooo#.", ".#ooooooo#.", ".#########."].map((r, i) => i ? r : "..##...##..");   // # contorno, o = tecido (cor da minha camiseta)
+function boutiqueNear() {                                                // a porta da loja de roupas, se o pescador estiver bem na frente dela
+  if (!cityData || !CITY.on) return null;
+  const d = cityData.doors.find(o => o.kind === "clothes");
+  return d && Math.abs(px - d.cx) < 24 ? d : null;
+}
+function drawBoutiquePrompt(d, now) {                                    // [camiseta] Entrar, flutuando acima do pescador, com um fio até a porta
+  const lab = "Entrar"; ctx.font = UI_PX + "px " + UI_FONT; const tw = Math.ceil(ctx.measureText(lab).width), bw = 15, gap = 4, tot = bw + gap + tw;
+  const kx = Math.round(px - tot / 2), ky = Math.round(PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 32 + Math.sin(now / 260) * 1.5);
+  const dx = Math.round(d.cx), dy = Math.round(d.y + d.h * .42);
+  ctx.save(); ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.lineWidth = .8; ctx.beginPath(); ctx.moveTo(kx + bw, ky + bw / 2); ctx.lineTo(dx, dy); ctx.stroke();   // fio até a porta
+  ctx.fillStyle = "#1b2619"; ctx.beginPath(); ctx.arc(dx, dy, 2.4, 0, 6.2832); ctx.fill(); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(dx, dy, 1.6, 0, 6.2832); ctx.fill(); ctx.restore();
+  rect("#1b2619", kx, ky, bw, bw); rect("#bccdac", kx + 1, ky + 1, bw - 2, bw - 3); rect("#7d8f71", kx + 1, ky + bw - 2, bw - 2, 1);
+  SHIRT_PX.forEach((row, j) => { for (let i = 0; i < row.length; i++) { const c = row[i]; if (c !== ".") rect(c === "#" ? "#1b2619" : me.shirt, kx + 2 + i - 0, ky + 2 + j, 1, 1); } });   // camiseta 11x9 px
+  text(lab, kx + bw + gap, ky + 11, "#fff", "left");
+}
 const cityLabel = d => d.kind === "shrine" ? "acender vela" : d.locked === undefined && d.kind === "church" ? "entrar" : "abrir porta";
 const CITY_LOCKED = ["Trancada.", "Ninguém atende...", "Parece que não tem ninguém em casa.", "Você bate e só ouve um cachorro latindo lá dentro."];
 const CITY_HOUSE = ["Cheiro de molho de tomate vindo lá de dentro.", "Uma senhora acena da cozinha: \"Buongiorno!\"", "Lá dentro, um rádio antigo toca uma música lenta.", "Um menino espia pela fresta e some correndo."];
 function cityUse() {                                                     // tecla E na cidade: bate/abre a porta mais próxima
+  const bq = boutiqueNear();
+  if (bq && !TR.lock && state === "walk") { if (window.onCityDoor) { try { window.onCityDoor(bq); } catch (e) {} } else say("A boutique abre em breve."); return true; }   // ligue a tela de compras em window.onCityDoor
   const d = cityNearDoor(); if (!d || TR.lock || state !== "walk") return false;
   if (d.t > 0.3) return true;
   const h = DAY.m / 60, pk = a => a[Math.random() * a.length | 0];
@@ -4758,6 +4777,7 @@ function drawCity(now) {
     rect("#1b2619", kx, ky, 12, 12); rect("#bccdac", kx + 1, ky + 1, 10, 9); rect("#7d8f71", kx + 1, ky + 10, 10, 1);
     ctx.font = UI_PX + "px " + UI_FONT; ctx.textAlign = "center"; ctx.fillStyle = "#1b2619"; ctx.fillText("E", kx + 6, ky + 9);
   }
+  if (!dn && !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open) { const bq = boutiqueNear(); if (bq) drawBoutiquePrompt(bq, now); }   // "Entrar" na boutique
   if (DAY.lamp > .01) {                                                                  // vinheta azulada no alto: tira o "chapado" e destaca as luzes
     const vg = ctx.createLinearGradient(0, vy, 0, vy + vh * .4); vg.addColorStop(0, "rgba(4,6,24," + (.4 * DAY.lamp).toFixed(3) + ")"); vg.addColorStop(1, "rgba(4,6,24,0)");
     ctx.fillStyle = vg; ctx.fillRect(cl, vy, cr - cl, vh * .4);
@@ -4768,7 +4788,7 @@ function drawCity(now) {
   if (!INTRO.active) {
     hudText(fmtMoney(money), 10, 16, "#a6f5a6");
     if (invCount() > 0) hudText("Peixes: " + invCount(), 10, 28, "#ffe08a");
-    if (!BAG.open) hintLine([PH.open ? "E selecionar   F ou ESC guardar o celular" : (dn ? "E " + cityLabel(dn) + "   I inventário" : "I inventário")], 10, H - 10);
+    if (!BAG.open) hintLine([PH.open ? "E selecionar   F ou ESC guardar o celular" : (dn ? "E " + cityLabel(dn) + "   I inventário" : boutiqueNear() ? "E entrar   I inventário" : "I inventário")], 10, H - 10);
     if (msgT > 0) text(msg, W / 2, 40, "#ffd166", "center");
   }
   drawBag(now);
