@@ -3342,19 +3342,21 @@ function vHung(gx, top, h, w, col, kind) {                                     /
     ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fillRect(gx - .12, top + 1.8, .24, h * .5);
   }
 }
-function vBlockDoll(cx, fy, u, o) {                                            // manequim IGUAL ao pescador (de frente, quadradinho), só que SEM ROSTO: fy = chão, u = escala (1 = tamanho do pescador, ~40 de altura)
+function vBlockDoll(cx, fy, u, o) {                                            // manequim = o MESMO corpo do pescador de frente (proporções da altura do Malto: pernas longas), só que SEM ROSTO. fy = chão, u = escala
   const R = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
-  const shirt = o.shirt, sleeve = shade(shirt, 0.84), skin = "#f1c27d";
+  const E = (MAX_H - 1) * FISHER_TOP, LX = E * LEG_SHARE, TX = E - LX, AL2 = 8 + TX, shirt = o.shirt, sleeve = shade(shirt, 0.84), skin = "#f1c27d";
   ctx.save(); ctx.translate(cx, fy); ctx.scale(u, u);
   vEll(0, .5, 8.6, 1.5, "rgba(20,8,26,.32)");
-  [[-4.6, shade(o.pants, 0.75)], [0.6, o.pants]].forEach(([lx, col]) => { R(col, lx, -11, 4, 9); R("rgba(0,0,0,.14)", lx, -11, 1, 9); R("#15110e", lx - 0.5, -2.5, 5, 2.5); });   // pernas e sapatos
-  R(shirt, -5, -24, 10, 14); R("rgba(0,0,0,.2)", -5, -24, 2.5, 14); R("rgba(255,255,255,.18)", 2.5, -24, 2.5, 14);                                                              // tronco
-  R("#3e2a18", -5, -12, 10, 2);                                                                                                                                                  // cinto
-  [-1, 1].forEach(sg => { const ax = sg * 6.75 - 1.75; R(sleeve, ax, -21.5, 3.5, 8); R("rgba(0,0,0,.2)", sg < 0 ? ax : ax + 2.7, -21.5, 0.8, 8); R(skin, ax, -14, 3.5, 3); R(sleeve, ax - 0.05, -24, 3.6, 4.6); R("rgba(255,255,255,.22)", ax + 0.75, -23.6, 2, 0.7); });
-  R(shade(shirt, 0.76), -2.7, -24.6, 5.4, 3.8); R("#e0ac69", -1.8, -24.8, 3.6, 2.5); R("#e0ac69", -2, -26, 4, 1.6);                                                              // gola e pescoço
-  R(skin, -4.5, -33, 9, 8.5); R("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);                                                                                                            // cabeça lisa (sem olhos, bochechas e boca)
-  if (o.hat) { R(o.hat, -7.5, -35.5, 15, 3); R(o.hat, -4.5, -40, 9, 5); R("rgba(0,0,0,.25)", -7.5, -34, 15, 1.2); R("rgba(255,255,255,.35)", -4.5, -36.5, 9, 1.2); }              // chapéu (igual ao do pescador)
-  else { R(o.hair, -4.5, -34.6, 9, 3.2); R(o.hair, -5, -33.4, 1.2, 3.4); R(o.hair, 3.8, -33.4, 1.2, 3.4); }                                                                         // ou só o cabelo
+  [[-4.6, shade(o.pants, 0.75)], [0.6, o.pants]].forEach(([lx, col]) => { R(col, lx, -11 - LX, 4, 9 + LX); R("rgba(0,0,0,.14)", lx, -11 - LX, 1, 9 + LX); R("#15110e", lx - 0.5, -2.5, 5, 2.5); });   // pernas longas e sapatos
+  ctx.translate(0, -(LX + TX));                                                                                                                                                   // tudo de cima sobe
+  R(shirt, -TW, -24, TW * 2, 14 + TX); R("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TX); R("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TX);                                      // tronco
+  R("#3e2a18", -TW, -12 + TX, TW * 2, 2);                                                                                                                                         // cinto
+  [-1, 1].forEach(sg => { const sx = sg * AW; ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(Math.PI / 2 + sg * .03); R(sleeve, 0, -1.75, AL2, 3.5); R("rgba(0,0,0,.2)", 0, 1.25, AL2, .8); R(skin, AL2 - .5, -1.75, 3, 3.5); ctx.restore(); });   // braços caídos
+  [-AW, AW].forEach(sx => { R(sleeve, sx - 1.8, -24, 3.6, 4.6); R("rgba(255,255,255,.22)", sx - 1, -23.6, 2, .7); });                                                           // ombrinhos
+  R(shade(shirt, .76), -2.7, -24.6, 5.4, 3.8); R("#e0ac69", -1.8, -24.8, 3.6, 2.5); R("#e0ac69", -2, -26, 4, 1.6);                                                               // gola e pescoço
+  R(skin, -4.5, -33, 9, 8.5); R("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);                                                                                                             // cabeça lisa: SEM olhos, bochechas e boca
+  if (o.hat) { R(o.hat, -7.5, -35.5, 15, 3); R(o.hat, -4.5, -40, 9, 5); R("rgba(0,0,0,.25)", -7.5, -34, 15, 1.2); R("rgba(255,255,255,.35)", -4.5, -36.5, 9, 1.2); }
+  else { R(o.hair, -4.5, -34.6, 9, 3.2); R(o.hair, -5, -33.4, 1.2, 3.4); R(o.hair, 3.8, -33.4, 1.2, 3.4); }
   ctx.restore();
 }
 
@@ -3392,11 +3394,11 @@ function vClothes(D, b, bi, B) {
     const py = fl - 3.4, dx = [wx + 9, wx + 21, wx + 33];                                                                      // palquinho de madeira escura com friso dourado
     vRR(wx + 2, py + .5, ww - 4, 3.4, .5, "rgba(10,4,12,.35)"); vRR(wx + 2, py, ww - 4, 3.4, .5, plumG(py, py + 3.4)); ctx.fillStyle = GOLD; ctx.fillRect(wx + 2, py, ww - 4, .5);
     dx.forEach(sx => { ctx.fillStyle = vLG(0, wy + 4, 0, py, [[0, "rgba(255,238,190,.3)"], [1, "rgba(255,238,190,0)"]]); ctx.beginPath(); ctx.moveTo(sx - 1, wy + 4); ctx.lineTo(sx + 1, wy + 4); ctx.lineTo(sx + 7, py); ctx.lineTo(sx - 7, py); ctx.closePath(); ctx.fill(); });   // cones de luz dos spots
-    dx.forEach((sx, i) => vBlockDoll(sx, py, .66, OUT[side][i]));
+    dx.forEach((sx, i) => vBlockDoll(sx, py, .5, OUT[side][i]));
     for (let sx = wx, i = 0; sx < wx + ww; sx += 3.5, i++) {                                                                   // cortininha listrada no alto da vitrine
       const c = i % 2 ? CREAM : "#e6d5b4", x1 = Math.min(wx + ww, sx + 3.5);
-      ctx.beginPath(); ctx.moveTo(sx, wy); ctx.lineTo(x1, wy); ctx.lineTo(x1, wy + 4.2); ctx.quadraticCurveTo((sx + x1) / 2, wy + 6.6, sx, wy + 4.2); ctx.closePath();
-      ctx.fillStyle = vLG(0, wy, 0, wy + 6, [[0, vLight(c, .1)], [1, vDark(c, .18)]]); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(sx, wy); ctx.lineTo(x1, wy); ctx.lineTo(x1, wy + 2.6); ctx.quadraticCurveTo((sx + x1) / 2, wy + 4.2, sx, wy + 2.6); ctx.closePath();
+      ctx.fillStyle = vLG(0, wy, 0, wy + 4, [[0, vLight(c, .1)], [1, vDark(c, .18)]]); ctx.fill();
     }
     vRR(wx - .5, wy - .6, ww + 1, 1.6, .5, "#2a1420"); vSoft(wx, wy + 6, ww, 5, .3, "30,12,20");
     vShopGlass(wx, wy, ww, gh, 1);                                                                                             // caixilhos finos, bisel e sombra do batente
