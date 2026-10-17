@@ -3793,15 +3793,7 @@ function cityFarBake() {
   let sd = 31337; const rr = () => (sd = sd * 16807 % 2147483647) / 2147483647;
   try {
     ctx = c; const a = FW, b = CITY_FX1;
-    ctx.fillStyle = vLG(0, HZ, 0, B + 4, [[0, "#c4dcea"], [.07, "#86bbd8"], [.4, "#448cba"], [1, "#2a6698"]]); ctx.fillRect(a, HZ, b - a, B + 4 - HZ);
-    ctx.fillStyle = vLG(0, HZ - 7, 0, HZ + 9, [[0, "rgba(238,244,250,0)"], [.5, "rgba(238,244,250,.6)"], [1, "rgba(238,244,250,0)"]]); ctx.fillRect(a, HZ - 7, b - a, 16);   // névoa no horizonte
-    for (let y = HZ + 3; y < B + 4; y += 2.1 + (y - HZ) * .09) {                                 // ondulações: cristas claras e vales escuros, maiores perto de quem olha
-      const k = (y - HZ) / (B - HZ), len = 5 + 20 * k;
-      for (let x = a - rr() * 30; x < b; x += len * (1.4 + rr() * 2.2)) {
-        ctx.fillStyle = "rgba(255,255,255," + (.1 + .14 * k).toFixed(3) + ")"; ctx.fillRect(x, y, len * (.6 + rr() * .8), .5 + k * .5);
-        ctx.fillStyle = "rgba(8,44,84," + (.1 + .1 * k).toFixed(3) + ")"; ctx.fillRect(x + len * .3, y + 1.1 + k, len * (.5 + rr() * .6), .5 + k * .4);
-      }
-    }
+    ctx.fillStyle = vLG(0, HZ - 7, 0, HZ + 9, [[0, "rgba(255,200,170,0)"], [.5, "rgba(255,200,170,.3)"], [1, "rgba(255,200,170,0)"]]); ctx.fillRect(a, HZ - 7, b - a, 16);   // névoa no horizonte (mesma cor da neblina do lago do cais)
     for (let bx = a + 60; bx < b; bx += 230 + rr() * 220) {                                      // barquinhos à vela
       const by = HZ + 3 + rr() * 14, s2 = .6 + rr() * .5, hull = ["#f4efe2", "#b3263c", "#27385e", "#e2b65c"][rr() * 4 | 0];
       vEll(bx, by + 1.2 * s2, 7 * s2, .8 * s2, "rgba(10,40,80,.28)");
@@ -3818,17 +3810,66 @@ function cityFar(fog, l, r) {                                            // por 
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";
   if (x1 > x0) ctx.drawImage(cv, (x0 - CITY_FW) * cs, 0, (x1 - x0) * cs, cv.height, x0 + sh, 0, x1 - x0, cv.height / cs);
 }
-function citySeaGlints(t, l, r) {                                        // brilho do sol (ou da lua) na água e cintilações; o mar fica parado na tela, como o céu
-  const HZ = CITY_HZ, B = CITY_B, vw = r - l, A = DAY.lightA, lc = DAY.lc, cx = l + (DAY.lightX - 240) + vw / 2;
-  ctx.save(); ctx.globalCompositeOperation = "lighter";
-  if (A > .02) for (let j = 0; j < 14; j++) {                           // caminho de luz abaixo do sol
-    const k = j / 13, y = HZ + 1.5 + k * (B - HZ - 3), wd = 6 + 26 * k, sw = Math.sin(t * .8 + j * 1.7) * (2 + 5 * k), al = A * (.5 - .22 * k) * (.6 + .4 * Math.sin(t * 2.1 + j * 2.3));
-    ctx.fillStyle = "rgba(" + lc.map(v => Math.round(v)).join(",") + "," + Math.max(0, al).toFixed(3) + ")"; ctx.fillRect(cx + sw - wd / 2, y, wd, .7 + k * .8);
+// ---------- Mar da cidade: o MESMO mar do cais (cores do lago + água, lavagem da hora e as ondas em perspectiva com trilha do sol/lua) ----------
+const CSW = { cv: null, c: null, im: null, cols: 0, rows: 0, q: null, m: null, dq: null };
+function citySea(now, l, r) {
+  const HZ = CITY_HZ, B = CITY_B, y0 = HZ, h = B + 4 - HZ, w = r - l + 4, x0 = l - 2, t = now / 1000, cw = WV.cw, ch = WV.ch;
+  // 1) degradê: lago distante (rosado, perto do horizonte) passando para a água azul do cais, igual ao do cais
+  let g = ctx.createLinearGradient(0, y0, 0, y0 + h);
+  g.addColorStop(0, "#e9a69c"); g.addColorStop(.1, "#c98ba2"); g.addColorStop(.26, "#a8808f");
+  g.addColorStop(.35, "#63869f"); g.addColorStop(.6, "#2a6089"); g.addColorStop(1, "#0b2a45");
+  ctx.fillStyle = g; ctx.fillRect(x0, y0, w, h);
+  // reflexo escuro da margem junto ao horizonte (como no lago do cais)
+  g = ctx.createLinearGradient(0, y0, 0, y0 + 9); g.addColorStop(0, "rgba(70,36,100,.5)"); g.addColorStop(1, "rgba(70,36,100,0)");
+  ctx.fillStyle = g; ctx.fillRect(x0, y0, w, 9);
+  // 2) lavagem de cor da hora na água (igual a DAY.washWater do cais: no topo a do lago, depois a própria da água)
+  if (DAY.waterA > .004 || DAY.washA > .004) {
+    const FADE = 12; g = ctx.createLinearGradient(0, y0, 0, y0 + FADE);
+    g.addColorStop(0, DAY.washCss); g.addColorStop(1, DAY.waterCss);
+    ctx.fillStyle = g; ctx.fillRect(x0, y0, w, FADE);
+    ctx.fillStyle = DAY.waterCss; ctx.fillRect(x0, y0 + FADE, w, h - FADE);
   }
-  for (let i = 0; i < 44; i++) {                                         // cintilações espalhadas
-    const h1 = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1, h2 = Math.abs(Math.sin(i * 78.233 + 1.3) * 12345.678) % 1, k = h2 * h2, y = HZ + 2 + k * (B - HZ - 4), tw = Math.pow(Math.sin(t * (1.3 + h1) + i * 3.1) * .5 + .5, 3);
-    ctx.fillStyle = "rgba(255,255,255," + ((.1 + .3 * tw) * (.35 + .65 * Math.max(A, .25))).toFixed(3) + ")"; ctx.fillRect(l + h1 * vw, y, 2 + 4 * k, .6 + .5 * k);
+  // 3) ondas: o mesmo cálculo de drawWaves (3 cristas em perspectiva + trilha do sol/lua), numa grade pequena
+  const cols = Math.ceil(w / cw) + 1, rows = Math.ceil(h / ch);
+  if (!CSW.cv || CSW.cols !== cols || CSW.rows !== rows) {
+    CSW.cols = cols; CSW.rows = rows; CSW.cv = document.createElement("canvas"); CSW.cv.width = cols; CSW.cv.height = rows;
+    CSW.c = CSW.cv.getContext("2d"); CSW.im = CSW.c.createImageData(cols, rows);
+    CSW.q = new Float32Array(cols * 3); CSW.m = new Float32Array(cols * 3); CSW.dq = new Float32Array(cols * 3);
   }
+  const LA = DAY.lightA, lc = DAY.lc, d = CSW.im.data, HT = H - WATER_Y;           // HT: mesma altura de referência do cais (a inclinação das ondas fica igual)
+  const sunX = (DAY.lightX - 240) + (r - l) / 2 + 2, par = l * CITY_FARF[0];        // trilha do sol parada na tela; as ondas andam bem de leve com a câmera
+  const cl = (v, a, b) => v < a ? a : v > b ? b : v;
+  const bob = [0.35 * Math.sin(t * 0.8), 0.4 * Math.sin(t * 1.1), 0.5 * Math.sin(t * 1.5 + 1)];
+  for (let i = 0; i < cols; i++) {
+    const xw = i * cw + par;
+    for (let k = 0; k < 3; k++) {
+      const arg = WKX[k] * xw + WT[k] * t + WPH[k];
+      CSW.q[i * 3 + k] = WQ[k] * Math.sin(arg); CSW.dq[i * 3 + k] = WQ[k] * WKX[k] * Math.cos(arg);
+      CSW.m[i * 3 + k] = WA[k] * (0.7 + 0.3 * Math.sin(xw * 0.013 + k * 2.1 + t * 0.2));
+    }
+  }
+  for (let j = 0; j < rows; j++) {
+    const s = j / (rows - 1), WB = 0.6, v = Math.log((WB + s) / WB), vp = 1 / (WB + s), amp = 0.35 + 0.65 * s, width = 20 + 80 * s;
+    for (let i = 0; i < cols; i++) {
+      let hh = 0, sy = 0, sx = 0;
+      for (let k = 0; k < 3; k++) {
+        const a = CSW.m[i * 3 + k] * amp, p = WK[k] * v + CSW.q[i * 3 + k] + bob[k] + k * 1.7, cs = Math.cos(p);
+        hh += a * Math.sin(p); sy += a * cs * WK[k] * vp / HT * 2.4; sx += a * cs * CSW.dq[i * 3 + k];
+      }
+      const shade = cl(-sy * 0.3 + hh * 0.06, -0.5, 0.5);
+      const dx = (i * cw - sunX) / width, mask = Math.exp(-dx * dx);
+      const gl = Math.pow(cl((-sy + 0.25 * sx - 0.5) * 1.8, 0, 1), 1.4) * mask * (1 - 0.4 * s) * LA;
+      const aL = Math.min(1, Math.max(shade, 0) * 0.5 * (0.3 + 0.7 * LA) + mask * 0.08 * (1 - 0.5 * s) * LA + gl);
+      const aD = Math.max(-shade, 0) * 0.7 * (1 - aL);
+      const kk = gl / (aL + 1e-3), a = aL + aD, o = (j * cols + i) * 4;
+      const Lg = lc[1] + 33 * kk, Lb = lc[2] + 40 * kk;
+      d[o] = a > 0 ? (lc[0] * aL + 6 * aD) / a : 0; d[o + 1] = a > 0 ? (Lg * aL + 24 * aD) / a : 0; d[o + 2] = a > 0 ? (Lb * aL + 44 * aD) / a : 0;
+      d[o + 3] = a * 255;
+    }
+  }
+  CSW.c.putImageData(CSW.im, 0, 0);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(CSW.cv, x0, y0, cols * cw, h);
   ctx.restore();
 }
 function vSeaFront(D, B) {                                              // orla: dois postes de luz no vão aberto (sem muretas nem grades)
@@ -4220,7 +4261,6 @@ function drawCityBack(now, dt, l, r) {                                   // tudo
   ctx.save();
   cityClouds(t, l, r);
   cityFar(DAY.sky[3], l, r);
-  citySeaGlints(t, l, r);
   ctx.imageSmoothingEnabled = CITY_HD; ctx.imageSmoothingQuality = "low";
   const sx = Math.max(0, Math.floor((l - 4 - CITY_FW) * cs)), ex = Math.min(cityCache.cv.width, Math.ceil((r + 4 - CITY_FW) * cs));
   if (ex > sx) ctx.drawImage(cityCache.cv, sx, 0, ex - sx, cityCache.cv.height, CITY_FW + sx / cs, 0, (ex - sx) / cs, cityCache.cv.height / cs);
@@ -4282,6 +4322,7 @@ function drawCity(now) {
   lastView = { z: Z, sx: cl, sy: vy };
   ctx.save(); ctx.translate(W / 2, 0); ctx.scale(Z, Z); ctx.translate(-WORLD / 2 - EXT, 0); DAY.paintSky(ctx, now); ctx.restore();   // o mesmo céu do cais, na mesma hora
   ctx.save(); ctx.scale(Z, Z); ctx.translate(-cl, -vy);
+  citySea(now, cl, cr);                                                                  // mar igual ao do cais (fora da lavagem do cenário: usa a lavagem da água)
   DAY.scene(() => drawCityBack(now, dt, cl, cr), [0, H]);
   cityLit(now, cl, cr);
   cityGlass(now, cl, cr);
