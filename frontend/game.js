@@ -2572,6 +2572,7 @@ const CITY_CAM_MIN = -50, CITY_CAM_PAD = 90;                             // até
 const CITY_CH = 200;                                                     // altura (px do mundo) do que a câmera chega a ver
 const CITY_GF = 54, CITY_FH = 28;
 const CLOTHES_K = 1.3;                                                   // BOUTIQUE: tamanho da loja (1 = original; 1.4 = 40% maior em tudo: manequins, vitrines, letreiro, porta; cresce para cima e para os lados)
+const BQ_GLOW = 1;                                                         // BOUTIQUE à noite: intensidade geral da luz (1 = padrão suave; 0.5 = mais discreta; 1.5 = mais forte)
 const CLOTHES_W = Math.round(128 * CLOTHES_K), CLOTHES_GF = Math.round(CITY_GF * CLOTHES_K) + 4;   // largura do prédio e altura do térreo da loja                                        // altura do térreo e de cada andar de cima
 const CITY_WALLS = [                                                     // [parede, sombra, destaque]
   ["#e0a85a", "#b9843f", "#efc27c"], ["#d2704a", "#a9502f", "#e48a62"], ["#ecd9a4", "#c4ad78", "#f6e8c0"], ["#dd8f7a", "#b66a58", "#eba48f"],
@@ -2579,7 +2580,7 @@ const CITY_WALLS = [                                                     // [par
 ];
 const CITY_SHUT = ["#4e7d5b", "#3c6a4c", "#4a6e96", "#7a4a2e", "#8e3b2e", "#5a7a8a", "#6b5a3a"];   // persianas
 const CITY_DOOR = ["#6b4426", "#3f5a48", "#7a3b2e", "#2f4a6a", "#5a4a3a", "#8a6a3a"];
-const CITY_SHOPS = ["TRATTORIA", "PESCE FRESCO", "GELATERIA", "PANETTERIA", "OSTERIA", "ENOTECA", "SALUMERIA", "PIZZERIA"];
+const CITY_SHOPS = ["CANTINA", "PEIXARIA", "SORVETERIA", "PADARIA", "LANCHONETE", "ADEGA", "MERCEARIA", "PIZZARIA"];
 const CITY_FLOWER = ["#d6334a", "#e86aa0", "#f2c94c", "#f08a3c", "#f4efe0"];
 const CITY_STONES = ["#9a8f84", "#8c8177", "#a39889", "#85796f", "#978b7c", "#a08c78"];
 const CITY_GREENS = ["#5fa04a", "#468a3c", "#2f6a34"];
@@ -2611,7 +2612,7 @@ function cityInit() {                                                    // o tr
   addB(90, 2, "door");                                                   // lado esquerdo: igreja e, ao lado, a orla (antiga praça): um vão aberto com o mar ao fundo
   const ch = addB(140, 0, "church"); ch.top = B - 128;
   const piazza = { x, w: 170 }; x += piazza.w;
-  const store = addB(CLOTHES_W, 2, "clothes"); store.p = 6; store.name = "BOUTIQUE"; store.gf = CLOTHES_GF; store.top = B - Math.round(60 * CLOTHES_K);   // loja de roupas (só o visual por enquanto), logo à direita da praça
+  const store = addB(CLOTHES_W, 2, "clothes"); store.p = 6; store.name = "BUTIQUE"; store.gf = CLOTHES_GF; store.top = B - Math.round(60 * CLOTHES_K);   // loja de roupas (só o visual por enquanto), logo à direita da praça
   const xs = CITY.MAX - 84, WMIN = { cafe: 76, shop: 66, arch: 66, shrine: 58, door: 50 };      // xs: onde começa o prédio da placa do cais
   let sinceGap = 0, sinceArch = 3, sinceCafe = 2, sinceShrine = 4, gapEvery = 3;
   while (xs - x > 0) {
@@ -2660,8 +2661,8 @@ function vPoly(pts, fill) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.
 function vSoft(x, y, w, h, a = .3, col = "40,18,74") { ctx.fillStyle = vLG(0, y, 0, y + h, [[0, "rgba(" + col + "," + a + ")"], [1, "rgba(" + col + ",0)"]]); ctx.fillRect(x, y, w, h); }   // sombra que some para baixo
 function vText(s, x, y, col, size, maxW, shadow) {
   ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-  ctx.font = "bold " + size + "px Georgia, 'Times New Roman', serif";
-  if (maxW) { const wd = ctx.measureText(s).width; if (wd > maxW) { size *= maxW / wd; ctx.font = "bold " + size + "px Georgia, 'Times New Roman', serif"; } }
+  ctx.font = size + "px " + UI_FONT;                                       // a mesma fonte do jogo (DigitalDisco)
+  if (maxW) { const wd = ctx.measureText(s).width; if (wd > maxW) { size *= maxW / wd; ctx.font = size + "px " + UI_FONT; } }
   if (shadow) { ctx.fillStyle = shadow; ctx.fillText(s, x + .3, y + .4); }
   ctx.fillStyle = col; ctx.fillText(s, x, y); ctx.restore();
 }
@@ -3397,8 +3398,8 @@ function vClothesBase(D, b, bi, B) {
     vRR(sx + .3, B - 54.9, sw, 6.8, .3, "rgba(60,44,20,.28)"); vRR(sx, B - 55.2, sw, 6.8, .3, vLG(0, B - 55.2, 0, B - 48.4, [[0, "#1b1b1e"], [1, "#09090b"]]));
     ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(sx, B - 55.2, sw, .3);
     T(NAME, cx, B - 51.3, "#ffffff", 4.2, { ls: 1, maxW: sw - 6 });
-    T("BOUTIQUE", cx, B - 49.3, "rgba(255,255,255,.75)", 1.4, { ls: .6, maxW: 14 });
-    D.lamps.push({ x: cx, y: B - 51, r: 14, nodot: true, white: true });
+    T("BUTIQUE", cx, B - 49.3, "rgba(255,255,255,.75)", 1.4, { ls: .6, maxW: 14 });
+    D.lamps.push({ x: cx, y: B - 46, r: 12, nodot: true, white: true });
   };
   const awning = (ax, aw) => {
     const ty0 = B - 48, ty1 = B - 44.4, vy1 = B - 41;
@@ -3485,7 +3486,7 @@ function vClothesBase(D, b, bi, B) {
   vRR(dX - 3.4, B - 2.2, dW + 6.8, 2.4, .3, vLG(0, B - 2.2, 0, B + .2, [[0, "#d4c8ad"], [1, "#a79b82"]])); vSoft(dX - 3.4, B + .2, dW + 6.8, 2.2, .22);   // degrau
   D.wins.push({ x: dX, y: dY, w: dW, h: dH - 3, lit: true, soft: true, white: true, ga: .3 });
   D.lamps.push({ x: dX + dW / 2, y: B - 22, r: 14, nodot: true, white: true });
-  D.doors.push({ cx: dX + dW / 2, x: dX, y: dY, w: dW, h: dH, arch: false, col: MET, kind: "clothes", name: b.name || "BOUTIQUE", o: 0, t: 0 });
+  D.doors.push({ cx: dX + dW / 2, x: dX, y: dY, w: dW, h: dH, arch: false, col: MET, kind: "clothes", name: b.name || "BUTIQUE", o: 0, t: 0 });
 }
 
 function vBuilding(D, b, bi, B, r, ri, pk) {
@@ -3570,7 +3571,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
       const sx = CITY.MAX - 40;
       vRR(sx - 1.4, B - 55, 49, 17, 2.6, "#eef2e6"); vRR(sx, B - 53.6, 46.2, 14.2, 1.8, vLG(0, B - 54, 0, B - 39, [[0, "#2d6cb0"], [1, "#1a4a85"]]));
       vSoft(sx - 1, B - 38, 48, 4, .28);
-      vText("CAIS  ›", sx + 23, B - 43, "#ffffff", 8.4, 40, "rgba(0,0,30,.4)");
+      vText("CAIS  >", sx + 23, B - 43, "#ffffff", 8.4, 40, "rgba(0,0,30,.4)");
     }
     // (o nicho com a santa e as velinhas foi removido: o prédio "shrine" agora é só uma porta comum)
   } else if (b.g === "shop") {
@@ -3607,7 +3608,7 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
   } else if (b.g === "cafe") {
     const cx0 = x + w / 2;
     vRR(cx0 - 24, B - 55, 48, 13.6, 2, vLG(0, B - 55, 0, B - 41, [[0, "#3a5a48"], [1, "#223a2e"]])); vRR(cx0 - 22.6, B - 53.6, 45.2, 10.8, 1.4, "#f6edd4");
-    vText("CAFFÈ", cx0, B - 45, "#a32a1c", 8.6, 38, "rgba(80,20,10,.25)");
+    vText("CAFÉ", cx0, B - 45, "#a32a1c", 8.6, 38, "rgba(80,20,10,.25)");
     vRR(x + 9, B - 29, 22, 25.6, 1.6, "#4a3020"); vRR(x + 10, B - 28, 20, 23.6, 1, vLG(0, B - 28, 0, B - 4, [[0, "#f6d68a"], [1, "#c88a44"]]));
     ctx.save(); vRR(x + 10, B - 28, 20, 23.6, 1); ctx.clip(); vCafeInside(x + 10, B - 28, 20, 23.6); ctx.restore();
     vShopGlass(x + 10, B - 28, 20, 23.6);
@@ -4346,7 +4347,7 @@ const CITY_LOCKED = ["Trancada.", "Ninguém atende...", "Parece que não tem nin
 const CITY_HOUSE = ["Cheiro de molho de tomate vindo lá de dentro.", "Uma senhora acena da cozinha: \"Buongiorno!\"", "Lá dentro, um rádio antigo toca uma música lenta.", "Um menino espia pela fresta e some correndo."];
 function cityUse() {                                                     // tecla E na cidade: bate/abre a porta mais próxima
   const bq = boutiqueNear();
-  if (bq && !TR.lock && state === "walk") { if (window.onCityDoor) { try { window.onCityDoor(bq); } catch (e) {} } else say("A boutique abre em breve."); return true; }   // ligue a tela de compras em window.onCityDoor
+  if (bq && !TR.lock && state === "walk") { if (window.onCityDoor) { try { window.onCityDoor(bq); } catch (e) {} } else say("A butique abre em breve."); return true; }   // ligue a tela de compras em window.onCityDoor
   const d = cityNearDoor(); if (!d || TR.lock || state !== "walk") return false;
   if (d.t > 0.3) return true;
   const h = DAY.m / 60, pk = a => a[Math.random() * a.length | 0];
@@ -4354,7 +4355,7 @@ function cityUse() {                                                     // tecl
   if (d.kind === "shrine") { d.glow = 5; say("Você acende uma velinha. Amém."); SND.play("catch_chime", { vol: .22, jitter: 0 }); return true; }
   if (d.kind === "house") { open = !d.locked; m = open ? pk(CITY_HOUSE) : pk(CITY_LOCKED); }
   else if (d.kind === "shop") { open = h >= 7 && h < 19; m = open ? "Bem-vindo à " + d.name + "!" : d.name + " está fechada agora."; }
-  else if (d.kind === "cafe") { open = h >= 6 && h < 23; m = open ? "Um espresso, per favore!" : "O café já fechou."; }
+  else if (d.kind === "cafe") { open = h >= 6 && h < 23; m = open ? "Um cafezinho, por favor!" : "O café já fechou."; }
   else { open = h >= 6 && h < 20; m = open ? "Silêncio... só o eco dos seus passos." : "A igreja está fechada."; }
   say(m);
   if (open) { d.t = 3; SND.play("pier_creak_2", { vol: .5, rate: .9 }); if (window.onCityDoor) try { window.onCityDoor(d); } catch (e) {} }
@@ -4375,7 +4376,7 @@ function cityLightBuild() {
       const hs = (((w.x * 73856093) ^ (w.y * 19349663)) >>> 0), cx = w.x + w.w / 2, cy = w.y + w.h / 2, tone = WTONE[hs % WTONE.length];
       const shape = () => { if (w.round) { ctx.beginPath(); ctx.arc(cx, cy, w.w / 2, 0, 6.2832); } else if (w.arch) vArchP(w.x, w.y, w.w, w.h); else vRR(w.x, w.y, w.w, w.h, .7); };
       ctx.save(); shape(); ctx.clip();
-      ctx.fillStyle = w.white ? vLG(0, w.y, 0, w.y + w.h, [[0, "rgba(255,255,255," + (.85 * (w.ga || 1)) + ")"], [1, "rgba(236,246,255," + (.6 * (w.ga || 1)) + ")"]]) : w.soft ? vLG(0, w.y, 0, w.y + w.h, [[0, "rgba(255,226,150," + (.62 * (w.ga || 1)) + ")"], [1, "rgba(255,190,100," + (.5 * (w.ga || 1)) + ")"]]) : vLG(0, w.y, 0, w.y + w.h, [[0, tone], [1, vMix(tone, "#e8923e", .55)]]);
+      ctx.fillStyle = w.white ? vLG(0, w.y, 0, w.y + w.h, [[0, "rgba(255,243,220," + (.5 * BQ_GLOW * (w.ga || 1)).toFixed(3) + ")"], [1, "rgba(255,228,190," + (.24 * BQ_GLOW * (w.ga || 1)).toFixed(3) + ")"]]) : w.soft ? vLG(0, w.y, 0, w.y + w.h, [[0, "rgba(255,226,150," + (.62 * (w.ga || 1)) + ")"], [1, "rgba(255,190,100," + (.5 * (w.ga || 1)) + ")"]]) : vLG(0, w.y, 0, w.y + w.h, [[0, tone], [1, vMix(tone, "#e8923e", .55)]]);
       ctx.fillRect(w.x, w.y, w.w, w.h);
       if (!w.soft) {
         vInterior(w.x, w.y, w.w, w.h, !!w.arch, hs, true);                       // móveis e gente com a luz acesa
@@ -4390,14 +4391,14 @@ function cityLightBuild() {
     ctx = Gw.c;
     D.wins.forEach(w => {                                                // respingo de luz das janelas na parede
       if (!w.lit) return;
-      const cx = w.x + w.w / 2, cy = w.y + w.h / 2, hr = Math.max(w.w, w.h) * .85 + 3, wc = w.white ? "255,255,255" : "255,190,110";
-      ctx.fillStyle = vRG(cx, cy, 0, hr, [[0, "rgba(" + wc + "," + (w.white ? .24 : .2) + ")"], [1, "rgba(" + wc + ",0)"]]); ctx.fillRect(cx - hr, cy - hr, hr * 2, hr * 2);
+      const cx = w.x + w.w / 2, cy = w.y + w.h / 2, hr = Math.max(w.w, w.h) * (w.white ? .7 : .85) + 3, wc = w.white ? "255,236,204" : "255,190,110";
+      ctx.fillStyle = w.white ? vRG(cx, cy, 0, hr, [[0, "rgba(" + wc + "," + (.075 * BQ_GLOW).toFixed(3) + ")"], [.45, "rgba(" + wc + "," + (.03 * BQ_GLOW).toFixed(3) + ")"], [1, "rgba(" + wc + ",0)"]]) : vRG(cx, cy, 0, hr, [[0, "rgba(" + wc + ",.2)"], [1, "rgba(" + wc + ",0)"]]); ctx.fillRect(cx - hr, cy - hr, hr * 2, hr * 2);
     });
     D.lamps.forEach(lp => {
       const R = lp.r * .8, wh = lp.white;                                                                  // wh: luz branca (a da boutique); as demais continuam quentes
-      ctx.fillStyle = wh ? vRG(lp.x, lp.y, 1, R, [[0, "rgba(255,255,255,.3)"], [.3, "rgba(245,250,255,.1)"], [1, "rgba(240,248,255,0)"]]) : vRG(lp.x, lp.y, 1, R, [[0, "rgba(255,196,120,.26)"], [.3, "rgba(255,170,90,.08)"], [1, "rgba(255,160,80,0)"]]); ctx.fillRect(lp.x - R, lp.y - R, R * 2, R * 2);
-      const PR = lp.r * (wh ? 1.7 : 1.2); ctx.save(); ctx.translate(lp.x, CITY_B + 10); ctx.scale(1, .26);   // poça de luz no chão (achatada); a da boutique é maior e branca
-      ctx.fillStyle = wh ? vRG(0, 0, 2, PR, [[0, "rgba(255,255,255,.4)"], [.5, "rgba(240,248,255,.15)"], [1, "rgba(235,245,255,0)"]]) : vRG(0, 0, 2, PR, [[0, "rgba(255,200,120,.34)"], [.5, "rgba(255,170,90,.12)"], [1, "rgba(255,160,80,0)"]]); ctx.fillRect(-PR, -PR, PR * 2, PR * 2); ctx.restore();
+      ctx.fillStyle = wh ? vRG(lp.x, lp.y, 1, R, [[0, "rgba(255,238,206," + (.08 * BQ_GLOW).toFixed(3) + ")"], [.35, "rgba(255,230,190," + (.028 * BQ_GLOW).toFixed(3) + ")"], [1, "rgba(255,225,185,0)"]]) : vRG(lp.x, lp.y, 1, R, [[0, "rgba(255,196,120,.26)"], [.3, "rgba(255,170,90,.08)"], [1, "rgba(255,160,80,0)"]]); ctx.fillRect(lp.x - R, lp.y - R, R * 2, R * 2);
+      const PR = lp.r * (wh ? 1.45 : 1.2); ctx.save(); ctx.translate(lp.x, CITY_B + 10); ctx.scale(1, .26);   // poça de luz no chão (achatada); a da boutique é maior e branca
+      ctx.fillStyle = wh ? vRG(0, 0, 2, PR, [[0, "rgba(255,230,190," + (.15 * BQ_GLOW).toFixed(3) + ")"], [.5, "rgba(255,222,176," + (.05 * BQ_GLOW).toFixed(3) + ")"], [1, "rgba(255,215,170,0)"]]) : vRG(0, 0, 2, PR, [[0, "rgba(255,200,120,.34)"], [.5, "rgba(255,170,90,.12)"], [1, "rgba(255,160,80,0)"]]); ctx.fillRect(-PR, -PR, PR * 2, PR * 2); ctx.restore();
       if (!lp.nodot) vCirc(lp.x, lp.y, 1.1, "rgba(255,238,190,.85)");
     });
   } finally { ctx = main; }
