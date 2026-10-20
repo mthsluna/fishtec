@@ -375,9 +375,36 @@ const ITEMS = [
   { id: "no_neck", cat: "acc", slot: "neck", name: "Sem lenço/gravata", price: 0, eq: "", desc: "Pescoço livre." },
   { id: "ac_lenco", cat: "acc", slot: "neck", name: "Lenço Vermelho", price: 1400, kind: "scarf", col: "#d63a2f", desc: "Estilo marinheiro." },
   { id: "ac_gravata", cat: "acc", slot: "neck", name: "Gravata Borboleta", price: 1600, kind: "bow", col: "#1f2a6b", desc: "Chique até na pesca." },
+  // ---- personalizar personagem (não aparecem na butique; eq "" = padrão) ----
+  { id: "hr_curto", cat: "hair", name: "Curto", price: 0, eq: "", kind: "short", desc: "Prático para o vento do cais." },
+  { id: "hr_careca", cat: "hair", name: "Careca", price: 0, kind: "bald", desc: "Liso como a água calma." },
+  { id: "hr_longo", cat: "hair", name: "Longo", price: 0, kind: "long", desc: "Cai até os ombros." },
+  { id: "hr_chanel", cat: "hair", name: "Chanel", price: 0, kind: "bob", desc: "Na altura do queixo." },
+  { id: "hr_espetado", cat: "hair", name: "Espetado", price: 0, kind: "spiky", desc: "Cheio de atitude." },
+  { id: "hr_cacheado", cat: "hair", name: "Cacheado", price: 0, kind: "curly", desc: "Volume de sobra." },
+  { id: "hr_moicano", cat: "hair", name: "Moicano", price: 0, kind: "mohawk", desc: "Uma faixa só, bem ousada." },
+  { id: "hr_rabo", cat: "hair", name: "Rabo de Cavalo", price: 0, kind: "ponytail", desc: "Preso com uma fitinha." },
+  { id: "hr_coque", cat: "hair", name: "Coque", price: 0, kind: "bun", desc: "Preso no alto da cabeça." },
+  { id: "ey_padrao", cat: "eyes", name: "Padrão", price: 0, eq: "", kind: "dot", desc: "Olhar tranquilo." },
+  { id: "ey_grande", cat: "eyes", name: "Grandes", price: 0, kind: "big", desc: "Bem abertos e curiosos." },
+  { id: "ey_sono", cat: "eyes", name: "Sonolentos", price: 0, kind: "sleepy", desc: "Pescou a noite toda." },
+  { id: "ey_feliz", cat: "eyes", name: "Felizes", price: 0, kind: "happy", desc: "Sorrindo com os olhos." },
+  { id: "ey_brilho", cat: "eyes", name: "Brilhantes", price: 0, kind: "sparkle", desc: "Com um brilhinho." },
+  { id: "ey_serio", cat: "eyes", name: "Sérios", price: 0, kind: "stern", desc: "Concentrado na boia." },
+  { id: "bo_neutra", cat: "mouth", name: "Neutra", price: 0, eq: "", kind: "flat", desc: "Calmo, esperando o peixe." },
+  { id: "bo_sorriso", cat: "mouth", name: "Sorriso", price: 0, kind: "smile", desc: "Dia bom de pesca." },
+  { id: "bo_aberta", cat: "mouth", name: "Sorriso Aberto", price: 0, kind: "open", desc: "Gargalhada de pescador." },
+  { id: "bo_pequena", cat: "mouth", name: "Boquinha", price: 0, kind: "small", desc: "Bem discreta." },
+  { id: "bo_triste", cat: "mouth", name: "Triste", price: 0, kind: "sad", desc: "O peixe escapou..." },
+  { id: "bo_lingua", cat: "mouth", name: "Língua de Fora", price: 0, kind: "tongue", desc: "Brincalhão." },
+  { id: "bo_oh", cat: "mouth", name: "Surpresa", price: 0, kind: "oh", desc: "Beliscou!" },
+  { id: "fk_nenhuma", cat: "frk", name: "Nenhuma", price: 0, eq: "", kind: "none", desc: "Rosto liso." },
+  { id: "fk_nariz", cat: "frk", name: "No Nariz", price: 0, kind: "nose", desc: "Poucas, bem no meio." },
+  { id: "fk_bochechas", cat: "frk", name: "Bochechas", price: 0, kind: "cheeks", desc: "Nas duas bochechas." },
+  { id: "fk_muitas", cat: "frk", name: "Muitas", price: 0, kind: "many", desc: "Um céu estrelado no rosto." },
 ];
 const ITEM = Object.create(null); ITEMS.forEach(i => ITEM[i.id] = i);
-const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "", shoes: "" });
+const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "", shoes: "", hair: "", eyes: "", mouth: "", frk: "", hairc: "", eyec: "" });   // hairc/eyec: cor (#rrggbb) do cabelo e dos olhos ("" = padrão)
 const OWNED = new Set();
 try { (JSON.parse(localStorage.getItem("owned") || "[]") || []).forEach(id => { if (ITEM[id]) OWNED.add(id); }); } catch (e) {}
 const itemSlot = it => it.slot || it.cat, itemEq = it => it.eq !== undefined ? it.eq : it.id;
@@ -386,7 +413,7 @@ const me = { shirt: DEF_SHIRT, pants: DEF_PANTS, h: 0, o: { ...DEF_O } };       
 let ready = false;                                                              // só entra na sala depois da tela de personalizar
 try { const sv = JSON.parse(localStorage.getItem("look") || "{}"); myName = String(sv.name || "").slice(0, 14);
   if (/^#[0-9a-f]{6}$/i.test(sv.shirt)) me.shirt = sv.shirt; if (/^#[0-9a-f]{6}$/i.test(sv.pants)) me.pants = sv.pants; me.h = Math.max(0, Math.min(1, +sv.h || 0));
-  if (sv.o && typeof sv.o === "object") for (const k in me.o) { const v = sv.o[k]; if (typeof v === "string" && (v === "" || (ITEM[v] && itemSlot(ITEM[v]) === k && itemOwned(ITEM[v])))) me.o[k] = v; } } catch (e) {}
+  if (sv.o && typeof sv.o === "object") for (const k in me.o) { const v = sv.o[k]; if (typeof v === "string" && (v === "" || ((k === "hairc" || k === "eyec") && /^#[0-9a-f]{6}$/i.test(v)) || (ITEM[v] && itemSlot(ITEM[v]) === k && itemOwned(ITEM[v])))) me.o[k] = v; } } catch (e) {}
 const lookPayload = () => ({ name: myName, shirt: me.shirt, pants: me.pants, h: +me.h.toFixed(3), o: { ...me.o } });
 // ---------- Relógio do jogo: o dia tem 30 min reais (1 min do jogo = 1,25 s) e todos veem a mesma hora ----------
 // A hora vem do relógio do SERVIDOR: medimos a diferença (clockOff) entre ele e o do aparelho, compensando a latência.
@@ -488,6 +515,68 @@ function torsoBreath(br, fn) {                                                 /
   ctx.save(); ctx.translate(0, pv); ctx.scale(1, 1 + br / H); ctx.translate(0, -pv);
   try { fn(); } finally { ctx.restore(); }
 }
+// ---------- Rosto e cabelo personalizáveis (ver "Personalizar personagem") ----------
+const HAT_OFF = "none", HAIR_DEF = "#3a2616", EYE_DEF = "#2a1a10", okHex = v => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+function eyeAt(cx, y, col, kind) {                                              // um olho centrado em cx (y = topo do olho padrão)
+  if (kind === "big") { rect("#f7f3ea", cx - 1.2, y - .4, 2.4, 2.6); rect(col, cx - .7, y + .1, 1.5, 1.9); rect("#fff", cx - .5, y + .2, .6, .6); rect(EYE_DEF, cx - 1.2, y - .6, 2.4, .5); }
+  else if (kind === "sleepy") { rect(col, cx - 1, y + .9, 2, .8); rect("rgba(0,0,0,.28)", cx - 1.1, y + .3, 2.2, .6); }
+  else if (kind === "happy") { rect(col, cx - 1.2, y + 1.1, .7, .7); rect(col, cx - .55, y + .4, 1.1, .8); rect(col, cx + .5, y + 1.1, .7, .7); }
+  else if (kind === "sparkle") { rect(col, cx - .9, y - .2, 1.8, 2.2); rect("#fff", cx - .6, y, .6, .6); }
+  else if (kind === "stern") { rect(col, cx - .8, y + .2, 1.6, 1.6); rect(EYE_DEF, cx - 1.3, y - .9, 2.6, .6); }
+  else rect(col, cx - .8, y, 1.6, 1.8);
+}
+function mouthAt(cx, y, mw, kind) {                                              // y = linha da boca neutra; mw = largura (estreita de lado)
+  const c = "#a0583a", x0 = cx - mw / 2;
+  if (kind === "smile") { rect(c, x0 + .5, y + .2, mw - 1, .8); rect(c, x0, y - .5, .7, .8); rect(c, x0 + mw - .7, y - .5, .7, .8); }
+  else if (kind === "open") { rect("#7a2a1a", x0, y - .3, mw, 1.5); rect("#fff", x0 + .4, y - .3, Math.max(.6, mw - .8), .6); }
+  else if (kind === "small") { rect(c, cx - Math.min(.7, mw / 2), y, Math.min(1.4, mw), .8); }
+  else if (kind === "sad") { rect(c, x0 + .5, y - .2, mw - 1, .7); rect(c, x0, y + .4, .7, .7); rect(c, x0 + mw - .7, y + .4, .7, .7); }
+  else if (kind === "tongue") { rect(c, x0 + .5, y + .2, mw - 1, .8); rect(c, x0, y - .5, .7, .8); rect(c, x0 + mw - .7, y - .5, .7, .8); rect("#d9667a", cx - Math.min(.6, mw / 2), y + 1, Math.min(1.2, mw), 1.1); }
+  else if (kind === "oh") { const w = Math.min(1.6, mw); rect("#5a2a1a", cx - w / 2, y - .4, w, 1.6); }
+  else rect(c, x0, y, mw, .8);
+}
+const FRK_NOSE = [[-.9, 5, -28.7], [.6, 5.2, -29], [0, 5, -28]];                  // sardas: [lateral, profundidade, y]; a profundidade é a mesma dos olhos (de lado ela vira o x)
+const FRK_CHEEK = [[-3.3, 4.2, -28.1], [-2.5, 3.6, -27.6], [-3.6, 3.2, -27.2]];
+const FRK_MANY = [[-1.2, 5, -27.9], [1.2, 5, -28.4], [-4, 3, -28.9], [-1.8, 4.6, -26.9]];
+function faceParts(ch, sh, cheer) {                                              // olhos, nariz, sardas e boca; ch = cos / sh = sen do giro da cabeça (0,1 = de frente; 1,0 = de lado)
+  const O = CUR_O, ec = okHex(O.eyec) ? O.eyec : EYE_DEF, ek = (ITEM[O.eyes] || ITEM.ey_padrao).kind, fk = (ITEM[O.frk] || ITEM.fk_nenhuma).kind;
+  const ey = lerp(-30, -30.2, sh);
+  for (const w of [-1.8, 1.8]) if (3.3 * sh - w * ch > 0.1) eyeAt(3.3 * ch + w * sh, ey, ec, ek);   // o olho de longe só aparece quando a cabeça já virou
+  if (ch > 0.25) rect("#c98d5a", 5 * ch - ch, -27.5, 2 * ch, 1);                  // nariz (some quando fica de frente)
+  if (sh > 0.2) for (const w of [-3.1, 3.1]) if (4.5 * sh - w * ch > 0.1) rect(`rgba(230,120,100,${0.45 * sh})`, 4.5 * ch + w * sh - 0.7, -28.6, 1.4, 1.2);   // bochechas
+  if (fk !== "none") {
+    const pts = fk === "nose" ? FRK_NOSE : fk === "cheeks" ? FRK_CHEEK.concat(FRK_CHEEK.map(([w, d, y]) => [-w, d, y])) : FRK_NOSE.concat(FRK_CHEEK, FRK_CHEEK.map(([w, d, y]) => [-w, d, y]), FRK_MANY);
+    pts.forEach(([w, d, y]) => { if (d * sh - w * ch > 0.1) rect("rgba(140,72,36,.8)", d * ch + w * sh - .35, y, .7, .7); });
+  }
+  if (sh > 0.2 || ch > 0.25) mouthAt(4.7 * ch, -27.4 + 1.7 * ch, lerp(1.6, 2.8, sh), cheer ? "open" : (ITEM[O.mouth] || ITEM.bo_neutra).kind);   // boca (de lado fica mais baixa, embaixo do nariz)
+}
+function hairOf(cx, f) {                                                         // cabelo por cima da cabeça e por baixo do chapéu; cx: centro da cabeça; f: 0 = de frente ... 1 = de lado
+  const it = ITEM[CUR_O.hair] || ITEM.hr_curto, k = it.kind; if (k === "bald") return;
+  const c = okHex(CUR_O.hairc) ? CUR_O.hairc : HAIR_DEF, side = f >= .5, o = side ? -.8 : 0;
+  const R = (x, y, w, h, col = c) => rect(col, cx + x, y, w, h);
+  const top = () => { R(side ? -5.1 : -4.9, -35.4, 9.8, side ? 3.3 : 3.4); R(-3.2, -35.1, 4.2, .7, "rgba(255,255,255,.2)"); };
+  const sb = () => { if (side) R(-5.1, -32.1, 2.6, 4.2); else { R(-4.9, -32, 1.2, 2.2); R(3.7, -32, 1.2, 2.2); } };   // costeletas / nuca
+  if (k === "short") { top(); sb(); }
+  else if (k === "long") { top(); if (side) R(-5.8, -32.1, 4.2, 9.8); else { R(-5.4, -32, 2, 9.4); R(3.4, -32, 2, 9.4); } }
+  else if (k === "bob") { top(); if (side) R(-5.5, -32.1, 3.8, 6.2); else { R(-5.3, -32, 1.9, 6); R(3.4, -32, 1.9, 6); } }
+  else if (k === "spiky") {
+    R(-4.7, -35, 9.4, 2.6); [[-4.4, -37.4], [-2.4, -38.8], [-.4, -39.6], [1.6, -38.6], [3.2, -37.4]].forEach(([x, y]) => R(x + o, y, 1.7, -34.6 - y));
+    if (side) R(-5.1, -32.4, 2, 2.4); else { R(-4.9, -32.4, 1, 1.6); R(3.9, -32.4, 1, 1.6); }
+  } else if (k === "curly") {
+    R(-4.4 + o, -40.4, 8.8, 1); R(-5.6 + o, -39.4, 11.2, 1); R(-6.4 + o, -38.4, 12.8, 1.2); R(-6.8 + o, -37.2, 13.6, 3.6); R(-6.4 + o, -33.6, 12.8, 1.6); R(-3.5 + o, -39, 3, .8, "rgba(255,255,255,.18)");
+    if (side) R(-7.2, -32, 4.2, 6.2); else { R(-6.4, -32, 2.6, 4.8); R(3.8, -32, 2.6, 4.8); }
+  } else if (k === "mohawk") {
+    R(-4.7, -34.2, 9.4, 1.2, "rgba(60,40,20,.25)");
+    if (side) { R(-4.6, -36.4, 8.6, 4.2); R(-3.8, -38.4, 6.8, 2.1); R(-2.6, -39.6, 4.4, 1.3); } else { R(-1.2, -39.4, 2.4, 7.6); R(-.4, -39.2, .6, 6, "rgba(255,255,255,.2)"); }
+  } else if (k === "ponytail") {
+    top(); sb();
+    if (side) { R(-7.4, -34.6, 3, 2.4); R(-8.8, -32.4, 3.8, 7.2); R(-8.2, -25.4, 2.6, 1.6); R(-5.7, -33.8, .9, 2.4, "#d63a5a"); }
+  } else if (k === "bun") {
+    top(); sb();
+    if (side) { R(-5.8, -39.4, 4.8, 4.4); R(-5, -40, 3.2, .8); } else { R(-2.3, -39.4, 4.6, 4.2); R(-1.6, -40, 3.2, .8); }
+    R(side ? -4.6 : -1.4, -38.8, 1.6, .7, "rgba(255,255,255,.22)");
+  }
+}
 function collarFront(col) {                                                    // gola redonda de frente: barra escura em "U" em volta do pescoço
   rect(shade(col, 0.76), -3.2, -24.6, 6.4, 4.2);                                                   // barra (ribana), quadrada
   rect("#e0ac69", -2.2, -24.8, 4.4, 3);                                                            // pescoço aparecendo no decote quadrado
@@ -552,10 +641,8 @@ function headgearOf(it, hatCol, cx, hw, f) {                     // cx: centro d
 function headgearBody(it, hatCol, cx, hw, f) {
   const k = it && it.kind || "fisher", c = it && it.col, c2 = it && it.c2;
   if (k === "fisher") { rect(hatCol, cx - hw, -35.5, hw * 2, 3); rect(hatCol, cx - 4.5, -40, 9, 5); rect("rgba(0,0,0,.25)", cx - hw, -34, hw * 2, 1.2); rect("rgba(255,255,255,.35)", cx - 4.5, -36.5, 9, 1.2); }
-  else if (k === "none") {
-    const hr = "#3a2616"; rect(hr, cx - 4.7, -35.4, 9.4, 3.6); rect("rgba(255,255,255,.14)", cx - 3, -35.2, 4, .8);
-    if (f < .5) { rect(hr, cx - 5.1, -33.8, 1.2, 3.8); rect(hr, cx + 3.9, -33.8, 1.2, 3.8); } else rect(hr, cx - 5.2, -33.8, 2.2, 4.8);
-  } else if (k === "cap") {
+  else if (k === "none") { /* sem chapéu: o cabelo é desenhado por hairOf (Personalizar personagem) */ }
+  else if (k === "cap") {
     rect(c, cx - 4.7, -39.8, 9.4, 4.6); rect(shade(c, .8), cx - 4.7, -36.4, 9.4, 1.2); rect("rgba(255,255,255,.26)", cx - 3.6, -39.4, 3, .8); rect(shade(c, .65), cx - .5, -40.5, 1, .8);
     if (f < .6) rect(c2, cx - 1.3, -38.4, 2.6, 1.4);
     rect(shade(c, .7), cx - 5 + f * 4.2, -35.2, 10 - f * 1.5, 1.6); rect("rgba(0,0,0,.25)", cx - 5 + f * 4.2, -34, 10 - f * 1.5, .5);
@@ -748,10 +835,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   if (sh < 0.99) { ctx.save(); ctx.globalAlpha *= 1 - sh; collarSide(shirt); ctx.restore(); }          // a gola gira junto com a cabeça: faixa de lado -> abas de frente
   if (sh > 0.01) { ctx.save(); ctx.globalAlpha *= sh; collarFront(shirt); ctx.restore(); }
   rect("#f1c27d", hx - 4.5, -33, 9, 8.5); rect(`rgba(0,0,0,${mix(0.12, 0.1, sh)})`, hx - 4.5, -33, mix(3, 2, sh), 8.5);
-  for (const w of [-1.8, 1.8]) if (3.3 * sh - w * ch > 0.1) rect("#2a1a10", 3.3 * ch + w * sh - 0.8, mix(-30, -30.2, sh), 1.6, 1.8);   // olhos (o de longe só aparece quando a cabeça já virou)
-  if (ch > 0.25) rect("#c98d5a", 5 * ch - ch, -27.5, 2 * ch, 1);                       // nariz (some quando fica de frente)
-  if (sh > 0.2) { rect("#a0583a", 5.5 * ch - 1.4 * sh, -27.4, 2.8 * sh, 0.8);              // boca
-    for (const w of [-3.1, 3.1]) if (4.5 * sh - w * ch > 0.1) rect(`rgba(230,120,100,${0.45 * sh})`, 4.5 * ch + w * sh - 0.7, -28.6, 1.4, 1.2); }   // bochechas
+  faceParts(ch, sh, false); hairOf(hx, ch);                                            // olhos, nariz, sardas, boca, bochechas e cabelo
   const hb = Math.hypot(7 * ch, 7.5 * sh);
   const eyesT = [-1.8, 1.8].filter(w => 3.3 * sh - w * ch > 0.1).map(w => 3.3 * ch + w * sh);
   faceGear(eyesT, ch > 0.25 && eyesT.length ? [hx - 4.2, Math.min(...eyesT) - 1.9] : null, [4.6 * ch, 2.6 + 2 * sh]); neckGear(-ch, ch); headgear(hat, hx, hb, ch);
@@ -796,10 +880,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     shoulder(-AW, -21.5, sleeve); shoulder(AW, -21.5, sleeve);
     rect("#e0ac69", -2, -26, 4, 2.5); collarFront(shirt);
     rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
-    rect("#2a1a10", -2.6, -30.2, 1.6, 1.8); rect("#2a1a10", 1, -30.2, 1.6, 1.8);       // olhos
-    rect("rgba(230,120,100,.45)", -3.8, -28.6, 1.4, 1.2); rect("rgba(230,120,100,.45)", 2.4, -28.6, 1.4, 1.2);
-    if (idle) rect("#a0583a", -1.4, -27.4, 2.8, 0.8);                                  // parado: boca neutra
-    else { rect("#7a2a1a", -1.6, -27.6, 3.2, 1.5); rect("#fff", -1.2, -27.6, 2.4, 0.7); }   // comemorando: sorriso
+    faceParts(0, 1, !idle); hairOf(0, 0);                                              // olhos, sardas e boca (comemorando: sorriso aberto) e o cabelo
     faceGear([-1.8, 1.8], null, [0, 4.6]); neckGear(0, 0); headgear(hat, 0, 7.5, 0);
     ctx.restore();
     return { x, y: PIER_Y - 30 };
@@ -846,9 +927,9 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   rect("#e0ac69", -3, -26, 4, 2.5); collarSide(shirt);
   ctx.save(); if (hold) { ctx.translate(0, -25); ctx.rotate(0.22 * hold); ctx.translate(0, 25); }     // cabeça baixa olhando o celular
   rect("#f1c27d", -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
-  rect("#2a1a10", 2.5, -30, 1.6, 1.8); rect("#c98d5a", 4, -27.5, 2, 1);
+  faceParts(1, 0, false);
   if (hold > 0.3) rect(`rgba(205,245,160,${PHONE_LIGHT * 0.5 * clamp01((hold - 0.3) / 0.5)})`, -0.5, -33, 6, 8.5);   // luz da tela iluminando o rosto
-  faceGear([3.3], [-3.2, 1.4], [4.8, 3]); neckGear(-1, 1); headgear(hat, 1, 7, 1);
+  hairOf(1, 1); faceGear([3.3], [-3.2, 1.4], [4.8, 3]); neckGear(-1, 1); headgear(hat, 1, 7, 1);
   ctx.restore();
   if (s > 0) foreArm();                                                                // guardando/sacando: braço por cima de tudo
   if (hold > 0.01) drawHeldPhone(SHX + (AL + 2) * ca, SHY + (AL + 2) * sa, hold);                  // celular na mão, com a luz no rosto
@@ -1770,7 +1851,7 @@ function drawPhone() {
 
 addEventListener("keydown", e => {
   if (PAUSED) return;                                   // pausado (ou nas Configurações da pausa): as teclas não são do jogo
-  if (UI.open) return;                                  // digitando o apelido: as teclas não são do jogo
+  if (UI.open) { custKey(e); return; }                  // personalizando: as teclas são da tela de personalizar
   if (INTRO.active) return;                             // abertura (título / zoom / queda): ainda sem controles
   SND.unlock();                                         // o navegador só libera o som depois de uma tecla/toque
   if (SHOP.on) { shopKey(e); return; }                  // dentro da loja: as teclas são dela
@@ -1786,6 +1867,7 @@ addEventListener("keydown", e => {
 addEventListener("keyup", e => keys[e.code] = false);
 addEventListener("blur", () => { for (const k in keys) keys[k] = false; });   // perdeu o foco: solta todas as teclas (evita ficar correndo sozinho)
 cv.addEventListener("pointerdown", e => {
+  if (UI.open) { SND.unlock(); const r = cv.getBoundingClientRect(); custPointer((e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H); return; }   // personalizar: toque/clique
   if (INTRO.active) return;
   if (state === "walk" && e.clientX) { /* toque: metade esquerda/direita move, centro lança */ }
   SND.unlock();
@@ -1950,6 +2032,7 @@ function movePose() {                                                           
   return rodPose(rodL, b);   // (sempre com a animação da vara: nas costas, guardando ou sacando)
 }
 function update(dt) {
+  if (UI.open) return;                                   // personalizando: o mundo espera
   if (PAUSED) {                                          // pausado: o jogo (pesca, jogador, falas) congela, mas o cenário continua vivo atrás do menu
     mt += dt;                                            // respiração e movimentos do Malto
     const tk = tTalk; tTalk = null; tiaoUpdate(dt); tTalk = tk;   // Pedro continua andando/tocando flauta (a fala dele só fica parada)
@@ -2689,6 +2772,7 @@ function sunLight(now, sX, sY, lx, view) {
 function draw(now) {
   DAY.update(gameMinutes());
   if (!layers) buildLayers(now);
+  if (UI.open) { drawCust(now); return; }
   if (SHOP.on) { drawShop(now); return; }
   if (CITY.on) { drawCity(now); return; }
   DAY.repaintSky(now);
@@ -2932,7 +3016,7 @@ function itemIcon(it, x, y) {                                                  /
     ctx.restore();
   } else { rect("#9aa6b8", x + 6, y + 4, 8, 8); rect("#0f1624", x + 8, y + 6, 4, 4); }   // "nenhum": quadradinho vazado
 }
-function shopBg(now, cx, pxL) {                                                // loja: parede com papel de parede, lambri, letreiro, araras, prateleira de chapéus, pedestal com spot
+function shopBg(now, cx, pxL, sign = "FINSHION") {                                                // loja: parede com papel de parede, lambri, letreiro, araras, prateleira de chapéus, pedestal com spot
   const FL = 196;
   let g = ctx.createLinearGradient(0, 0, 0, FL); g.addColorStop(0, "#f7edd8"); g.addColorStop(1, "#e2d1aa"); rect(g, 0, 0, W, FL);
   for (let x = 0; x < W; x += 16) rect("rgba(150,108,58,.07)", x, 0, 8, 146);                                     // papel de parede listrado
@@ -2951,7 +3035,7 @@ function shopBg(now, cx, pxL) {                                                /
   const gl = ctx.createLinearGradient(0, 33, 0, 60); gl.addColorStop(0, "rgba(90,66,36,.22)"); gl.addColorStop(1, "rgba(90,66,36,0)"); rect(gl, 8, 34, pxL - 16, 26);
   const cols = ["#2b5d9b", "#b83a35", "#4aa3c7", "#1f9d8a", "#f4f1e8", "#b9a46a", "#8e44ad", "#e67e22"];
   for (let i = 0, n = Math.floor((pxL - 24) / 22); i < n; i++) vHung(18 + i * 22, 36, 15, 12, cols[i % cols.length], i % 4 === 3 ? "dress" : "shirt");
-  vText("FINSHION", 56, 23, "#2a2b2d", 12, 96); rect("#2a2b2d", 10, 26, 92, .8);
+  vText(sign, 56, 23, "#2a2b2d", 12, 96); rect("#2a2b2d", 10, 26, 92, .8);
   // prateleira de chapéus (os mesmos da loja), com mãos-francesas
   const hats = ITEMS.filter(i => i.cat === "hat" && i.kind !== "none"), sx0 = 16, shw = pxL - 32;
   rect("#7a5636", 8, 86, pxL - 16, 3); rect("#a47a50", 8, 86, pxL - 16, 1); rect("rgba(0,0,0,.22)", 8, 89, pxL - 16, 3);
@@ -5322,72 +5406,49 @@ function drawCity(now) {
   present();
 }
 
-// ---------- Tela de entrada / personalizar personagem: apelido, altura (até a do Malto), cor da camiseta e da calça ----------
-// Abre sozinha ao entrar no jogo e depois pelo celular (F -> "Personalizar personagem" -> E). O boneco de prévia gira ao clicar.
+// ---------- Personalizar personagem (no estilo da loja): apelido, cabelo, olhos, boca, sardas e altura ----------
+// Abre ao clicar em JOGAR e depois pelo celular (F -> "Personalizar personagem" -> E). Cada opção já vale na hora; Cancelar desfaz tudo.
+// Teclado: ← → abas, ↑ ↓ opções (na aba Altura ajustam a altura), C troca a cor, Enter confirma, Esc cancela. Clique no boneco para girar.
 const UI = { open: false, first: true, snap: null };
-const SHIRTS = ["#c0392b", "#e67e22", "#f1c40f", "#27ae60", "#16a085", "#2980b9", "#8e44ad", "#e84393", "#ecf0f1", "#2c3e50"];
-const PANTS = ["#26384a", "#1a1a1f", "#4a4e57", "#6b4a2f", "#8c7a55", "#2f5d3a", "#3b6ea8", "#7a2e2e", "#d9d2c0", "#5b3a6b"];
-const cz = document.createElement("div"); cz.id = "cz";
-cz.innerHTML = `<div class="cz-box" role="dialog" aria-label="Personalizar personagem">
-  <div class="cz-title">Pesca no Cais</div>
-  <label class="cz-row"><span>Apelido</span><input id="cz-name" maxlength="14" autocomplete="off" spellcheck="false" placeholder="Pescador"></label>
-  <div class="cz-prevwrap"><canvas id="cz-prev" width="192" height="198" title="Clique para girar"></canvas></div>
-  <div class="cz-hint">clique no boneco para girar</div>
-  <label class="cz-row"><span>Altura</span><input id="cz-h" type="range" min="0" max="100" step="1"></label>
-  <div class="cz-hint">máximo = a altura do Malto (linha pontilhada)</div>
-  <div class="cz-row"><span>Camiseta</span><div class="cz-sw" id="cz-shirt"></div></div>
-  <div class="cz-row"><span>Calça</span><div class="cz-sw" id="cz-pants"></div></div>
-  <div class="cz-btns"><button id="cz-cancel" type="button">Cancelar</button><button id="cz-ok" type="button">Entrar</button></div>
-</div>`;
+const CUST_CATS = [
+  { id: "hair", name: "Cabelo", ck: "hairc", def: HAIR_DEF, cols: ["#3a2616", "#17120f", "#7a4a22", "#d9b44a", "#b5502a", "#9a9a9a", "#eee8dd", "#3a6fd6", "#e86aa8", "#3fa85a"] },
+  { id: "eyes", name: "Olhos", ck: "eyec", def: EYE_DEF, cols: ["#2a1a10", "#17120f", "#8a5a2b", "#3a7bd5", "#3f9a58", "#7a8a99", "#8e44ad"] },
+  { id: "mouth", name: "Boca" }, { id: "frk", name: "Sardas" }, { id: "height", name: "Altura" },
+];
+const CZ = { cat: 0, sel: [0, 0, 0, 0, 0], top: [0, 0, 0, 0, 0], t: [1, 1, 1], goal: 1, last: 0, geo: null, drag: false };
+const CUST_ROWS = 5, CUST_RH = 25;
+const czName = document.createElement("input");                                // o apelido é um campo de verdade (teclado do celular etc.), posicionado em cima do painel
+czName.id = "cz-name"; czName.maxLength = 14; czName.autocomplete = "off"; czName.spellcheck = false; czName.placeholder = "Pescador";
 const czStyle = document.createElement("style");
-czStyle.textContent = `
-#cz{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(8,12,20,.78);
-  font:16px/1.2 "DigitalDisco",ui-monospace,monospace;color:#1b2619;-webkit-font-smoothing:none}
-#cz.on{display:flex}
-#cz .cz-box{width:min(360px,92vw);max-height:96vh;overflow:auto;box-sizing:border-box;padding:14px 16px 16px;background:#97a888;
-  border:4px solid #1b2619;border-radius:10px;box-shadow:0 0 0 3px #7d8f71,0 14px 50px #000}
-#cz .cz-title{font-size:32px;text-align:center;padding-bottom:6px;border-bottom:2px solid #1b2619;margin-bottom:10px}
-#cz .cz-row{display:flex;align-items:center;gap:10px;margin:8px 0}
-#cz .cz-row>span{width:78px;flex:none}
-#cz #cz-name{flex:1;min-width:0;font:inherit;color:#1b2619;background:#a9b99b;border:2px solid #1b2619;padding:4px 6px;outline:none}
-#cz #cz-name:focus{background:#bccdac}
-#cz input[type=range]{flex:1;accent-color:#1b2619}
-#cz .cz-prevwrap{display:flex;justify-content:center;margin:6px 0 2px}
-#cz canvas{width:192px;height:198px;image-rendering:pixelated;border:2px solid #1b2619;cursor:pointer;touch-action:manipulation}
-#cz .cz-hint{font-size:16px;text-align:center;opacity:.75;margin:0 0 4px}
-#cz .cz-sw{display:flex;flex-wrap:wrap;gap:5px;flex:1}
-#cz .cz-sw button,#cz .cz-sw label{width:22px;height:22px;box-sizing:border-box;border:2px solid #1b2619;padding:0;cursor:pointer;display:block;position:relative}
-#cz .cz-sw button.sel{outline:3px solid #1b2619;outline-offset:1px}
-#cz .cz-sw label{background:conic-gradient(#e74c3c,#f1c40f,#2ecc71,#3498db,#9b59b6,#e74c3c);overflow:hidden}
-#cz .cz-sw label input{position:absolute;inset:-4px;width:40px;height:40px;opacity:0;cursor:pointer}
-#cz .cz-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
-#cz .cz-btns button{font:inherit;color:#97a888;background:#1b2619;border:0;padding:6px 16px;cursor:pointer}
-#cz .cz-btns button:hover{background:#2f4029}
-#cz #cz-cancel{background:transparent;color:#1b2619;border:2px solid #1b2619}
-`;
-document.head.appendChild(czStyle); document.body.appendChild(cz);
-const $cz = id => cz.querySelector("#cz-" + id);
-const czName = $cz("name"), czH = $cz("h"), czOk = $cz("ok"), czCancel = $cz("cancel"), pv = $cz("prev"), pvc = pv.getContext("2d");
-function czSwatches(id, list, key) {
-  const box = $cz(id); box.innerHTML = "";
-  list.forEach(c => { const b = document.createElement("button"); b.type = "button"; b.style.background = c; b.dataset.c = c; b.title = c;
-    b.onclick = () => { me[key] = c; me.o[key] = ""; czSync(); }; box.appendChild(b); });
-  const lb = document.createElement("label"); lb.title = "Outra cor"; const inp = document.createElement("input"); inp.type = "color";
-  inp.oninput = () => { me[key] = inp.value; me.o[key] = ""; czSync(); }; lb.appendChild(inp); box.appendChild(lb); box._inp = inp;
+czStyle.textContent = `#cz-name{position:fixed;display:none;z-index:50;box-sizing:border-box;padding:0 4px;margin:0;border:1px solid #ffd166;border-radius:0;outline:none;
+  background:#1b2433;color:#fff;font:11px "DigitalDisco",ui-monospace,monospace;-webkit-font-smoothing:none}#cz-name:focus{background:#26324a}`;
+document.head.appendChild(czStyle); document.body.appendChild(czName);
+
+const custList = () => ITEMS.filter(i => i.cat === CUST_CATS[CZ.cat].id);
+const custColor = c => okHex(me.o[c.ck]) ? me.o[c.ck] : c.def;
+function custSync() {                                                           // marca a opção em uso de cada aba
+  CUST_CATS.forEach((c, i) => { const l = ITEMS.filter(it => it.cat === c.id); const j = l.findIndex(it => me.o[itemSlot(it)] === itemEq(it)); CZ.sel[i] = Math.max(0, j); CZ.top[i] = Math.max(0, Math.min(CZ.sel[i] - CUST_ROWS + 1, CZ.top[i])); if (CZ.sel[i] < CZ.top[i]) CZ.top[i] = CZ.sel[i]; });
 }
-function czSync() {
-  [["shirt", "shirt"], ["pants", "pants"]].forEach(([id, key]) => { const box = $cz(id);
-    box.querySelectorAll("button").forEach(b => b.classList.toggle("sel", b.dataset.c.toLowerCase() === me[key].toLowerCase())); box._inp.value = me[key]; });
-  czH.value = Math.round(me.h * 100);
+function custCat(i) { CZ.cat = (i + CUST_CATS.length) % CUST_CATS.length; CZ.drag = false; SND.play("step_wood_" + (1 + (Math.random() * 4 | 0)), { vol: .25 }); }
+function custPick(i) {                                                          // escolhe (e já aplica) a opção i da aba atual
+  const l = custList(); if (!l.length) return;
+  i = Math.max(0, Math.min(l.length - 1, i)); CZ.sel[CZ.cat] = i;
+  if (i < CZ.top[CZ.cat]) CZ.top[CZ.cat] = i; else if (i >= CZ.top[CZ.cat] + CUST_ROWS) CZ.top[CZ.cat] = i - CUST_ROWS + 1;
+  me.o[itemSlot(l[i])] = itemEq(l[i]);
 }
-czSwatches("shirt", SHIRTS, "shirt"); czSwatches("pants", PANTS, "pants");
-czH.oninput = () => { me.h = czH.value / 100; };
+function custCycleColor(d) {
+  const c = CUST_CATS[CZ.cat]; if (!c.cols) return;
+  const cur = custColor(c).toLowerCase(), j = c.cols.findIndex(v => v.toLowerCase() === cur);
+  me.o[c.ck] = c.cols[(j + d + c.cols.length) % c.cols.length];
+}
+const custH = v => { me.h = Math.round(clamp01(v) * 100) / 100; };
+
 function openCustomizer(first) {
   if (UI.open) return;
   UI.open = true; UI.first = first; UI.snap = { name: myName, shirt: me.shirt, pants: me.pants, h: me.h, o: { ...me.o } };
   for (const k in keys) keys[k] = false; PH.open = false;
-  czName.value = myName; czSync(); czOk.textContent = first ? "Entrar" : "Pronto"; czCancel.style.display = first ? "none" : "";
-  cz.classList.add("on"); setTimeout(() => czName.focus(), 30);
+  CZ.cat = 0; CZ.goal = 1; CZ.t = [1, 1, 1]; CZ.last = 0; CZ.drag = false; CZ.top = [0, 0, 0, 0, 0]; custSync();
+  czName.value = myName; czName.style.display = "block"; setTimeout(() => czName.focus(), 30);
 }
 function closeCustomizer(save) {
   if (!UI.open) return;
@@ -5397,35 +5458,120 @@ function closeCustomizer(save) {
     if (socket && socket.connected) socket.emit(ready ? "look" : "join", lookPayload());   // 1ª vez: entra na sala; depois só atualiza a aparência
     ready = true;
   } else if (UI.snap) { myName = UI.snap.name; me.shirt = UI.snap.shirt; me.pants = UI.snap.pants; me.h = UI.snap.h; me.o = UI.snap.o; }
-  UI.open = false; cz.classList.remove("on"); cv.focus();
+  UI.open = false; CZ.drag = false; czName.style.display = "none"; czName.blur(); cv.focus();
   if (save && INTRO.phase === "custom") introGo();                    // veio da tela inicial: agora a câmera desce e o pescador cai
 }
-czOk.onclick = () => { SND.unlock(); closeCustomizer(true); };
-czCancel.onclick = () => closeCustomizer(false);
-cz.addEventListener("keydown", e => {
-  e.stopPropagation();
-  if (e.key === "Enter" && e.target === czName) { SND.unlock(); closeCustomizer(true); }
-  else if (e.key === "Escape" && !UI.first) closeCustomizer(false);
-});
-const PV = { k: 3, W: 64, H: 66, foot: 60, t: [1, 1, 1], goal: 1, last: 0 };    // prévia: boneco de frente; clicar gira (cabeça, tronco, pernas)
-pv.onclick = () => { PV.goal = 1 - PV.goal; };
-function drawPreview(now) {
-  const dt = Math.min(0.1, (now - (PV.last || now)) / 1000); PV.last = now;
-  const g = PV.goal, d = dt / TURN_PART, mv = (v, to) => v + Math.sign(to - v) * Math.min(Math.abs(to - v), d), t = PV.t;
+function custKey(e) {
+  const inp = e.target === czName;
+  if (e.code === "Enter" || e.code === "NumpadEnter") { e.preventDefault(); SND.unlock(); closeCustomizer(true); return; }
+  if (e.code === "Escape") { e.preventDefault(); if (!UI.first) closeCustomizer(false); return; }
+  if (inp) { if (e.code === "ArrowDown" || e.code === "ArrowUp") { czName.blur(); cv.focus(); } else return; }   // digitando: só ↑ ↓ saem do campo
+  SND.unlock(); e.preventDefault();
+  const h = CUST_CATS[CZ.cat].id === "height", c = e.code;
+  if (c === "ArrowLeft" || c === "KeyA") custCat(CZ.cat - 1);
+  else if (c === "ArrowRight" || c === "KeyD") custCat(CZ.cat + 1);
+  else if (c === "ArrowUp" || c === "KeyW") { if (h) custH(me.h + .05); else custPick(CZ.sel[CZ.cat] - 1); }
+  else if (c === "ArrowDown" || c === "KeyS") { if (h) custH(me.h - .05); else custPick(CZ.sel[CZ.cat] + 1); }
+  else if (c === "KeyC") custCycleColor(e.shiftKey ? -1 : 1);
+  else if (c === "Tab") czName.focus();
+}
+function custPointer(lx, ly, move) {
+  const g = CZ.geo; if (!g) return;
+  const hit = r => r && lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h;
+  const slide = () => custH((lx - g.slider.x0) / (g.slider.x1 - g.slider.x0));
+  if (move) { if (CZ.drag) slide(); return; }
+  if (hit(g.ok)) { SND.unlock(); closeCustomizer(true); return; }
+  if (hit(g.cancel)) { closeCustomizer(false); return; }
+  for (let i = 0; i < g.tabs.length; i++) if (hit(g.tabs[i])) { custCat(i); return; }
+  for (const r of g.rows) if (hit(r)) { custPick(r.i); return; }
+  for (const r of g.sw) if (hit(r)) { me.o[CUST_CATS[CZ.cat].ck] = r.c; return; }
+  if (g.slider && hit(g.slider)) { CZ.drag = true; slide(); return; }
+  if (lx < g.px) CZ.goal = 1 - CZ.goal;                                         // clicar no boneco/vitrine: gira
+}
+
+function custIcon(it, x, y) {                                                   // miniatura: carinha com a opção (e a cor atual) aplicada
+  rect("#9fb3c8", x, y, 24, 23);
+  const hairIcon = it.cat === "hair", z = hairIcon ? 1.15 : 2, keep = CUR_O;
+  CUR_O = { ...DEF_O, ...me.o, hair: hairIcon ? itemEq(it) : "hr_careca", [itemSlot(it)]: itemEq(it) };
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, 24, 23); ctx.clip();
+  ctx.translate(x + 12, hairIcon ? y + 48.2 : y + 69); ctx.scale(z, z);
+  try { rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5); faceParts(0, 1, false); hairOf(0, 0); }
+  finally { ctx.restore(); CUR_O = keep; }
+}
+
+function drawCust(now) {
+  const dt = Math.min(0.1, (now - (CZ.last || now)) / 1000); CZ.last = now;
+  const pw = SHOP_PW, pxL = W - pw - 8, py = 8, ph = H - 16, cx = Math.round(pxL / 2), x = pxL, accC = "#ffd166";
+  const cat = CUST_CATS[CZ.cat], list = custList(), isH = cat.id === "height", cur = list[CZ.sel[CZ.cat]];
+  shopBg(now, cx, pxL, "SALÃO");
+  // boneco: gira ao clicar (cabeça, tronco e pernas em sequência)
+  const g = CZ.goal, d = dt / TURN_PART, mv = (v, to) => v + Math.sign(to - v) * Math.min(Math.abs(to - v), d), t = CZ.t;
   t[0] = mv(t[0], g);
   if (g ? t[0] > TURN_GATE : t[0] < 1 - TURN_GATE) t[1] = mv(t[1], g);
   if (g ? t[1] > TURN_GATE : t[1] < 1 - TURN_GATE) t[2] = mv(t[2], g);
   const avg = (t[0] + t[1] + t[2]) / 3, b = { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
   if (avg > 0.001) { b.front = avg; b.turn = [t[0], t[1], t[2]]; }
-  const prev = ctx; ctx = pvc;
-  pvc.setTransform(PV.k, 0, 0, PV.k, 0, 0); pvc.imageSmoothingEnabled = false;
-  const sky = pvc.createLinearGradient(0, 0, 0, PV.foot); sky.addColorStop(0, "#3a3f6b"); sky.addColorStop(1, "#d98c72");
-  rect(sky, 0, 0, PV.W, PV.foot); rect("#7a4e32", 0, PV.foot, PV.W, PV.H - PV.foot); rect("#5a3622", 0, PV.foot, PV.W, 1);
-  for (let x = 1; x < PV.W - 1; x += 4) rect("rgba(255,255,255,.55)", x, PV.foot - MALTO_TOP, 2, 1);   // altura do Malto
-  pvc.save(); pvc.translate(0, PV.foot - PIER_Y);
-  CAST_OFF++; drawFisher(PV.W / 2, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h) }); CAST_OFF--;
-  pvc.restore(); ctx = prev;
+  const K = 2.8, fy = 228;
+  if (isH) { const my = fy - MALTO_TOP * K; for (let dx = 12; dx < pxL - 12; dx += 8) rect("rgba(255,255,255,.7)", dx, my, 4, 1); text("Malto", pxL - 14, my - 3, "#fff", "right"); }   // linha da altura máxima (a do Malto)
+  ctx.save(); ctx.translate(0, fy - PIER_Y * K); ctx.scale(K, K);
+  CAST_OFF++; drawFisher(cx / K, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h), o: { ...me.o, hat: HAT_OFF } }); CAST_OFF--;   // sem chapéu na prévia: assim o cabelo aparece
+  ctx.restore();
+  text(isH ? "Altura " + Math.round(me.h * 100) + "%" : cur ? cur.name : "", cx, H - 26, "#fff", "center");
+  text("clique para girar", cx, H - 13, "#9aa6b8", "center");
+
+  // painel
+  ctx.globalAlpha = .96; rect(accC, x - 1, py - 1, pw + 2, ph + 2); rect("#0f1624", x, py, pw, ph); ctx.globalAlpha = 1;
+  text("PERSONAGEM", x + 8, py + 15, accC); rect("#2c3850", x + 6, py + 21, pw - 12, 1);
+  text("Apelido", x + 8, py + 37, "#cfd8e6");
+  const geo = { px: pxL, tabs: [], rows: [], sw: [], ok: null, cancel: null, slider: null };
+  const tw = (pw - 8) / CUST_CATS.length, ty = py + 46;
+  CUST_CATS.forEach((c, i) => {
+    const r = { x: x + 4 + i * tw, y: ty, w: tw - 2, h: 17 }; geo.tabs.push(r);
+    rect(i === CZ.cat ? accC : "#1d2638", r.x, r.y, r.w, r.h); text(c.name, r.x + r.w / 2, r.y + 12, i === CZ.cat ? "#10151f" : "#9aa6b8", "center");
+  });
+  const rowY = py + 70;
+  if (!isH) {
+    for (let r = 0; r < CUST_ROWS; r++) {
+      const i = CZ.top[CZ.cat] + r, it = list[i]; if (!it) break;
+      const ry = rowY + r * CUST_RH, rr = { x: x + 4, y: ry, w: pw - 8, h: CUST_RH - 2, i }; geo.rows.push(rr);
+      if (i === CZ.sel[CZ.cat]) rect("rgba(255,209,102,.18)", rr.x, rr.y, rr.w, rr.h);
+      custIcon(it, x + 6, ry);
+      text(it.name, x + 36, ry + 16, "#fff");
+      if (me.o[itemSlot(it)] === itemEq(it)) text("Em uso", x + pw - 20, ry + 16, "#8be28b", "right");
+    }
+    if (CZ.top[CZ.cat] > 0) text("▲", x + pw - 10, rowY + 8, "#9aa6b8", "right");
+    if (CZ.top[CZ.cat] + CUST_ROWS < list.length) text("▼", x + pw - 10, rowY + CUST_ROWS * CUST_RH - 4, "#9aa6b8", "right");
+    if (cat.cols) {                                                             // cores (cabelo e olhos)
+      const sy = rowY + CUST_ROWS * CUST_RH + 6, now = custColor(cat).toLowerCase();
+      text("Cor", x + 8, sy + 11, "#cfd8e6"); text("C: troca", x + pw - 8, sy + 11, "#6f7d94", "right");
+      cat.cols.forEach((c, i) => {
+        const r = { x: x + 34 + i * 18, y: sy, w: 14, h: 14, c }; geo.sw.push(r);
+        if (c.toLowerCase() === now) rect(accC, r.x - 2, r.y - 2, r.w + 4, r.h + 4);
+        rect("#0f1624", r.x - 1, r.y - 1, r.w + 2, r.h + 2); rect(c, r.x, r.y, r.w, r.h);
+      });
+    }
+  } else {                                                                      // altura: barra para arrastar
+    const sx0 = x + 18, sx1 = x + pw - 18, sy = rowY + 40;
+    text("Quão alto você é", x + 8, rowY + 14, "#cfd8e6");
+    rect("#2c3850", sx0, sy - 2, sx1 - sx0, 5); rect(accC, sx0, sy - 2, (sx1 - sx0) * me.h, 5);
+    const kx = sx0 + (sx1 - sx0) * me.h; rect(accC, kx - 4, sy - 8, 8, 17); rect("#fff", kx - 2, sy - 6, 4, 13);
+    text("Baixo", sx0, sy + 24, "#9aa6b8"); text("Malto", sx1, sy + 24, "#9aa6b8", "right");
+    text("↑ ↓ ajustam (máx.: o Malto)", x + 8, sy + 46, "#9aa6b8");
+    geo.slider = { x: sx0 - 8, y: sy - 14, w: sx1 - sx0 + 16, h: 30, x0: sx0, x1: sx1 };
+  }
+  const desc = isH ? "" : cur ? cur.desc : "";
+  if (desc) text(desc, x + 8, py + ph - 28, "#cfd8e6");
+  const by = py + ph - 22, bh = 16;
+  geo.ok = { x: x + pw - 8 - 92, y: by, w: 92, h: bh }; rect(accC, geo.ok.x, geo.ok.y, geo.ok.w, bh); text(UI.first ? "Entrar" : "Pronto", geo.ok.x + geo.ok.w / 2, by + 12, "#10151f", "center");
+  if (!UI.first) { geo.cancel = { x: x + 8, y: by, w: 80, h: bh }; rect("#1d2638", geo.cancel.x, by, geo.cancel.w, bh); text("Cancelar", geo.cancel.x + geo.cancel.w / 2, by + 12, "#cfd8e6", "center"); }
+  CZ.geo = geo;
+  // campo do apelido: acompanha o painel (o canvas muda de tamanho com a janela)
+  const r = cv.getBoundingClientRect(), kx = r.width / W, ky = r.height / H;
+  Object.assign(czName.style, { left: r.left + (x + 58) * kx + "px", top: r.top + (py + 26) * ky + "px", width: (pw - 66) * kx + "px", height: 16 * ky + "px", fontSize: UI_PX * ky + "px" });
+  present();
 }
+cv.addEventListener("pointermove", e => { if (UI.open && CZ.drag) { const r = cv.getBoundingClientRect(); custPointer((e.clientX - r.left) / r.width * W, 0, true); } });
+addEventListener("pointerup", () => { CZ.drag = false; });
 
 // ---------- Abertura: câmera lá no alto (céu, nuvens e montanhas) com o título FISHTEC e o botão JOGAR ----------
 // JOGAR -> personalizar o pescador -> a câmera desce e dá zoom no deck -> o pescador cai do céu em cima do cais -> o jogo começa.
@@ -5823,6 +5969,6 @@ let last = performance.now(), slow = 0, fast = 0, S_MAX = S, recoverNeed = 600, 
   }
   fast = raw < 0.026 ? fast + 1 : 0;                              // ~10 s seguidos rodando bem (acima de ~38 fps): sobe a resolução de volta (antes ela só descia e o jogo ficava borrado para sempre)
   if (fast > recoverNeed && S < S_MAX && !CITY.on) { setScale(S < 1.5 ? 1.5 : S_MAX); fast = 0; lastRecover = now; }
-  net(now); draw(now); if (UI.open) drawPreview(now); requestAnimationFrame(loop);
+  net(now); draw(now); requestAnimationFrame(loop);
 })(last);
 // (o personalizar agora abre pelo botão JOGAR, ver introPlay)
