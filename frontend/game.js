@@ -329,7 +329,8 @@ const keys = {};
 // ---------- Multiplayer ----------
 const others = {};
 // Aparência (personalizável): camiseta, calça e altura. TW = meia largura do tronco (fino o bastante para a altura máxima não passar o Malto).
-const TW = 5, AW = TW + 1.75;                                                    // AW: centro do braço de frente: colado na lateral do tronco (sem folga e sem esconder dentro dele)
+const TW = 5, TWS = 3.5, AW = TW + 1.75;   // TWS: meia largura do tronco de LADO (mais fino que de frente)
+const TWM = (a, b, k) => a + (b - a) * k;                                                    // AW: centro do braço de frente: colado na lateral do tronco (sem folga e sem esconder dentro dele)
 const MALTO_TOP = 51, FISHER_TOP = 40, MAX_H = MALTO_TOP / FISHER_TOP;       // altura máxima = a do Malto (quepe a 51px do chão; o chapéu do pescador a 40px)
 const hScale = h => 1 + (MAX_H - 1) * Math.max(0, Math.min(1, +h || 0));    // h: 0 (altura normal) ... 1 (altura do Malto)
 const DEF_SHIRT = "#c0392b", DEF_PANTS = "#26384a";
@@ -693,12 +694,13 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   };
   const farX = AW * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
   arm(farX, farY, farA, 1); shoulder(farX, farY, sleeve);
-  // tronco
-  rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); shirtDeco(2 * ch);
-  rect("rgba(0,0,0,.25)", -TW, -24, mix(3.5, 2.5, kt), 14 + TORSOX); rect("rgba(255,255,255,.18)", mix(TW - 3, TW - 2.5, kt), -24, mix(2, 2.5, kt), 14 + TORSOX);
-  if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TW * ct - 0.3, -24, 0.6, 12 + TORSOX);        // costura da frente deslizando para o meio
-  rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2);
-  if (st > 0.15) rect("#e8c34a", TW * ct - st, -12 + TORSOX, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
+  // tronco (a largura vai de fino, de lado, a normal, de frente)
+  const TWt = TWM(TWS, TW, st);
+  rect(shirt, -TWt, -24, TWt * 2, 14 + TORSOX); shirtDeco(2 * ch);
+  rect("rgba(0,0,0,.25)", -TWt, -24, mix(3.5, 2.5, kt), 14 + TORSOX); rect("rgba(255,255,255,.18)", mix(TWt - 3, TWt - 2.5, kt), -24, mix(2, 2.5, kt), 14 + TORSOX);
+  if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TWt * ct - 0.3, -24, 0.6, 12 + TORSOX);        // costura da frente deslizando para o meio
+  rect("#5a3b22", -TWt, -12 + TORSOX, TWt * 2, 2);
+  if (st > 0.15) rect("#e8c34a", TWt * ct - st, -12 + TORSOX, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
   if (fa > 0) { arm(farX, farY, farA, fa); ctx.globalAlpha *= fa; shoulder(farX, farY, sleeve); ctx.globalAlpha /= fa; }                                                // de frente: o braço do outro lado passa a ficar por cima
   arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
@@ -790,9 +792,9 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const ra = P.rod - P.flex * 0.25;                                  // a ponta da vara atrasa quando ela chicoteia
   let tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const kS = s < SL0 ? 0 : ease3(Math.min(1, (s - SL0) / (SL1 - SL0)));   // quanto a vara já deslizou para as costas
-  rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); shirtDeco(1.5);
-  rect("rgba(0,0,0,.25)", -TW, -24, 3.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 3, -24, 2, 14 + TORSOX);
-  rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2);
+  rect(shirt, -TWS, -24, TWS * 2, 14 + TORSOX); shirtDeco(1.5);
+  rect("rgba(0,0,0,.25)", -TWS, -24, 2.6, 14 + TORSOX); rect("rgba(255,255,255,.18)", TWS - 2.2, -24, 1.6, 14 + TORSOX);
+  rect("#5a3b22", -TWS, -12 + TORSOX, TWS * 2, 2);
   const foreArm = () => {
     ctx.save(); ctx.translate(SHX, SHY); ctx.rotate(A);                                // antebraço gira no ombro (no centro do tronco)
     rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
