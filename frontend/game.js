@@ -313,7 +313,7 @@ let landT0 = 0;                                                          // quan
 let cs = { t: 0, rel: null, hang: null }; const fxs = [];            // arremesso em andamento e respingos
 let gaitPh = 0, stepIdx = -1, reelT = 0;                       // controle dos sons de passo e de carretilha
 const WALK = 90, RUN = 165;                       // velocidades (px/s): andar e correr (SHIFT)
-let spd = 0, runK = 0, brake = 0, dustT = 0, wasBraking = false;   // velocidade atual, quanto está correndo (0-1), quanto está freando (0-1)
+let spd = 0, runK = 0, brake = 0, dustT = 0, wasBraking = false, runDustT = 0;   // velocidade atual, quanto está correndo (0-1), quanto está freando (0-1)
 const dust = [];                                  // fumacinha da freada
 const rodL = newRod(1);                           // a vara começa (e fica) nas costas; só é sacada para pescar
 let wantDraw = false, vigK = 0;                    // wantDraw: quer lançar mas ainda está sacando a vara; vigK: vinheta
@@ -773,7 +773,9 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.save(); ctx.translate(0, -11 - LEGX + bob); ctx.rotate(th);
     rect(col, -2.3, 0, 4.6, Lt + 0.4);
     ctx.translate(0, Lt); ctx.rotate(kn);
-    rect(PIT && PIT.shorts ? shade(SKIN_LEG, col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7); shoe(-3, Lt - 0.5, 6.6, 2.5);
+    rect(PIT && PIT.shorts ? shade(SKIN_LEG, col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7);
+    const sw2 = KB > 0.001 ? Math.min(1, kn / KB) : 0, ank = -(th + kn) * (0.9 - 0.45 * sw2) + (th < 0 && sw2 < 0.3 ? 0.35 * -th : 0);   // tornozelo: o pé fica quase reto no chão, calcanhar sobe ao empurrar e a ponta cai ao balançar
+    ctx.save(); ctx.translate(0, Lt - 1); ctx.rotate(ank); ctx.translate(0, -(Lt - 1)); shoe(-3, Lt - 0.5, 6.6, 2.5); ctx.restore();
     ctx.restore();
   };
   if (P.brake) { leg(-0.64 * P.brake, 0, LEGS[0]); leg(0.64 * P.brake, 0, LEGS[1]); }   // freando: pernas abertas e retas
@@ -1869,18 +1871,38 @@ function drawCatchUI() {                                                       /
 }
 
 
-function spawnDust(n, sgn) {                                                    // nuvenzinhas junto aos pés
-  for (let i = 0; i < n; i++) dust.push({ x: px + (Math.random() - 0.5) * 6, y: PIER_Y + 0.5 + Math.random() * 1.8, vx: sgn * (-6 + Math.random() * 22), vy: -(6 + Math.random() * 16), t: 0, life: 0.4 + Math.random() * 0.3, r: 1.4 + Math.random() * 1.6 });
+function spawnDust(n, sgn, o) {                                                 // poeirinha suja junto aos pés (o.run: sai de leve enquanto ele corre)
+  const cz = CITY.on ? CITY_CHAR : 1, run = o && o.run, tone = () => 118 + Math.random() * 34 | 0;
+  for (let i = 0; i < n; i++) {
+    const g = tone();
+    dust.push({
+      x: px - (run ? sgn * 2.5 * cz : 0) + (Math.random() - 0.5) * (run ? 4 : 6) * cz, y: PIER_Y + 0.3 + Math.random() * 1.4 * cz,
+      vx: run ? -sgn * (5 + Math.random() * 13) * cz : sgn * (-6 + Math.random() * 22) * cz, vy: -(run ? 3 + Math.random() * 7 : 6 + Math.random() * 14) * cz,
+      t: 0, life: run ? 0.7 + Math.random() * 0.6 : 0.55 + Math.random() * 0.5, r: (run ? 1.3 + Math.random() * 1.3 : 1.6 + Math.random() * 1.8) * cz,
+      pk: run ? 0.2 : 0.3, ph: Math.random() * 6.28, rgb: [g + 14, g + 4, g - 12]
+    });
+  }
 }
-function drawDust() {
-  dust.forEach(d => { const k = d.t / d.life; ctx.fillStyle = `rgba(238,224,214,${0.6 * (1 - k)})`; ctx.beginPath(); ctx.arc(d.x, d.y, d.r * (1 + k * 1.6), 0, 7); ctx.fill(); });
+function drawDust() {                                                           // nuvem macia: gradiente radial, cresce, ondula e some devagar (cor terrosa suja)
+  if (!dust.length) return;
+  const nt = 1 - 0.55 * Math.max(0, Math.min(1, DAY.lamp || 0));                // à noite a poeira escurece junto com o resto
+  ctx.save();
+  dust.forEach(d => {
+    const k = d.t / d.life, a = d.pk * Math.min(1, k * 7) * Math.pow(1 - k, 1.6) * nt;
+    if (a < 0.004) return;
+    const r = d.r * (1 + k * 2.4), x = d.x + Math.sin(d.ph + d.t * 7) * k * 1.4, y = d.y;
+    const c = `${d.rgb[0] * nt | 0},${d.rgb[1] * nt | 0},${d.rgb[2] * nt | 0}`, g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${c},${a})`); g.addColorStop(0.55, `rgba(${c},${a * 0.55})`); g.addColorStop(1, `rgba(${c},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  });
+  ctx.restore();
 }
 function movePose() {                                                           // pose de corrida (inclinado), de freada (corpo pra trás) ou parado; a animação da vara é somada por cima
   if (state !== "walk") return null;
   let base = null;
   if (brake > 0.08) base = { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
-  else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
-  const b = base || { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
+  else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK + 0.03 * Math.sin(gaitPh * 2), off: 0, flex: 0, run: runK };   // corrida: inclinado e o tronco pulsa a cada passada
+  const b = base || { rod: REST, arm: 0, lean: 0.045 * walkAmp + 0.012 * walkAmp * Math.sin(gaitPh * 2 - 0.6), off: 0, flex: 0 };   // andar: leve inclinação pra frente com balanço do tronco
   if (frontK > 0.001) { b.front = frontK; b.turn = [turnH, turnT, turnL]; }
   b.gait = gaitPh;
   if (PH.hold > 0.001) { b.phone = PH.hold; b.lean = (b.lean || 0) + 0.05 * PH.hold; }   // celular na mão: braço erguido, cabeça baixa, tronco levemente inclinado
@@ -1913,7 +1935,7 @@ function update(dt) {
     if (wantDraw && Math.abs(spd) <= WALK + 1) { wantDraw = false; startCast(); return; }   // terminou de frear: lança
   }
   for (let i = dust.length - 1; i >= 0; i--) {                                  // fumacinha da freada sobe e some
-    const d = dust[i]; d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy *= 0.95; d.vx *= 0.97;
+    const d = dust[i]; d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy = d.vy * 0.94 - 1.2 * dt; d.vx *= 0.96;
     if (d.t > d.life) dust.splice(i, 1);
   }
   if (state === "walk") {
@@ -1939,6 +1961,9 @@ function update(dt) {
     if (braking && !wasBraking) { SND.play("pier_creak_1", { vol: 0.3, rate: 1.25 }); spawnDust(6, Math.sign(spd)); dustT = 0; }
     wasBraking = braking;
     if (braking && (dustT -= dt) <= 0) { dustT = 0.045; spawnDust(2, Math.sign(spd)); }
+    if (!braking && runK > 0.3 && Math.abs(spd) > WALK + 15) {                    // correndo: sempre sai uma fumacinha suja, bem fraca, atrás dos pés
+      if ((runDustT -= dt) <= 0) { runDustT = 0.08 + Math.random() * 0.05; spawnDust(1 + (Math.random() < 0.4 ? 1 : 0), Math.sign(spd), { run: true }); }
+    } else runDustT = 0;
     brake += ((braking ? 1 : 0) - brake) * Math.min(1, dt * 14);
     runK += (Math.max(0, Math.min(1, (Math.abs(spd) - WALK) / (RUN - WALK))) - runK) * Math.min(1, dt * 10);
   } else if (state === "show") {
@@ -5170,6 +5195,7 @@ function drawCity(now) {
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
     ctx.restore();
   }, [PIER_Y - 70, PIER_Y + 12], c => cityFisherLight(c, now)); } finally { shadeEnd(); }
+  drawDust();                                                                            // poeira da corrida/freada também na cidade
   { const nearAct = !INTRO.active && state === "walk" && !TR.lock && !PH.open && !BAG.open && !UI.open && !!(boutiqueNear() || cityNearDoor());   // perto de uma interação ("Entrar"): o nome some em fade
     nameFade += ((nearAct ? 0 : 1) - nameFade) * Math.min(1, dt * 9);
     if (nameFade > .02) { ctx.save(); ctx.globalAlpha = nameFade; ctx.translate(px, PIER_Y - FISHER_TOP * hScale(me.h) * CITY_CHAR - 5); ctx.scale(.68, .68); text(myName, 0, 0, "#ffd166", "center"); ctx.restore(); } }   // nome menor na cidade (fica FORA da lavagem de cor (à noite ela escurecia o texto)
