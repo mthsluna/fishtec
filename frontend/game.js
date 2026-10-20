@@ -402,7 +402,7 @@ const ITEMS = [
   { id: "bl_nenhuma", cat: "blush", name: "Sem Bochecha", price: 0, kind: "none", desc: "Rosto sem corzinha." },
 ];
 const ITEM = Object.create(null); ITEMS.forEach(i => ITEM[i.id] = i);
-const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "", shoes: "", hair: "", eyes: "", mouth: "", blush: "", hairc: "", eyec: "" });   // hairc/eyec: cor (#rrggbb) do cabelo e dos olhos ("" = padrão)
+const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "", shoes: "", hair: "", eyes: "", mouth: "", blush: "", hairc: "", eyec: "", skin: "" });   // hairc/eyec: cor (#rrggbb) do cabelo e dos olhos ("" = padrão)
 const OWNED = new Set();
 try { (JSON.parse(localStorage.getItem("owned") || "[]") || []).forEach(id => { if (ITEM[id]) OWNED.add(id); }); } catch (e) {}
 const itemSlot = it => it.slot || it.cat, itemEq = it => it.eq !== undefined ? it.eq : it.id;
@@ -411,7 +411,7 @@ const me = { shirt: DEF_SHIRT, pants: DEF_PANTS, h: 0, o: { ...DEF_O } };       
 let ready = false;                                                              // só entra na sala depois da tela de personalizar
 try { const sv = JSON.parse(localStorage.getItem("look") || "{}"); myName = String(sv.name || "").slice(0, 14);
   if (/^#[0-9a-f]{6}$/i.test(sv.shirt)) me.shirt = sv.shirt; if (/^#[0-9a-f]{6}$/i.test(sv.pants)) me.pants = sv.pants; me.h = Math.max(0, Math.min(1, +sv.h || 0));
-  if (sv.o && typeof sv.o === "object") for (const k in me.o) { const v = sv.o[k]; if (typeof v === "string" && (v === "" || ((k === "hairc" || k === "eyec") && /^#[0-9a-f]{6}$/i.test(v)) || (ITEM[v] && itemSlot(ITEM[v]) === k && itemOwned(ITEM[v])))) me.o[k] = v; } } catch (e) {}
+  if (sv.o && typeof sv.o === "object") for (const k in me.o) { const v = sv.o[k]; if (typeof v === "string" && (v === "" || ((k === "hairc" || k === "eyec" || k === "skin") && /^#[0-9a-f]{6}$/i.test(v)) || (ITEM[v] && itemSlot(ITEM[v]) === k && itemOwned(ITEM[v])))) me.o[k] = v; } } catch (e) {}
 const lookPayload = () => ({ name: myName, shirt: me.shirt, pants: me.pants, h: +me.h.toFixed(3), o: { ...me.o } });
 // ---------- Relógio do jogo: o dia tem 30 min reais (1 min do jogo = 1,25 s) e todos veem a mesma hora ----------
 // A hora vem do relógio do SERVIDOR: medimos a diferença (clockOff) entre ele e o do aparelho, compensando a latência.
@@ -537,7 +537,6 @@ function faceParts(ch, sh, cheer) {                                             
   const O = CUR_O, ec = okHex(O.eyec) ? O.eyec : EYE_DEF, ek = (ITEM[O.eyes] || ITEM.ey_padrao).kind, blush = (ITEM[O.blush] || ITEM.bl_rosa).kind !== "none";
   const ey = lerp(-30, -30.2, sh);
   for (const w of [-1.8, 1.8]) if (3.3 * sh - w * ch > 0.1) eyeAt(3.3 * ch + w * sh, ey, ec, ek);   // o olho de longe só aparece quando a cabeça já virou
-  if (ch > 0.25) rect("#c98d5a", 5 * ch - ch, -27.5, 2 * ch, 1);                  // nariz (some quando fica de frente)
   if (blush && sh > 0.2) for (const w of [-3.1, 3.1]) if (4.5 * sh - w * ch > 0.1) rect(`rgba(230,120,100,${0.45 * sh})`, 4.5 * ch + w * sh - 0.7, -28.6, 1.4, 1.2);   // bochechas
   if (sh > 0.2 || ch > 0.25) mouthAt(4.7 * ch, -25.7, lerp(1.6, 2.8, sh), cheer ? "open" : (ITEM[O.mouth] || ITEM.bo_neutra).kind);   // boca (sempre na mesma altura baixa, igual à de lado)
 }
@@ -584,7 +583,11 @@ function hairOf(cx, f) {                                                        
     else { ball(-6, -30.4, 2.3); ball(6, -30.4, 2.3); ball(-2.8, -32.2, 1.3); ball(.2, -32.1, 1.2); ball(2.8, -32.3, 1.3); }
   } else if (k === "mohawk") {
     R(-4.5, -34.4, 9, 2.4, ca(.3));                                             // laterais raspadas (só a sombra do fio)
-    if (side) { [2, 3.4, 4.6, 5.4, 5.8, 5, 4, 2.6].forEach((h, i) => { const x = -4.4 + i * 1.1; R(x, -33.6 - h, 1.2, h + .8); H(x + .2, -33.4 - h, .4, Math.min(h, 2.2)); }); S(-4.4, -34, 8.9, .5); }   // crista recortada, da testa à nuca
+    if (side) {                                                                 // crista de pontas, da testa à nuca; o resto da cabeça fica raspado
+      R(-4.3, -34.6, 8.4, 1.8); S(-4.3, -33.2, 8.4, .5);
+      [[-3.9, 4.2], [-1.9, 5.8], [.1, 6.4], [2.1, 4.8]].forEach(([x, h]) => { R(x, -34.6 - h * .45, 1.7, h * .45 + .2); R(x - .5, -34.6 - h * .8, 1.2, h * .38); R(x - 1.1, -34.6 - h, .7, h * .26); H(x + .2, -34.6 - h * .6, .4, h * .5); });
+      H(-3.6, -34.4, 6, .4);
+    }
     else { R(-1.3, -40.2, 2.6, 1); R(-1.7, -39.2, 3.4, 2); R(-2.1, -37.2, 4.2, 5.2); R(-1.7, -32.2, 3.4, .9); H(-.6, -39.4, .5, 6); S(1.2, -37, .6, 4.4); }
   } else if (k === "ponytail") {
     cap(); bangs();
@@ -597,23 +600,26 @@ function hairOf(cx, f) {                                                        
 }
 function collarFront(col) {                                                    // gola redonda de frente: barra escura em "U" em volta do pescoço
   rect(shade(col, 0.76), -2.7, -24.6, 5.4, 3.4);                                                   // barra (ribana), quadrada e pequena
-  rect("#e0ac69", -1.8, -24.8, 3.6, 2.4);                                                          // pescoço aparecendo no decote quadrado
+  rect(skinNeck(), -1.8, -24.8, 3.6, 2.4);                                                          // pescoço aparecendo no decote quadrado
   rect("rgba(0,0,0,.12)", -1.8, -24.4, 3.6, 0.6);                                                  // sombrinha embaixo do queixo
 }
 function collarSide(col) {                                                     // gola redonda de lado: barra fina em volta da base do pescoço
-  rect(shade(col, 0.62), -3.3, -24.5, 4.9, 2.3);                                                   // um pouquinho de gola aparecendo de lado (mais escura que a camiseta, senão some)
-  rect("rgba(255,255,255,.18)", -3.3, -22.4, 4.9, .5);
+  rect(shade(col, 0.68), -3.3, -24.4, 5.1, 1.9);                                                   // só um pouquinho de gola de lado: costas, frente e a faixa de baixo...
+  rect(skinNeck(), -2.3, -24.5, 3, 1.1);                                                           // ...com o pescoço aparecendo no meio (decote quadrado)
 }
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
   ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
   rect("rgba(255,255,255,.22)", sx - 1, y - 2.1, 2, 0.7);                        // luz em cima
 }
 // ---------- Roupas no pescador: estampas da camiseta, bermuda/calça, chapéus, óculos/bigode e lenço/gravata ----------
-const SKIN_LEG = "#e3b273";
+const SKIN_LEG = "#e3b273", SKIN_DEF = "#f1c27d";
+const skinMain = (o = CUR_O) => o && okHex(o.skin) ? o.skin : SKIN_DEF;          // cor de pele do personagem (Personalizar -> Pele) e os tons derivados dela
+const skinNeck = () => shade(skinMain(), .93), skinArm = () => shade(skinMain(), .9), skinLeg = () => shade(skinMain(), .94);
 let CUR_O = DEF_O, SIT = null, PIT = null;                        // roupa do pescador que está sendo desenhado agora (itens da camiseta e da calça)
 function shirtDeco(cx, tw = TW) {                                // estampa da camiseta (o tronco já foi pintado com a cor base); tw = meia largura atual do tronco
   if (!SIT || !SIT.pat) return;
-  ctx.save(); ctx.beginPath(); ctx.rect(-tw, -24, tw * 2, 14 + TORSOX); ctx.clip();   // a estampa nunca passa da borda do tronco (de lado/girando ela vazava)
+  let fade = 1; if (SIT.pat !== "stripes" && SIT.pat !== "plaid") { fade = clamp01((tw - TWS) / (TW - TWS)); fade *= fade; if (fade < .03) return; }   // desenho do peito (peixe, flores, botões, bolsos) não aparece de lado
+  ctx.save(); ctx.globalAlpha *= fade; ctx.beginPath(); ctx.rect(-tw, -24, tw * 2, 14 + TORSOX); ctx.clip();   // a estampa nunca passa da borda do tronco (de lado/girando ela vazava)
   if (tw < TW) ctx.scale(tw / TW, 1);                                                  // de lado o desenho fica "achatado", como no tecido de verdade
   try { shirtDecoBody(cx); } finally { ctx.restore(); }
 }
@@ -640,7 +646,7 @@ function shirtDecoBody(cx) {
 function legBlock(col, lx, w) {                                   // perna de frente: calça comprida ou bermuda (em cima a calça, embaixo a pele)
   const L = 9 + LEGX, top = -11 - LEGX;
   if (PIT && PIT.shorts) {
-    const hh = L * .5 + .4; rect(col, lx, top, w, hh); rect(shade(SKIN_LEG, col === LEGS[0] ? .82 : 1), lx, top + hh, w, L - hh); rect("rgba(0,0,0,.25)", lx, top + hh - .7, w, .7);
+    const hh = L * .5 + .4; rect(col, lx, top, w, hh); rect(shade(skinLeg(), col === LEGS[0] ? .82 : 1), lx, top + hh, w, L - hh); rect("rgba(0,0,0,.25)", lx, top + hh - .7, w, .7);
     if (PIT.deco === "cargo") rect(shade(col, .8), lx + .6, top + hh * .4, w - 1.2, 2.2);
   } else {
     rect(col, lx, top, w, L);
@@ -753,7 +759,7 @@ function shoeOf(it, x, y, w, h) {                                // x, y, w, h: 
   const k = it && it.kind, c = it && it.col, c2 = it && it.c2;
   if (k === "sneaker") { rect(c, x, y, w, h - 1); rect("rgba(255,255,255,.22)", x, y, w, .6); rect(c2, x + w * .34, y + .5, w * .32, .8); rect(c2, x, y + h - 1, w, 1); }
   else if (k === "dress") { rect(c, x, y, w, h - 1); rect("rgba(255,255,255,.4)", x + .5, y + .4, Math.max(.8, w * .4), .5); rect(c2, x, y + h - 1, w, 1); }
-  else if (k === "flip") { rect(SKIN_LEG, x + .3, y + .2, w - .6, h - 1.2); rect(c, x + w * .38, y, 1.1, h - 1); rect(c2, x, y + h - 1, w, 1); }
+  else if (k === "flip") { rect(skinLeg(), x + .3, y + .2, w - .6, h - 1.2); rect(c, x + w * .38, y, 1.1, h - 1); rect(c2, x, y + h - 1, w, 1); }
   else if (k === "boot") { const uw = Math.min(w - .6, 5.2), ux = x + (w - uw) / 2; rect(c, ux, y - 4.2, uw, 4.4); rect(c2, ux, y - 4.2, uw, 1); rect("rgba(255,255,255,.18)", ux + .4, y - 3, .6, 2.6); rect(c, x, y, w, h - 1); rect(c2, x, y + h - 1, w, 1); }
   else { rect("#ecebe3", x, y, w, h - 1); rect("rgba(0,0,0,.13)", x, y, w, .7); rect("#2a2623", x, y + h - 1, w, 1); }   // tênis branco com sola escura (padrão)
 }   // tênis branco com sola escura
@@ -830,10 +836,10 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   // braço de longe (atrás do tronco; só aparece de fora quando já está bem de frente)
   const arm = (sx, y, a, alpha) => {
     ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(sx, y); ctx.rotate(a);
-    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
+    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect(skinMain(), AL - 0.5, -1.75, 3, 3.5);
     ctx.restore();
   };
-  const farX = AW * st, farA = mix(1.4, Math.PI / 2 - 0.03, st), farY = mix(-22, -21.5, st);
+  const farX = AW * st, farA = mix(1.57, Math.PI / 2 - 0.03, st), farY = mix(-22, -21.5, st);
   ctx.save(); ctx.translate(0, -br); arm(farX, farY, farA, 1); shoulder(farX, farY, sleeve); ctx.restore();
   // tronco (a largura vai de fino, de lado, a normal, de frente)
   const TWt = TWM(TWS, TW, st);
@@ -847,13 +853,13 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   ctx.translate(0, -br);                                                              // daqui para cima (braços, pescoço, cabeça, chapéu) sobe junto com o peito
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
   if (fa > 0) { arm(farX, farY, farA, fa); ctx.globalAlpha *= fa; shoulder(farX, farY, sleeve); ctx.globalAlpha /= fa; }                                                // de frente: o braço do outro lado passa a ficar por cima
-  arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, Math.PI / 2 + 0.03, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
+  arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.57, Math.PI / 2 + 0.03, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
   // pescoço, cabeça e rosto (a cabeça gira antes do resto)
   const hx = ch, nx = -ch;
-  rect("#e0ac69", nx - 2, -26, 4, 2.5);
+  rect(skinNeck(), nx - 2, -26, 4, 2.5);
   if (sh < 0.99) { ctx.save(); ctx.globalAlpha *= 1 - sh; collarSide(shirt); ctx.restore(); }          // a gola gira junto com a cabeça: faixa de lado -> abas de frente
   if (sh > 0.01) { ctx.save(); ctx.globalAlpha *= sh; collarFront(shirt); ctx.restore(); }
-  rect("#f1c27d", hx - 4.5, -33, 9, 8.5); rect(`rgba(0,0,0,${mix(0.12, 0.1, sh)})`, hx - 4.5, -33, mix(3, 2, sh), 8.5);
+  rect(skinMain(), hx - 4.5, -33, 9, 8.5); rect(`rgba(0,0,0,${mix(0.12, 0.1, sh)})`, hx - 4.5, -33, mix(3, 2, sh), 8.5);
   faceParts(ch, sh, false); hairOf(hx, ch);                                            // olhos, nariz, sardas, boca, bochechas e cabelo
   const hb = Math.hypot(7 * ch, 7.5 * sh);
   const eyesT = [-1.8, 1.8].filter(w => 3.3 * sh - w * ch > 0.1).map(w => 3.3 * ch + w * sh);
@@ -876,7 +882,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const h1x = SHX + AL * Math.cos(RA), h1y = SHY + AL * Math.sin(RA);               // mão atrás do ombro (onde a vara é segurada para deslizar)
   const bd = (h1x - BKB[0]) * BUX + (h1y - BKB[1]) * BUY;                           // distância da base ao ponto da vara nas costas mais perto da mão
   const hbx = BKB[0] + BUX * bd, hby = BKB[1] + BUY * bd;
-  const hold = P.phone || 0, A0n = P.run !== undefined && !P.brake ? (1.4 - 0.35 * rk) - armSw : P.arm;
+  const hold = P.phone || 0, A0n = P.run !== undefined && !P.brake ? (1.57 - 0.52 * rk) - armSw : P.arm;
   const A0 = hold ? lerp(A0n, PHONE_ARM, hold) : A0n;             // para onde o braço volta ao soltar a vara (correndo: balança com o corpo)
   const A = s <= 0 ? P.arm : s < SL0 ? spl(K_ARM, s) + P.arm * Math.max(0, 1 - s / 0.3) : s < 0.70 ? RA : lerp(RA, A0 - 2 * Math.PI, spl(K_REL, (s - 0.70) / 0.30));   // o braço cai por trás das costas (não atravessa o rosto)   // sobe, segura no alto e só então solta (com sobra)
   const fk = P.front || 0;                                                         // virando de frente: 0 = de lado ... 1 = de frente
@@ -893,12 +899,12 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
     ctx.translate(0, -br);                                                            // ombros, braços, cabeça e chapéu sobem com o peito
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
-      rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
+      rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect(skinMain(), AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
     if (idle) { arm(-AW, Math.PI / 2 + 0.03); arm(AW, Math.PI / 2 - 0.03); }
     else { arm(-AW, -Math.PI + 1.0 - wv * 0.12); arm(AW, -1.0 + wv * 0.12); }
     shoulder(-AW, -21.5, sleeve); shoulder(AW, -21.5, sleeve);
-    rect("#e0ac69", -2, -26, 4, 2.5); collarFront(shirt);
-    rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
+    rect(skinNeck(), -2, -26, 4, 2.5); collarFront(shirt);
+    rect(skinMain(), -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5);
     faceParts(0, 1, !idle); hairOf(0, 0);                                              // olhos, sardas e boca (comemorando: sorriso aberto) e o cabelo
     faceGear([-1.8, 1.8], null, [0, 4.6]); neckGear(0, 0); headgear(hat, 0, 7.5, 0);
     ctx.restore();
@@ -907,7 +913,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   if (P.crank === undefined) {                                                     // braço livre, desenhado ANTES das pernas: fica atrás delas e não atravessa a calça (na hora de puxar o peixe ele gira a manivela)
     const ak = AL / 8;
     ctx.save(); ctx.translate(0, -(LEGX + TORSOX) - 22 + bob); ctx.rotate((P.brake ? -sw * 0.6 : armSw) + 0.1 + (P.off || 0));   // braço livre: oposto ao braço da vara (e contrapeso no arremesso)
-    rect(sleeve, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 9 * ak); rect("#d9ab6f", -1.7, 8.5 * ak, 3.4, 3);
+    rect(sleeve, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 9 * ak); rect(skinArm(), -1.7, 8.5 * ak, 3.4, 3);
     ctx.restore();
   }
   const leg = (th, kn, col) => {                                                 // coxa gira no quadril; a canela gira no joelho (dobra para trás)
@@ -915,7 +921,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.save(); ctx.translate(0, -11 - LEGX + bob); ctx.rotate(th);
     rect(col, -2.3, 0, 4.6, Lt + 0.4);
     ctx.translate(0, Lt); ctx.rotate(kn);
-    rect(PIT && PIT.shorts ? shade(SKIN_LEG, col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7);
+    rect(PIT && PIT.shorts ? shade(skinLeg(), col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7);
     shoe(-3, Lt - 0.5, 6.6, 2.5);
     ctx.restore();
   };
@@ -937,15 +943,15 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   rect("#5a3b22", -TWS, -12 + TORSOX, TWS * 2, 2);
   const foreArm = () => {
     ctx.save(); ctx.translate(SHX, SHY); ctx.rotate(A);                                // antebraço gira no ombro (no centro do tronco)
-    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
+    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect(skinMain(), AL - 0.5, -1.75, 3, 3.5);
     ctx.restore();
     shoulder(SHX, SHY, sleeve);
   };
   if (s <= 0) foreArm();                                                               // durante guardar/sacar o braço é desenhado por cima (a mão não some atrás da cabeça)
   
-  rect("#e0ac69", -3, -26, 4, 2.5); collarSide(shirt);
+  rect(skinNeck(), -3, -26, 4, 2.5); collarSide(shirt);
   ctx.save(); if (hold) { ctx.translate(0, -25); ctx.rotate(0.22 * hold); ctx.translate(0, 25); }     // cabeça baixa olhando o celular
-  rect("#f1c27d", -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
+  rect(skinMain(), -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
   faceParts(1, 0, false);
   if (hold > 0.3) rect(`rgba(205,245,160,${PHONE_LIGHT * 0.5 * clamp01((hold - 0.3) / 0.5)})`, -0.5, -33, 6, 8.5);   // luz da tela iluminando o rosto
   hairOf(1, 1); faceGear([3.3], [-3.2, 1.4], [4.8, 3]); neckGear(-1, 1); headgear(hat, 1, 7, 1);
@@ -994,7 +1000,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.beginPath(); ctx.moveTo(rcx, rcy); ctx.lineTo(kx, ky); ctx.stroke();
     const ax = SHX, ay = -20.5, vx = kx - ax, vy = ky - ay, L = Math.max(6, Math.hypot(vx, vy) - 1.5);
     ctx.save(); ctx.translate(ax, ay); ctx.rotate(Math.atan2(vy, vx));                // braço livre estica até a manivela
-    rect(sleeve, 0, -1.7, L, 3.4); rect("rgba(0,0,0,.2)", 0, 1.25, L, 0.8); rect("#d9ab6f", L - 0.8, -1.7, 3, 3.4);
+    rect(sleeve, 0, -1.7, L, 3.4); rect("rgba(0,0,0,.2)", 0, 1.25, L, 0.8); rect(skinArm(), L - 0.8, -1.7, 3, 3.4);
     ctx.restore();
     rect("#e8c34a", kx - 1, ky - 1, 2, 2);                                              // cabo da manivela
   }
@@ -1815,7 +1821,7 @@ function drawHeldPhone(x, y, k) {                                               
   g.addColorStop(0, `rgba(205,245,160,${PHONE_LIGHT * fl})`); g.addColorStop(1, `rgba(205,245,160,${PHONE_LIGHT * 0.3})`);
   ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(5.6, -33); ctx.lineTo(5.6, -24.5); ctx.lineTo(x0, y0 + 8); ctx.closePath(); ctx.fill();
   rect("#9a9ea6", x0, y0, 2, 9);                                                   // o celular
-  rect("#f1c27d", x0 - 1, y0 + 5, 3.5, 3.5);                                       // mão segurando
+  rect(skinMain(me.o), x0 - 1, y0 + 5, 3.5, 3.5);                                       // mão segurando
   ctx.restore();
 }
 function roundPath(x, y, w, h, r) {
@@ -5430,11 +5436,12 @@ function drawCity(now) {
 // Teclado: ← → abas, ↑ ↓ opções (na aba Altura ajustam a altura), C troca a cor, Enter confirma, Esc cancela. Clique no boneco para girar.
 const UI = { open: false, first: true, snap: null };
 const CUST_CATS = [
+  { id: "skin", name: "Pele", ck: "skin", def: SKIN_DEF, only: true, cols: ["#fbe1c8", "#f6cfa0", "#f1c27d", "#e0ac69", "#c68642", "#a8693c", "#8d5524", "#6b3f1f", "#4a2b17", "#9fc5a0"] },
   { id: "hair", name: "Cabelo", ck: "hairc", def: HAIR_DEF, cols: ["#3a2616", "#17120f", "#7a4a22", "#d9b44a", "#b5502a", "#9a9a9a", "#eee8dd", "#3a6fd6", "#e86aa8", "#3fa85a"] },
   { id: "eyes", name: "Olhos", ck: "eyec", def: EYE_DEF, cols: ["#2a1a10", "#17120f", "#8a5a2b", "#3a7bd5", "#3f9a58", "#7a8a99", "#8e44ad"] },
   { id: "mouth", name: "Boca" }, { id: "blush", name: "Corada" }, { id: "height", name: "Altura" },
 ];
-const CZ = { cat: 0, sel: [0, 0, 0, 0, 0], top: [0, 0, 0, 0, 0], t: [1, 1, 1], goal: 1, last: 0, geo: null, drag: false };
+const CZ = { cat: 0, sel: CUST_CATS.map(() => 0), top: CUST_CATS.map(() => 0), t: [1, 1, 1], goal: 1, last: 0, geo: null, drag: false };
 const CUST_ROWS = 5, CUST_RH = 25;
 const czName = document.createElement("input");                                // o apelido é um campo de verdade (teclado do celular etc.), posicionado em cima do painel
 czName.id = "cz-name"; czName.maxLength = 14; czName.autocomplete = "off"; czName.spellcheck = false; czName.placeholder = "Pescador";
@@ -5466,7 +5473,7 @@ function openCustomizer(first) {
   if (UI.open) return;
   UI.open = true; UI.first = first; UI.snap = { name: myName, shirt: me.shirt, pants: me.pants, h: me.h, o: { ...me.o } };
   for (const k in keys) keys[k] = false; PH.open = false;
-  CZ.cat = 0; CZ.goal = 1; CZ.t = [1, 1, 1]; CZ.last = 0; CZ.drag = false; CZ.top = [0, 0, 0, 0, 0]; custSync();
+  CZ.cat = 0; CZ.goal = 1; CZ.t = [1, 1, 1]; CZ.last = 0; CZ.drag = false; CZ.top = CUST_CATS.map(() => 0); custSync();
   czName.value = myName; czName.style.display = "block"; setTimeout(() => czName.focus(), 30);
 }
 function closeCustomizer(save) {
@@ -5489,8 +5496,8 @@ function custKey(e) {
   const h = CUST_CATS[CZ.cat].id === "height", c = e.code;
   if (c === "ArrowLeft" || c === "KeyA") custCat(CZ.cat - 1);
   else if (c === "ArrowRight" || c === "KeyD") custCat(CZ.cat + 1);
-  else if (c === "ArrowUp" || c === "KeyW") { if (h) custH(me.h + .05); else custPick(CZ.sel[CZ.cat] - 1); }
-  else if (c === "ArrowDown" || c === "KeyS") { if (h) custH(me.h - .05); else custPick(CZ.sel[CZ.cat] + 1); }
+  else if (c === "ArrowUp" || c === "KeyW") { if (h) custH(me.h + .05); else if (CUST_CATS[CZ.cat].only) custCycleColor(-1); else custPick(CZ.sel[CZ.cat] - 1); }
+  else if (c === "ArrowDown" || c === "KeyS") { if (h) custH(me.h - .05); else if (CUST_CATS[CZ.cat].only) custCycleColor(1); else custPick(CZ.sel[CZ.cat] + 1); }
   else if (c === "KeyC") custCycleColor(e.shiftKey ? -1 : 1);
   else if (c === "Tab") czName.focus();
 }
@@ -5514,7 +5521,7 @@ function custIcon(it, x, y) {                                                   
   CUR_O = { ...DEF_O, ...me.o, hair: hairIcon ? itemEq(it) : "hr_careca", [itemSlot(it)]: itemEq(it) };
   ctx.save(); ctx.beginPath(); ctx.rect(x, y, 24, 23); ctx.clip();
   ctx.translate(x + 12, hairIcon ? y + 48.2 : y + 69); ctx.scale(z, z);
-  try { rect("#f1c27d", -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5); faceParts(0, 1, false); hairOf(0, 0); }
+  try { rect(skinMain(), -4.5, -33, 9, 8.5); rect("rgba(0,0,0,.1)", -4.5, -33, 2, 8.5); faceParts(0, 1, false); hairOf(0, 0); }
   finally { ctx.restore(); CUR_O = keep; }
 }
 
@@ -5531,11 +5538,10 @@ function drawCust(now) {
   const avg = (t[0] + t[1] + t[2]) / 3, b = { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
   if (avg > 0.001) { b.front = avg; b.turn = [t[0], t[1], t[2]]; }
   const K = 2.8, fy = 228;
-  if (isH) { const my = fy - MALTO_TOP * K; for (let dx = 12; dx < pxL - 12; dx += 8) rect("rgba(255,255,255,.7)", dx, my, 4, 1); text("Malto", pxL - 14, my - 3, "#fff", "right"); }   // linha da altura máxima (a do Malto)
   ctx.save(); ctx.translate(0, fy - PIER_Y * K); ctx.scale(K, K);
   CAST_OFF++; drawFisher(cx / K, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h), o: { ...me.o, hat: HAT_OFF } }); CAST_OFF--;   // sem chapéu na prévia: assim o cabelo aparece
   ctx.restore();
-  text(isH ? "Altura " + Math.round(me.h * 100) + "%" : cur ? cur.name : "", cx, H - 26, "#fff", "center");
+  text(isH ? "Altura " + Math.round(me.h * 100) + "%" : cat.only ? "Pele" : cur ? cur.name : "", cx, H - 26, "#fff", "center");
   text("clique para girar", cx, H - 13, "#9aa6b8", "center");
 
   // painel
@@ -5549,7 +5555,16 @@ function drawCust(now) {
     rect(i === CZ.cat ? accC : "#1d2638", r.x, r.y, r.w, r.h); text(c.name, r.x + r.w / 2, r.y + 12, i === CZ.cat ? "#10151f" : "#9aa6b8", "center");
   });
   const rowY = py + 70;
-  if (!isH) {
+  if (cat.only) {                                                               // aba só de cores (Pele): grade de tons
+    const now = custColor(cat).toLowerCase();
+    text("Tom de pele", x + 8, rowY + 12, "#cfd8e6");
+    cat.cols.forEach((c, i) => {
+      const r = { x: x + 16 + (i % 5) * 50, y: rowY + 26 + Math.floor(i / 5) * 40, w: 36, h: 30, c }; geo.sw.push(r);
+      if (c.toLowerCase() === now) rect(accC, r.x - 3, r.y - 3, r.w + 6, r.h + 6);
+      rect("#0f1624", r.x - 1, r.y - 1, r.w + 2, r.h + 2); rect(c, r.x, r.y, r.w, r.h);
+    });
+    text("↑ ↓ trocam o tom", x + 8, rowY + 118, "#9aa6b8");
+  } else if (!isH) {
     for (let r = 0; r < CUST_ROWS; r++) {
       const i = CZ.top[CZ.cat] + r, it = list[i]; if (!it) break;
       const ry = rowY + r * CUST_RH, rr = { x: x + 4, y: ry, w: pw - 8, h: CUST_RH - 2, i }; geo.rows.push(rr);
@@ -5574,8 +5589,8 @@ function drawCust(now) {
     text("Quão alto você é", x + 8, rowY + 14, "#cfd8e6");
     rect("#2c3850", sx0, sy - 2, sx1 - sx0, 5); rect(accC, sx0, sy - 2, (sx1 - sx0) * me.h, 5);
     const kx = sx0 + (sx1 - sx0) * me.h; rect(accC, kx - 4, sy - 8, 8, 17); rect("#fff", kx - 2, sy - 6, 4, 13);
-    text("Baixo", sx0, sy + 24, "#9aa6b8"); text("Malto", sx1, sy + 24, "#9aa6b8", "right");
-    text("↑ ↓ ajustam (máx.: o Malto)", x + 8, sy + 46, "#9aa6b8");
+    text("Baixo", sx0, sy + 24, "#9aa6b8"); text("Alto", sx1, sy + 24, "#9aa6b8", "right");
+    text("↑ ↓ ajustam a altura", x + 8, sy + 46, "#9aa6b8");
     geo.slider = { x: sx0 - 8, y: sy - 14, w: sx1 - sx0 + 16, h: 30, x0: sx0, x1: sx1 };
   }
   const desc = isH ? "" : cur ? cur.desc : "";
