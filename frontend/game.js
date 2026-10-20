@@ -724,10 +724,10 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const rk = P.run || 0;
   const ph = P.gait !== undefined ? P.gait : x * dir / (11 + 3 * rk + LEGX * 0.5);   // fase da passada: avança com o chão percorrido (pernas mais longas dão passadas mais longas)
   const gs = Math.sin(ph), gc = Math.cos(ph);
-  const GA = amp * 0.5, KB = amp * (0.2 + 0.45 * rk), LG = 11 + LEGX;       // GA: abertura da coxa; KB: quanto o joelho dobra na perna que vai pra frente; LG: comprimento da perna
+  const GA = amp * (0.5 + 0.2 * rk), KB = amp * (0.38 + 0.85 * rk), LG = 11 + LEGX;       // GA: abertura da coxa; KB: quanto o joelho dobra na perna que vai pra frente; LG: comprimento da perna
   const sw = P.brake ? 0.85 * P.brake : gs * amp;                                    // freando: pernas abertas e firmes
-  const bob = (P.brake ? 1.1 * P.brake : LG * (1 - Math.cos(GA * gs)) * (1 - 0.35 * rk) - rk * 1.2 * Math.abs(gc)) + (P.sb || 0);   // o quadril desce quando as pernas abrem (pé sempre no chão) e quica ao correr
-  const armSw = (P.brake ? 0 : gs * amp) * (0.35 + 0.2 * rk);                       // braço balança CONTRA a perna do mesmo lado (antes balançava junto, e por isso parecia torto)
+  const bob = (P.brake ? 1.1 * P.brake : LG * (1 - Math.cos(GA * gs)) * (1 - 0.35 * rk) - rk * 2.4 * Math.abs(gc) - (1 - rk) * 0.5 * amp * Math.abs(gc) * 0.6) + (P.sb || 0);   // o quadril desce quando as pernas abrem (pé sempre no chão) e quica ao correr
+  const armSw = (P.brake ? 0 : gs * amp) * (0.42 + 0.5 * rk);                       // braço balança CONTRA a perna do mesmo lado (antes balançava junto, e por isso parecia torto)
   const s = P.stow !== undefined ? P.stow : 0;                                      // vara: 0 na mão ... 1 nas costas
   const sv = P.sv || 0, wig = P.wig || 0;
   const h1x = SHX + AL * Math.cos(RA), h1y = SHY + AL * Math.sin(RA);               // mão atrás do ombro (onde a vara é segurada para deslizar)
@@ -765,7 +765,10 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   if (P.crank === undefined) {                                                     // braço livre, desenhado ANTES das pernas: fica atrás delas e não atravessa a calça (na hora de puxar o peixe ele gira a manivela)
     const ak = AL / 8;
     ctx.save(); ctx.translate(0, -(LEGX + TORSOX) - 22 + bob); ctx.rotate((P.brake ? -sw * 0.6 : armSw) + 0.1 + (P.off || 0));   // braço livre: oposto ao braço da vara (e contrapeso no arremesso)
-    rect(sleeve, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 9 * ak); rect("#d9ab6f", -1.7, 8.5 * ak, 3.4, 3);
+    const eb = P.brake ? 0.1 : 0.22 + 0.95 * rk + 0.25 * amp * Math.max(0, Math.sin(ph) * 0.6) * (1 + rk);   // cotovelo dobra (mais ao correr, mais quando o braço vai pra frente)
+    rect(sleeve, -1.7, 0, 3.4, 4.8 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 4.8 * ak);
+    ctx.translate(0, 4.6 * ak); ctx.rotate(-eb);
+    rect(sleeve, -1.7, 0, 3.4, 4.4 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 4.4 * ak); rect("#d9ab6f", -1.7, 4 * ak, 3.4, 3);
     ctx.restore();
   }
   const leg = (th, kn, col) => {                                                 // coxa gira no quadril; a canela gira no joelho (dobra para trás)
@@ -774,8 +777,8 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect(col, -2.3, 0, 4.6, Lt + 0.4);
     ctx.translate(0, Lt); ctx.rotate(kn);
     rect(PIT && PIT.shorts ? shade(SKIN_LEG, col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7);
-    const sw2 = KB > 0.001 ? Math.min(1, kn / KB) : 0, ank = -(th + kn) * (0.9 - 0.45 * sw2) + (th < 0 && sw2 < 0.3 ? 0.35 * -th : 0);   // tornozelo: o pé fica quase reto no chão, calcanhar sobe ao empurrar e a ponta cai ao balançar
-    ctx.save(); ctx.translate(0, Lt - 1); ctx.rotate(ank); ctx.translate(0, -(Lt - 1)); shoe(-3, Lt - 0.5, 6.6, 2.5); ctx.restore();
+    const sw2 = KB > 0.001 ? Math.min(1, kn / KB) : 0, ank = -(th + kn) * (th > 0 && sw2 < 0.3 ? 0.6 : 0.88);   // tornozelo: pé quase reto no chão; calcanhar levanta só quando a perna fica atrás
+    ctx.save(); ctx.translate(0, Lt); ctx.rotate(ank); ctx.translate(0, -Lt); shoe(-3, Lt - 0.5, 6.6, 2.5); ctx.restore();
     ctx.restore();
   };
   if (P.brake) { leg(-0.64 * P.brake, 0, LEGS[0]); leg(0.64 * P.brake, 0, LEGS[1]); }   // freando: pernas abertas e retas
@@ -1878,8 +1881,8 @@ function spawnDust(n, sgn, o) {                                                 
     dust.push({
       x: px - (run ? sgn * 2.5 * cz : 0) + (Math.random() - 0.5) * (run ? 4 : 6) * cz, y: PIER_Y + 0.3 + Math.random() * 1.4 * cz,
       vx: run ? -sgn * (5 + Math.random() * 13) * cz : sgn * (-6 + Math.random() * 22) * cz, vy: -(run ? 3 + Math.random() * 7 : 6 + Math.random() * 14) * cz,
-      t: 0, life: run ? 0.7 + Math.random() * 0.6 : 0.55 + Math.random() * 0.5, r: (run ? 1.3 + Math.random() * 1.3 : 1.6 + Math.random() * 1.8) * cz,
-      pk: run ? 0.2 : 0.3, ph: Math.random() * 6.28, rgb: [g + 14, g + 4, g - 12]
+      t: 0, life: run ? 0.7 + Math.random() * 0.6 : 0.55 + Math.random() * 0.5, r: (run ? 1.6 + Math.random() * 1.6 : 2 + Math.random() * 2.2) * cz,
+      pk: run ? 0.42 : 0.6, ph: Math.random() * 6.28, rgb: [g + 14, g + 4, g - 12]
     });
   }
 }
@@ -1901,7 +1904,7 @@ function movePose() {                                                           
   if (state !== "walk") return null;
   let base = null;
   if (brake > 0.08) base = { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
-  else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK + 0.03 * Math.sin(gaitPh * 2), off: 0, flex: 0, run: runK };   // corrida: inclinado e o tronco pulsa a cada passada
+  else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.3 * runK + 0.04 * Math.sin(gaitPh * 2), off: 0, flex: 0, run: runK };   // corrida: inclinado e o tronco pulsa a cada passada
   const b = base || { rod: REST, arm: 0, lean: 0.045 * walkAmp + 0.012 * walkAmp * Math.sin(gaitPh * 2 - 0.6), off: 0, flex: 0 };   // andar: leve inclinação pra frente com balanço do tronco
   if (frontK > 0.001) { b.front = frontK; b.turn = [turnH, turnT, turnL]; }
   b.gait = gaitPh;
@@ -1962,7 +1965,7 @@ function update(dt) {
     wasBraking = braking;
     if (braking && (dustT -= dt) <= 0) { dustT = 0.045; spawnDust(2, Math.sign(spd)); }
     if (!braking && runK > 0.3 && Math.abs(spd) > WALK + 15) {                    // correndo: sempre sai uma fumacinha suja, bem fraca, atrás dos pés
-      if ((runDustT -= dt) <= 0) { runDustT = 0.08 + Math.random() * 0.05; spawnDust(1 + (Math.random() < 0.4 ? 1 : 0), Math.sign(spd), { run: true }); }
+      if ((runDustT -= dt) <= 0) { runDustT = 0.05 + Math.random() * 0.04; spawnDust(1 + (Math.random() < 0.6 ? 1 : 0), Math.sign(spd), { run: true }); }
     } else runDustT = 0;
     brake += ((braking ? 1 : 0) - brake) * Math.min(1, dt * 14);
     runK += (Math.max(0, Math.min(1, (Math.abs(spd) - WALK) / (RUN - WALK))) - runK) * Math.min(1, dt * 10);
@@ -2985,7 +2988,7 @@ let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
 const CITY_HD = true;                                                    // true = cenário pintado em alta resolução e suavizado (o efeito bitmap/dithering continua ligado por cima); false = cenário na resolução normal
 const CITY_S = 3, CITY_CS = 5;                                           // resolução interna na cidade (S) e do cenário pintado (pixels por unidade do mundo)
 let cityPierS = 0;                                                       // resolução que o cais tinha antes de entrar na cidade
-const CITY_Z = 2.1;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
+const CITY_Z = 1.9;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
 const CITY_B = PIER_Y - 14;                                              // chão das fachadas: agora recuado, com calçada entre elas e o pescador (que anda em PIER_Y)
 const CITY_CHAR = 0.82;                                                  // tamanho do pescador na cidade (1 = igual ao cais): menor = prédios e portas parecem maiores
 const CITY_FARF = [0.18, 0.38, 0.62];                                    // parallax das camadas do fundo (0 = parada no céu, 1 = anda junto com o cenário): colinas, prédios longe, prédios do meio
