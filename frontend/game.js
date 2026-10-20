@@ -598,18 +598,18 @@ function castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner) {
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-in";   // vira silhueta; mais clara (e mais "macia") longe dos pés
   const g = c.createLinearGradient(0, SH_OY * S, 0, top * S); g.addColorStop(0, "rgba(14,6,30,1)"); g.addColorStop(1, "rgba(14,6,30,.5)");
   c.fillStyle = g; c.fillRect(0, 0, shCv.width, shCv.height); c.globalCompositeOperation = "source-over";
-  const city = CITY.on, dep = (city ? 0.3 : 0.1) * L.dz;                              // profundidade: o cais é estreito (3 px), a rua é larga
+  const city = CITY.on, dep = (city ? 0.55 : 0.1) * L.dz, lsc = Math.max(-1.5, Math.min(1.5, L.ls));                              // profundidade: o cais é estreito (3 px), a rua é larga
   ctx.save(); ctx.translate(x, PIER_Y);
   ctx.beginPath(); ctx.rect(city ? -400 : -x - 8, -2, city ? 800 : DECK_END + 8, city ? 40 : 5); ctx.clip();   // no cais não sai do deck
   ctx.imageSmoothingEnabled = true;
   const A0 = ctx.globalAlpha;
-  ctx.globalAlpha = A0 * a * 0.62; ctx.save(); ctx.transform(1, 0, -L.ls, -dep, 0, 0.6); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();          // sombra principal
-  ctx.globalAlpha = A0 * a * 0.38; ctx.save(); ctx.transform(1, 0, -L.ls * 1.12, -dep * 1.3, 0, 0.4); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();   // penumbra: um pouco mais comprida e larga
+  ctx.globalAlpha = A0 * a * 0.7; ctx.save(); ctx.transform(1, 0, -lsc, -dep, 0, 0.6); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();          // sombra principal
+  ctx.globalAlpha = A0 * a * 0.45; ctx.save(); ctx.transform(1, 0, -lsc * 1.1, -dep * 1.5, 0, 0.5); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();   // penumbra: um pouco mais comprida e larga
   ctx.restore();
 }
 // ---------- Estilo "rabisco": o pescador ganha contorno de caneta (que treme de leve, como desenho à mão), hachuras e tênis ----------
 // Ajuste em SK: on (liga/desliga), ink (cor do traço), w (espessura do contorno em px do jogo), wob (quanto o traço treme, 0 a 1), hatch (força dos rabiscos de sombra, 0 = nenhum)
-const SK = { on: true, ink: "#17120f", w: 1.05, wob: 0.35, hatch: 0.11 };
+const SK = { on: true, ink: "#17120f", w: 0.8, wob: 0.12, hatch: 0.06 };
 const SK_W = 120, SK_H = 100, SK_OX = 60, SK_OY = 88;                           // quadro do boneco (px do jogo): pés em (SK_OX, SK_OY)
 const SKC = { k: 0, spr: null, tint: null, fin: null };
 const skHatch = (() => { let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647;
@@ -622,7 +622,7 @@ function skAlloc(k) {
   SKC.k = k;
 }
 function sketchFisher(x, dir, shirt, hat, amp, pose, look, inner, hop) {
-  const main = ctx, tf = main.getTransform(), k = Math.max(1, Math.min(8, Math.ceil(Math.hypot(tf.a, tf.b) * 2) / 2));
+  const main = ctx, tf = main.getTransform(), k = Math.max(3, Math.min(8, Math.ceil(Math.hypot(tf.a, tf.b) * 2) / 2));
   skAlloc(k);
   const w = SKC.spr.width, h = SKC.spr.height, c = SKC.spr.c, t = SKC.tint.c, f = SKC.fin.c;
   if (SOFT_OFF <= 0) { main.save(); main.translate(x, PIER_Y); fisherSoft(1); main.restore(); }   // sombrinha de contato nos pés (fica fora do contorno)
@@ -648,7 +648,7 @@ function sketchFisher(x, dir, shirt, hat, amp, pose, look, inner, hop) {
   }
   f.drawImage(SKC.spr, 0, 0);
   // 4) uma única cópia na tela (respeita a transparência e a câmera atuais)
-  main.save(); main.imageSmoothingEnabled = true; main.drawImage(SKC.fin, 0, 0, w, h, x - SK_OX, PIER_Y - SK_OY - hop, SK_W, SK_H); main.restore();
+  main.save(); main.imageSmoothingEnabled = true; main.imageSmoothingQuality = "high"; main.drawImage(SKC.fin, 0, 0, w, h, x - SK_OX, PIER_Y - SK_OY - hop, SK_W, SK_H); main.restore();
   return tip;
 }
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
@@ -674,7 +674,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   ctx.translate(0, Math.sin(performance.now() / 600) * 0.3 * avg);                   // respira (igual ao parado de frente)
   // vara nas costas (atrás de tudo): a ponta de baixo e a de cima giram junto com o tronco
   const UP = LEGX + TORSOX;
-  if (ct > 0.01) {                                                                    // a vara das costas só existe de lado: some enquanto vira de frente
+  if (false) {                                                                        // (vara das costas removida) só existe de lado: some enquanto vira de frente
     ctx.save(); ctx.globalAlpha *= ct * ct; ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(-9 * ct, -5 - UP); ctx.lineTo(-3 * ct, -43 - UP); ctx.stroke(); ctx.restore();
   }
@@ -829,12 +829,15 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
       const dx = ex - bx, dy = ey - by, L = Math.hypot(dx, dy) || 1;
       qx = (bx + ex) / 2 + fl * 6.6 * dy / L; qy = (by + ey) / 2 - fl * 6.6 * dx / L;
     }
+    const ra0 = s > SL0 ? 1 - Math.min(1, (s - SL0) / (SL1 - SL0 + 1e-6)) : 1;               // vara guardada some (sem vara nas costas); ao sacar, aparece na mão
+    ctx.save(); ctx.globalAlpha *= ra0 * ra0 * (3 - 2 * ra0);
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(qx, qy, ex, ey); ctx.stroke();
     if (s > 0) { tx = ex; ty = ey; }                                                  // ponta real da vara (para a linha e a boia)
     if (s > 0) {
       if (s < 0.74) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);                         // mão segurando a vara
       if (kS > 0.05) rect("#b8b8b8", bx + (ex - bx) * 0.32 * kS - 0.5, by + (ey - by) * 0.32 * kS, 2.4, 2.4);   // carretilha desliza pela vara
     }
+    ctx.restore();
   }
   if (P.cheer !== undefined || s > 0) { /* braços pro alto / vara em transição ou nas costas */ }
   else if (P.crank === undefined) rect("#b8b8b8", hx - 1.5, hy - 1.5, 3, 3);
@@ -2955,9 +2958,9 @@ function drawShop(now) {
 // Portas: perto de uma porta aparece o "E"; ao apertar ela abre/ou está trancada (veja cityUse). Para ligar uma porta a algo (ex.: um interior), use window.onCityDoor = d => {...}.
 let cityData = null, cityCache = null, cityCamX = null, cityT0 = 0;
 const CITY_HD = true;                                                    // true = cenário pintado em alta resolução e suavizado (o efeito bitmap/dithering continua ligado por cima); false = cenário na resolução normal
-const CITY_S = 2, CITY_CS = 4;                                           // resolução interna na cidade (S) e do cenário pintado (pixels por unidade do mundo)
+const CITY_S = 3, CITY_CS = 5;                                           // resolução interna na cidade (S) e do cenário pintado (pixels por unidade do mundo)
 let cityPierS = 0;                                                       // resolução que o cais tinha antes de entrar na cidade
-const CITY_Z = 1.5;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
+const CITY_Z = 2.1;                                                      // zoom da câmera da cidade (1 = cenário inteiro na tela)
 const CITY_B = PIER_Y - 14;                                              // chão das fachadas: agora recuado, com calçada entre elas e o pescador (que anda em PIER_Y)
 const CITY_CHAR = 0.82;                                                  // tamanho do pescador na cidade (1 = igual ao cais): menor = prédios e portas parecem maiores
 const CITY_FARF = [0.18, 0.38, 0.62];                                    // parallax das camadas do fundo (0 = parada no céu, 1 = anda junto com o cenário): colinas, prédios longe, prédios do meio
