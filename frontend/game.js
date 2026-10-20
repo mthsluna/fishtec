@@ -607,21 +607,49 @@ function castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner) {
   ctx.globalAlpha = A0 * a * 0.38; ctx.save(); ctx.transform(1, 0, -L.ls * 1.12, -dep * 1.3, 0, 0.4); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();   // penumbra: um pouco mais comprida e larga
   ctx.restore();
 }
-// vara guardada nas costas: de lado (st = 0) fica na diagonal; de frente (st = 1) aparece o cabo ao lado do quadril e a ponta por cima do ombro
-function backRod(ct, st, UP) {
-  const mx = (a, b) => a + (b - a) * st, x0 = -9 * ct - 3 * st, y0 = mx(-5, -10) - UP, x1 = -3 * ct + 14 * st, y1 = mx(-43, -46) - UP;
-  const at = k => [x0 + (x1 - x0) * k, y0 + (y1 - y0) * k];
-  const seg = (a, b, col, w) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); };
-  ctx.save(); ctx.lineCap = "butt";
-  seg(at(0), at(.16), "#8a6a3c", 2);                  // cabo
-  seg(at(.16), at(.55), "#3b2a1a", 1.6);              // vara afinando até a ponta
-  seg(at(.55), at(.8), "#3b2a1a", 1.2);
-  seg(at(.8), at(1), "#3b2a1a", .8);
-  ctx.restore();
+// ---------- Estilo "rabisco": o pescador ganha contorno de caneta (que treme de leve, como desenho à mão), hachuras e tênis ----------
+// Ajuste em SK: on (liga/desliga), ink (cor do traço), w (espessura do contorno em px do jogo), wob (quanto o traço treme, 0 a 1), hatch (força dos rabiscos de sombra, 0 = nenhum)
+const SK = { on: true, ink: "#17120f", w: 1.05, wob: 0.35, hatch: 0.11 };
+const SK_W = 120, SK_H = 100, SK_OX = 60, SK_OY = 88;                           // quadro do boneco (px do jogo): pés em (SK_OX, SK_OY)
+const SKC = { k: 0, spr: null, tint: null, fin: null };
+const skHatch = (() => { let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647;
+  return Array.from({ length: 64 }, (_, i) => { const x = -24 + r() * 48, y = -(3 + r() * 66), l = 2.5 + r() * 4.5, a = -0.95 + (r() - .5) * .35; return { x, y, x2: x + l * Math.cos(a), y2: y + l * Math.sin(a), g: i % 3 }; }); })();
+function shoe(x, y, w, h) { rect("#ecebe3", x, y, w, h - 1); rect("rgba(0,0,0,.13)", x, y, w, .7); rect("#2a2623", x, y + h - 1, w, 1); }   // tênis branco com sola escura
+function skAlloc(k) {
+  const w = Math.ceil(SK_W * k), h = Math.ceil(SK_H * k);
+  if (!SKC.spr) ["spr", "tint", "fin"].forEach(n => { SKC[n] = document.createElement("canvas"); SKC[n].c = SKC[n].getContext("2d"); });
+  if (SKC.spr.width !== w || SKC.spr.height !== h) ["spr", "tint", "fin"].forEach(n => { SKC[n].width = w; SKC[n].height = h; });
+  SKC.k = k;
 }
-function backStrap() {                                // alça que prende a vara: cruza o peito (só aparece de frente)
-  ctx.save(); ctx.strokeStyle = "rgba(48,30,16,.85)"; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(-TW + .6, -23.5); ctx.lineTo(TW - .6, -12 + TORSOX - .5); ctx.stroke(); ctx.restore();
+function sketchFisher(x, dir, shirt, hat, amp, pose, look, inner, hop) {
+  const main = ctx, tf = main.getTransform(), k = Math.max(1, Math.min(8, Math.ceil(Math.hypot(tf.a, tf.b) * 2) / 2));
+  skAlloc(k);
+  const w = SKC.spr.width, h = SKC.spr.height, c = SKC.spr.c, t = SKC.tint.c, f = SKC.fin.c;
+  if (SOFT_OFF <= 0) { main.save(); main.translate(x, PIER_Y); fisherSoft(1); main.restore(); }   // sombrinha de contato nos pés (fica fora do contorno)
+  // 1) o boneco de sempre, desenhado num quadro à parte
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = "source-over"; c.clearRect(0, 0, w, h);
+  c.setTransform(k, 0, 0, k, (SK_OX - x) * k, (SK_OY - PIER_Y) * k);
+  let tip; SOFT_OFF++; ctx = c;
+  try { tip = inner(x, dir, shirt, hat, amp, pose); } finally { ctx = main; SOFT_OFF--; }
+  // 2) rabiscos de sombra só por cima do que foi desenhado
+  if (SK.hatch > 0) {
+    c.setTransform(k, 0, 0, k, SK_OX * k, SK_OY * k); c.globalCompositeOperation = "source-atop"; c.lineCap = "round"; c.lineWidth = 0.55; c.strokeStyle = "#000";
+    for (let g = 0; g < 3; g++) { c.globalAlpha = SK.hatch * (0.55 + g * 0.3); c.beginPath(); skHatch.forEach(sk => { if (sk.g === g) { c.moveTo(sk.x, sk.y); c.lineTo(sk.x2, sk.y2); } }); c.stroke(); }
+    c.globalAlpha = 1; c.globalCompositeOperation = "source-over";
+  }
+  // 3) contorno: o desenho tingido de tinta, copiado em volta (com tremida que muda ~7x por segundo)
+  t.setTransform(1, 0, 0, 1, 0, 0); t.globalCompositeOperation = "source-over"; t.clearRect(0, 0, w, h); t.drawImage(SKC.spr, 0, 0);
+  t.globalCompositeOperation = "source-in"; t.fillStyle = SK.ink; t.fillRect(0, 0, w, h); t.globalCompositeOperation = "source-over";
+  f.setTransform(1, 0, 0, 1, 0, 0); f.globalAlpha = 1; f.clearRect(0, 0, w, h);
+  const ph = (performance.now() / 140 | 0) % 3, r0 = SK.w * k;
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4 + 0.4, n = Math.abs(Math.sin((i + 1) * 12.9898 + ph * 78.233) * 43758.5453) % 1, rr = r0 * (1 + SK.wob * (n - 0.5) * 2);
+    f.drawImage(SKC.tint, Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  f.drawImage(SKC.spr, 0, 0);
+  // 4) uma única cópia na tela (respeita a transparência e a câmera atuais)
+  main.save(); main.imageSmoothingEnabled = true; main.drawImage(SKC.fin, 0, 0, w, h, x - SK_OX, PIER_Y - SK_OY - hop, SK_W, SK_H); main.restore();
+  return tip;
 }
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
   const lo = look && look.o; CUR_O = lo && typeof lo === "object" ? lo : me.o; SIT = ITEM[CUR_O.shirt] || null; PIT = ITEM[CUR_O.pants] || null;
@@ -630,7 +658,9 @@ function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
   LEGS = [shade(pants, 0.75), pants]; LEGX = E * LEG_SHARE; TORSOX = E - LEGX; AL = 8 + TORSOX;
   const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
   const inner = (x, dir, shirt, hat, amp, pose) => tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
-  if (CAST_OFF <= 0) castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner);   // sombra projetada, por baixo do pescador
+  const hop = pose && pose.hop > 0 ? pose.hop : 0, pose0 = hop ? { ...pose, hop: 0 } : pose;   // queda da abertura: a sombra fica no chão e o boneco sobe por cima
+  if (CAST_OFF <= 0) castFisherShadow(x, dir, shirt, hat, amp, pose0, look, inner);   // sombra projetada, por baixo do pescador
+  if (SK.on) return sketchFisher(x, dir, shirt, hat, amp, pose0, look, inner, hop);   // estilo rabisco (contorno + hachuras)
   return inner(x, dir, shirt, hat, amp, pose);
 }
 function drawFisherTurn(x, dir, shirt, hat, tn) {
@@ -644,11 +674,14 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   ctx.translate(0, Math.sin(performance.now() / 600) * 0.3 * avg);                   // respira (igual ao parado de frente)
   // vara nas costas (atrás de tudo): a ponta de baixo e a de cima giram junto com o tronco
   const UP = LEGX + TORSOX;
-  backRod(ct, st, UP);
+  if (ct > 0.01) {                                                                    // a vara das costas só existe de lado: some enquanto vira de frente
+    ctx.save(); ctx.globalAlpha *= ct * ct; ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-9 * ct, -5 - UP); ctx.lineTo(-3 * ct, -43 - UP); ctx.stroke(); ctx.restore();
+  }
   // pernas (a de trás escura, a da frente clara)
   const leg = (wl, col) => {
     const cx = wl * sl, hw = Math.hypot(2.3 * cl, 2 * sl), sx = Math.hypot(3.3 * cl, 2.5 * sl);
-    legBlock(col, cx - hw, hw * 2); rect("#15110e", cx + 0.3 * cl - sx, -2.5, sx * 2, 2.5);
+    legBlock(col, cx - hw, hw * 2); shoe(cx + 0.3 * cl - sx, -2.5, sx * 2, 2.5);
   };
   leg(-2.6, LEGS[0]); leg(2.6, LEGS[1]);
   ctx.translate(0, -UP);                                                              // tudo de cima sobe
@@ -664,7 +697,6 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); shirtDeco(2 * ch);
   rect("rgba(0,0,0,.25)", -TW, -24, mix(3.5, 2.5, kt), 14 + TORSOX); rect("rgba(255,255,255,.18)", mix(TW - 3, TW - 2.5, kt), -24, mix(2, 2.5, kt), 14 + TORSOX);
   if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TW * ct - 0.3, -24, 0.6, 12 + TORSOX);        // costura da frente deslizando para o meio
-  if (st > 0.3) { ctx.save(); ctx.globalAlpha *= st * st; backStrap(); ctx.restore(); }
   rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2);
   if (st > 0.15) rect("#e8c34a", TW * ct - st, -12 + TORSOX, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
@@ -710,12 +742,11 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   if (P.cheer !== undefined || fk >= 0.5) {                                          // comemorando (braços pro alto) ou parado (braços caídos): de frente para o jogador
     const wv = P.wv || 0, idle = P.cheer === undefined;
     ctx.translate(0, idle ? Math.sin(performance.now() / 600) * 0.3 : -(P.hop || 0));    // parado: respira de leve
-    if (idle) { backRod(0, 1, LEGX + TORSOX); }   // vara nas costas, aparecendo atrás dele
-    const lg = (lx, col) => { legBlock(col, lx, 4); rect("#15110e", lx - 0.5, -2.5, 5, 2.5); };
+    const lg = (lx, col) => { legBlock(col, lx, 4); shoe(lx - 0.5, -2.5, 5, 2.5); };
     lg(-4.6, LEGS[0]); lg(0.6, LEGS[1]);
     ctx.translate(0, -(LEGX + TORSOX));                                              // tudo de cima (tronco, braços, cabeça) sobe
     rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); shirtDeco(0); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TORSOX);
-    backStrap(); rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
+    rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
       rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
     if (idle) { arm(-AW, Math.PI / 2 + 0.03); arm(AW, Math.PI / 2 - 0.03); }
@@ -742,7 +773,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     ctx.save(); ctx.translate(0, -11 - LEGX + bob); ctx.rotate(th);
     rect(col, -2.3, 0, 4.6, Lt + 0.4);
     ctx.translate(0, Lt); ctx.rotate(kn);
-    rect(PIT && PIT.shorts ? shade(SKIN_LEG, col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7); rect("#15110e", -3, Lt - 0.5, 6.6, 2.5);
+    rect(PIT && PIT.shorts ? shade(SKIN_LEG, col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7); shoe(-3, Lt - 0.5, 6.6, 2.5);
     ctx.restore();
   };
   if (P.brake) { leg(-0.64 * P.brake, 0, LEGS[0]); leg(0.64 * P.brake, 0, LEGS[1]); }   // freando: pernas abertas e retas
@@ -2911,7 +2942,6 @@ function drawShop(now) {
   const fyy = rowY + SHOP_ROWS * SHOP_RH + 7;
   rect("rgba(255,255,255,.18)", x + 6, fyy - 3, pw - 12, 1);
   if (cur) text(cur.desc || "", x + 8, fyy + 10, "#cfd8e6");
-  text("A/D seção  W/S item", x + 8, fyy + 23, "#9aa6b8"); text("E comprar/vestir  ESC sair", x + 8, fyy + 35, "#9aa6b8");
   // botão sair (toque)
   rect("rgba(15,22,36,.85)", exitR.x, exitR.y, exitR.w, exitR.h); text("< Sair", exitR.x + exitR.w / 2, exitR.y + 11, "#ffd166", "center");
   SHOP.geo = { px: x, pw, rowY, tabs, exit: exitR };
