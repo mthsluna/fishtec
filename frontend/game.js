@@ -540,13 +540,73 @@ function faceParts(ch, sh, cheer) {                                             
   if (blush && sh > 0.2) for (const w of [-3.1, 3.1]) if (4.5 * sh - w * ch > 0.1) rect(`rgba(230,120,100,${0.45 * sh})`, 4.5 * ch + w * sh - 0.7, -28.6, 1.4, 1.2);   // bochechas
   if (sh > 0.2 || ch > 0.25) mouthAt(4.7 * ch, -25.7, lerp(1.6, 2.8, sh), cheer ? "open" : (ITEM[O.mouth] || ITEM.bo_neutra).kind);   // boca (sempre na mesma altura baixa, igual à de lado)
 }
+// ---------- Moicano: crista da testa até a nuca, de pontas que viram para trás; laterais raspadas ----------
+// A crista é modelada em 3D (x = para frente, y = altura, lado = 0 no meio) e projetada conforme a cabeça gira (x = frente*cos + lado*sen),
+// então o mesmo desenho serve de frente, de lado e no meio da virada, para a direita ou para a esquerda (o jogo só espelha).
+const MOH = (() => {
+  const SP = [[3.5, -33.4], [2.0, -34.1], [.2, -34.4], [-1.8, -34.2], [-3.4, -33.4], [-4.4, -32], [-4.9, -30.2], [-5, -28.4], [-4.7, -26.9]];   // espinha da crista (frente -> nuca)
+  const len = [0]; for (let i = 1; i < SP.length; i++) len.push(len[i - 1] + Math.hypot(SP[i][0] - SP[i - 1][0], SP[i][1] - SP[i - 1][1]));
+  const nrm = (ax, ay, bx, by) => { const l = Math.hypot(bx - ax, by - ay) || 1, tx = (bx - ax) / l, ty = (by - ay) / l; return { t: [tx, ty], n: [-ty, tx] }; };
+  const at = d => { let i = 1; while (i < SP.length - 1 && len[i] < d) i++; const f = (d - len[i - 1]) / (len[i] - len[i - 1]), a = SP[i - 1], b = SP[i], q = nrm(a[0], a[1], b[0], b[1]); return { p: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], t: q.t, n: q.n }; };
+  const LEN = [3.2, 4.4, 5.2, 5.6, 5.4, 5, 4.8, 4.4, 3.6], N = LEN.length, spikes = [];
+  for (let i = 0; i < N; i++) {                                                  // pontas espalhadas ao longo da crista, apontando para cima na frente e para trás na nuca
+    const q = at(len[len.length - 1] * (i + .5) / N), dx = q.n[0] - .55, dy = q.n[1] + .19, dl = Math.hypot(dx, dy), L = LEN[i] * (1 + ((i * 7) % 3 - 1) * .06);
+    spikes.push({ b: [q.p[0] + q.n[0] * .3, q.p[1] + q.n[1] * .3], t: q.t, tip: [q.p[0] + dx / dl * L, q.p[1] + dy / dl * L], d: [dx / dl, dy / dl], L });
+  }
+  const band = [];
+  for (let i = 0; i < SP.length - 1; i++) {
+    const a = nrm(SP[Math.max(0, i - 1)][0], SP[Math.max(0, i - 1)][1], SP[i + 1][0], SP[i + 1][1]), b = nrm(SP[i][0], SP[i][1], SP[Math.min(SP.length - 1, i + 2)][0], SP[Math.min(SP.length - 1, i + 2)][1]);
+    band.push({ pts: [[SP[i][0] - a.n[0] * 1.5, SP[i][1] - a.n[1] * 1.5], [SP[i][0] + a.n[0] * .9, SP[i][1] + a.n[1] * .9], [SP[i + 1][0] - b.n[0] * 1.5, SP[i + 1][1] - b.n[1] * 1.5], [SP[i + 1][0] + b.n[0] * .9, SP[i + 1][1] + b.n[1] * .9]] });
+  }
+  const HAIRLINE = [[4.5, -33], [-4.5, -33], [-4.5, -27.2], [-3.2, -28.4], [-1.6, -29.8], [.4, -30.7], [2.4, -31.7], [4.5, -32.4]];                    // até onde vai a parte raspada na lateral da cabeça
+  return { spikes, band, HAIRLINE };
+})();
+function hull2(pts) {                                                             // envoltória convexa (cadeia monótona)
+  pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  up.pop(); lo.pop(); return lo.concat(up);
+}
+function mohawkHair(cx, f, c) {
+  const ch = Math.max(0, Math.min(1, f)), sh = Math.sqrt(1 - ch * ch), WZ = 1.25, nz = 1 / (ch + sh);
+  const P = (fw, y, lt) => [cx + fw * ch + lt * sh, y];                          // projeção verdadeira (crista)
+  const Pn = (fw, y, lt) => [cx + (fw * ch + lt * sh) * nz, y];                  // projeção que não passa da cabeça (raspado)
+  const poly = (pts) => { pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); };
+  const rgb = [1, 3, 5].map(i => Math.round(parseInt(c.substr(i, 2), 16) * .62)).join(",");
+  // laterais raspadas: a cor do cabelo bem fraquinha sobre a pele (como cabelo rapado)
+  ctx.fillStyle = `rgba(${rgb},.36)`; ctx.beginPath();
+  for (const lt of [-4.5, 4.5]) poly(MOH.HAIRLINE.map(([fw, y]) => Pn(fw, y, lt)));
+  poly(hull2([[4.5, 4.5], [4.5, -4.5], [-4.5, 4.5], [-4.5, -4.5]].flatMap(([fw, lt]) => [Pn(fw, -33, lt), Pn(fw, -32.3, lt)])));
+  ctx.fill();
+  // crista: uma ponta = pirâmide (base na espinha, de ponta ao centro); quem está atrás da cabeça é cortado pelo crânio
+  const prim = [];
+  MOH.band.forEach(b => prim.push({ z: (b.pts[0][0] + b.pts[2][0]) / 2, pts: b.pts.flatMap(([fw, y]) => [P(fw, y, -WZ), P(fw, y, WZ)]) }));
+  MOH.spikes.forEach(s => {
+    const h = 1.6, c4 = [[1, -1], [1, 1], [-1, -1], [-1, 1]].map(([a, l]) => P(s.b[0] + s.t[0] * h * a, s.b[1] + s.t[1] * h * a, l * WZ));
+    prim.push({ z: s.b[0], pts: c4.concat([P(s.tip[0], s.tip[1], 0)]), s });
+  });
+  ctx.fillStyle = c;
+  const draw = pick => { ctx.beginPath(); prim.forEach(q => { if (pick(q.z * sh)) poly(hull2(q.pts)); }); ctx.fill(); };
+  ctx.save(); ctx.beginPath(); ctx.rect(cx - 60, -90, 120, 120); ctx.rect(cx - 4.5, -33, 9, 8.5); ctx.clip("evenodd"); draw(z => z < -.3); ctx.restore();   // atrás da cabeça: só o que passa do crânio
+  draw(z => z >= -.3);
+  // brilho e sombra nas pontas
+  ctx.lineCap = "butt";
+  MOH.spikes.forEach(s => {
+    const a = P(s.b[0] + s.d[0] * s.L * .3 - s.t[0] * .3, s.b[1] + s.d[1] * s.L * .3 - s.t[1] * .3, 0), b = P(s.b[0] + s.d[0] * s.L * .82 - s.t[0] * .12, s.b[1] + s.d[1] * s.L * .82 - s.t[1] * .12, 0);
+    if (s.b[0] * sh < -.3) return;
+    ctx.lineWidth = .5; ctx.strokeStyle = "rgba(255,255,255,.3)"; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    const a2 = P(s.b[0] + s.d[0] * s.L * .25 + s.t[0] * .5, s.b[1] + s.d[1] * s.L * .25 + s.t[1] * .5, 0), b2 = P(s.b[0] + s.d[0] * s.L * .7 + s.t[0] * .25, s.b[1] + s.d[1] * s.L * .7 + s.t[1] * .25, 0);
+    ctx.strokeStyle = "rgba(0,0,0,.2)"; ctx.beginPath(); ctx.moveTo(a2[0], a2[1]); ctx.lineTo(b2[0], b2[1]); ctx.stroke();
+  });
+}
 function hairOf(cx, f) {                                                         // cabelo por cima da cabeça e por baixo do chapéu; cx: centro da cabeça; f: 0 = de frente ... 1 = de lado
   const it = ITEM[CUR_O.hair] || ITEM.hr_curto, k = it.kind; if (k === "bald") return;
   const c = okHex(CUR_O.hairc) ? CUR_O.hairc : HAIR_DEF, side = f >= .5;
-  const R = (x, y, w, h, col = c) => rect(col, cx + x, y, w, h);
+  const R = (x, y, w, h, col = c) => col === c ? rect(col, cx + x - .12, y - .12, w + .24, h + .24) : rect(col, cx + x, y, w, h);   // cor do cabelo: cada peça invade um tiquinho a vizinha (sem emendas; o contorno do rabisco desenhava tinta nelas)
   const H = (x, y, w, h) => R(x, y, w, h, "rgba(255,255,255,.24)"), S = (x, y, w, h) => R(x, y, w, h, "rgba(0,0,0,.22)");   // brilho e sombra dos fios
   const ca = a => `rgba(${[1, 3, 5].map(i => parseInt(c.substr(i, 2), 16)).join(",")},${a})`;
-  const ball = (x, y, r, col = c) => { for (let i = -Math.floor(r); i <= Math.floor(r); i++) { const w = 2 * Math.sqrt(Math.max(0, r * r - (i + .5) * (i + .5))); R(x - w / 2, y + i, w, 1, col); } };   // bolinha de pixels (cachos, coque)
+  const ball = (x, y, r, col = c) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx + x, y, r, 0, 6.2832); ctx.fill(); };   // bolinha (cachos, coque): um círculo só, sem fatias
   // calota arredondada do crânio (degraus nos cantos), com sombra na raiz e brilho no topo
   const cap = () => {
     if (side) { R(-3.8, -36.3, 7.8, .9); R(-4.8, -35.5, 9.6, 1); R(-5.3, -34.5, 10, 2.5); S(-5.3, -32.6, 10, .5); H(-3, -36, 3.4, .6); H(.2, -35.1, 1.6, .5); S(-5.3, -34, .6, 1.4); }
@@ -567,12 +627,13 @@ function hairOf(cx, f) {                                                        
     if (side) { R(-5.9, -32.8, 4.3, 7.2); S(-5.9, -31, .7, 5); H(-4.4, -30.6, .5, 3); R(-5.5, -25.7, 3.4, 1); R(-4.6, -24.8, 2.4, .6); }
     else { for (const sx of [-1, 1]) { const x = sx < 0 ? -5.6 : 3.4; R(x, -33.2, 2.2, 7.4); R(sx < 0 ? x + .4 : x - .4, -25.9, 2, 1); H(x + .7, -30.4, .4, 3); } }
   } else if (k === "spiky") {
-    R(side ? -5.1 : -4.9, -35.2, side ? 9.8 : 9.8, 3.2); S(-4.9, -32.6, 9.8, .5);
+    R(-5.1, -35.2, 9.8, 3.2); S(-4.9, -32.6, 9.8, .5);
     const lean = side ? 1 : 0;                                                  // de lado as pontas se inclinam para trás
-    [[-4.6, 3.6], [-2.8, 4.8], [-.9, 5.8], [.8, 4.8], [2.7, 3.8]].forEach(([x, h]) => {
-      R(x, -35.2 - h * .4, 1.9, h * .4 + .2); R(x + .3 - lean * h * .08, -35.2 - h * .75, 1.3, h * .38); R(x + .6 - lean * h * .2, -35.2 - h, .7, h * .28);
-      H(x + .2, -35.2 - h * .6, .4, h * .4);
-    });
+    ctx.fillStyle = c; ctx.beginPath();                                          // cada ponta é um triângulo (antes eram retângulos empilhados, com emendas e vãos)
+    const SP5 = [[-4.6, 3.6], [-2.8, 4.8], [-.9, 5.8], [.8, 4.8], [2.7, 3.8]];
+    SP5.forEach(([x, h]) => { const bx = cx + x; ctx.moveTo(bx - .15, -34.9); ctx.lineTo(bx + 2.15, -34.9); ctx.lineTo(bx + 1 - lean * h * .26, -35.2 - h); ctx.closePath(); });
+    ctx.fill();
+    SP5.forEach(([x, h]) => H(x + .5 - lean * h * .08, -35.2 - h * .62, .4, h * .4));
     if (side) { R(-5.1, -32.2, 2.4, 3); S(-5.1, -29.4, 2.4, .5); } else { R(-4.9, -32.2, 1.1, 2); R(3.8, -32.2, 1.1, 2); }
   } else if (k === "curly") {
     const o = side ? -1.1 : 0;
@@ -581,14 +642,7 @@ function hairOf(cx, f) {                                                        
     S(-4.6 + o, -33.6, 9, .6);
     if (side) { ball(-6.5, -31.6, 2.9); ball(-6, -28.4, 2.2); ball(3.5, -33.4, 1.4); S(-7.3, -29.4, 1.8, .5); }
     else { ball(-6, -30.4, 2.3); ball(6, -30.4, 2.3); ball(-2.8, -32.2, 1.3); ball(.2, -32.1, 1.2); ball(2.8, -32.3, 1.3); }
-  } else if (k === "mohawk") {
-    R(-4.5, -34.4, 9, 2.4, ca(.3));                                             // laterais raspadas (só a sombra do fio)
-    if (side) {                                                                 // crista de pontas, da testa à nuca; o resto da cabeça fica raspado
-      R(-4.3, -34.6, 8.4, 1.8); S(-4.3, -33.2, 8.4, .5);
-      [[-3.9, 4.2], [-1.9, 5.8], [.1, 6.4], [2.1, 4.8]].forEach(([x, h]) => { R(x, -34.6 - h * .45, 1.7, h * .45 + .2); R(x - .5, -34.6 - h * .8, 1.2, h * .38); R(x - 1.1, -34.6 - h, .7, h * .26); H(x + .2, -34.6 - h * .6, .4, h * .5); });
-      H(-3.6, -34.4, 6, .4);
-    }
-    else { R(-1.3, -40.2, 2.6, 1); R(-1.7, -39.2, 3.4, 2); R(-2.1, -37.2, 4.2, 5.2); R(-1.7, -32.2, 3.4, .9); H(-.6, -39.4, .5, 6); S(1.2, -37, .6, 4.4); }
+  } else if (k === "mohawk") { mohawkHair(cx, f, c);
   } else if (k === "ponytail") {
     cap(); bangs();
     if (side) { R(-8.4, -35.2, 2.6, 2.6); R(-9.5, -32.8, 3.7, 3.4); R(-9.7, -29.6, 3.3, 3.6); R(-8.9, -26.2, 2.5, 2.2); R(-7.9, -24.2, 1.4, 1); H(-8.6, -33, .5, 4.6); S(-7.2, -30, .5, 4); R(-6, -34.3, 1.1, 2.8, "#d63a5a"); R(-6, -34.3, 1.1, .5, "rgba(255,255,255,.3)"); }
@@ -603,9 +657,9 @@ function collarFront(col) {                                                    /
   rect(skinNeck(), -1.8, -24.8, 3.6, 2.4);                                                          // pescoço aparecendo no decote quadrado
   rect("rgba(0,0,0,.12)", -1.8, -24.4, 3.6, 0.6);                                                  // sombrinha embaixo do queixo
 }
-function collarSide(col) {                                                     // gola redonda de lado: barra fina em volta da base do pescoço
-  rect(shade(col, 0.68), -1.8, -24.4, 5.2, 1.9);                                                   // só um pouquinho de gola de lado: costas, frente e a faixa de baixo...
-  rect(skinNeck(), -0.9, -24.5, 3.4, 1.1);                                                           // ...com o pescoço aparecendo no meio (decote quadrado)
+function collarSide(col) {                                                     // gola redonda de lado: faixa estreita na frente do pescoço (a abertura da camiseta fica para o lado do rosto)
+  rect(shade(col, 0.68), -0.1, -24.4, 3.6, 1.9);                                                   // faixa curta, mais pra frente e mais estreita (antes ia de -1.8 a 3.4)
+  rect(skinNeck(), 0.7, -24.5, 2.1, 1.1);                                                            // ...com o pescoço aparecendo no meio (decote quadrado)
 }
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
   ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
