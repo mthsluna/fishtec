@@ -604,8 +604,8 @@ function collarFront(col) {                                                    /
   rect("rgba(0,0,0,.12)", -1.8, -24.4, 3.6, 0.6);                                                  // sombrinha embaixo do queixo
 }
 function collarSide(col) {                                                     // gola redonda de lado: barra fina em volta da base do pescoço
-  rect(shade(col, 0.68), -3.3, -24.4, 5.1, 1.9);                                                   // só um pouquinho de gola de lado: costas, frente e a faixa de baixo...
-  rect(skinNeck(), -2.3, -24.5, 3, 1.1);                                                           // ...com o pescoço aparecendo no meio (decote quadrado)
+  rect(shade(col, 0.68), -1.8, -24.4, 5.2, 1.9);                                                   // só um pouquinho de gola de lado: costas, frente e a faixa de baixo...
+  rect(skinNeck(), -0.9, -24.5, 3.4, 1.1);                                                           // ...com o pescoço aparecendo no meio (decote quadrado)
 }
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
   ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
@@ -701,7 +701,7 @@ function neckGear(cx, f) {                                        // lenço ou g
   if (it.kind === "scarf") {
     const sw = 7.2 - 2.4 * f;                                      // de lado o lenço é mais estreito (acompanha o pescoço)
     rect(it.col, cx - sw / 2, -25.4, sw, 3.2); rect("rgba(0,0,0,.2)", cx - sw / 2, -22.6, sw, .8); rect("rgba(255,255,255,.22)", cx - sw / 2, -25.4, sw, .6);
-    const tx = cx - 2.8 + 4.2 * f; rect(it.col, tx, -22.4, 2.4, 5.2); rect("rgba(0,0,0,.2)", tx, -17.8, 2.4, .8);   // ponta caindo no peito (de lado fica na frente do tronco, não atrás das costas)
+    const tx = cx - 2.8 + 3 * f; rect(it.col, tx, -22.4, 2.4, 5.2); rect("rgba(0,0,0,.2)", tx, -17.8, 2.4, .8);   // ponta caindo no peito (de lado fica na frente do tronco, não atrás das costas)
   } else if (it.kind === "bow") {
     const w = 2.8 - f * 1; rect(it.col, cx - w - .8, -25, w, 2.6); rect(it.col, cx + .8, -25, w, 2.6); rect(shade(it.col, .6), cx - .8, -24.8, 1.6, 2.2); rect("rgba(255,255,255,.22)", cx - w - .8, -25, w * 2 + 1.6, .5);
   }
@@ -855,7 +855,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   if (fa > 0) { arm(farX, farY, farA, fa); ctx.globalAlpha *= fa; shoulder(farX, farY, sleeve); ctx.globalAlpha /= fa; }                                                // de frente: o braço do outro lado passa a ficar por cima
   arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.57, Math.PI / 2 + 0.03, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
   // pescoço, cabeça e rosto (a cabeça gira antes do resto)
-  const hx = ch, nx = -ch;
+  const hx = ch, nx = 0.8 * ch;
   rect(skinNeck(), nx - 2, -26, 4, 2.5);
   if (sh < 0.99) { ctx.save(); ctx.globalAlpha *= 1 - sh; collarSide(shirt); ctx.restore(); }          // a gola gira junto com a cabeça: faixa de lado -> abas de frente
   if (sh > 0.01) { ctx.save(); ctx.globalAlpha *= sh; collarFront(shirt); ctx.restore(); }
@@ -863,7 +863,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   faceParts(ch, sh, false); hairOf(hx, ch);                                            // olhos, nariz, sardas, boca, bochechas e cabelo
   const hb = Math.hypot(7 * ch, 7.5 * sh);
   const eyesT = [-1.8, 1.8].filter(w => 3.3 * sh - w * ch > 0.1).map(w => 3.3 * ch + w * sh);
-  faceGear(eyesT, ch > 0.25 && eyesT.length ? [hx - 4.2, Math.min(...eyesT) - 1.9] : null, [4.6 * ch, 2.6 + 2 * sh]); neckGear(-ch, ch); headgear(hat, hx, hb, ch);
+  faceGear(eyesT, ch > 0.25 && eyesT.length ? [hx - 4.2, Math.min(...eyesT) - 1.9] : null, [4.6 * ch, 2.6 + 2 * sh]); neckGear(0.8 * ch, ch); headgear(hat, hx, hb, ch);
   ctx.restore();
   return { x, y: PIER_Y - 30 - UP };
 }
@@ -949,12 +949,12 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   };
   if (s <= 0) foreArm();                                                               // durante guardar/sacar o braço é desenhado por cima (a mão não some atrás da cabeça)
   
-  rect(skinNeck(), -3, -26, 4, 2.5); collarSide(shirt);
+  rect(skinNeck(), -1.2, -26, 4, 2.5); collarSide(shirt);
   ctx.save(); if (hold) { ctx.translate(0, -25); ctx.rotate(0.22 * hold); ctx.translate(0, 25); }     // cabeça baixa olhando o celular
   rect(skinMain(), -3.5, -33, 9, 8.5); rect("rgba(0,0,0,.12)", -3.5, -33, 3, 8.5);
   faceParts(1, 0, false);
   if (hold > 0.3) rect(`rgba(205,245,160,${PHONE_LIGHT * 0.5 * clamp01((hold - 0.3) / 0.5)})`, -0.5, -33, 6, 8.5);   // luz da tela iluminando o rosto
-  hairOf(1, 1); faceGear([3.3], [-3.2, 1.4], [4.8, 3]); neckGear(-1, 1); headgear(hat, 1, 7, 1);
+  hairOf(1, 1); faceGear([3.3], [-3.2, 1.4], [4.8, 3]); neckGear(0.8, 1); headgear(hat, 1, 7, 1);
   ctx.restore();
   if (s > 0) foreArm();                                                                // guardando/sacando: braço por cima de tudo
   if (hold > 0.01) drawHeldPhone(SHX + (AL + 2) * ca, SHY + (AL + 2) * sa, hold);                  // celular na mão, com a luz no rosto
