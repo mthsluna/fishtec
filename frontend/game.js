@@ -566,13 +566,55 @@ function neckGear(cx, f) {                                        // lenço ou g
     const w = 2.8 - f * 1; rect(it.col, cx - w - .8, -26, w, 2.6); rect(it.col, cx + .8, -26, w, 2.6); rect(shade(it.col, .6), cx - .8, -25.8, 1.6, 2.2); rect("rgba(255,255,255,.22)", cx - w - .8, -26, w * 2 + 1.6, .5);
   }
 }
+// ---------- Sombra do pescador: silhueta projetada no chão (some na sombra dos prédios) ----------
+// CAST_OFF > 0: sem sombra projetada (loja, prévia, reflexo); SOFT_OFF > 0: sem sombra de contato nos pés (reflexo e o próprio molde da sombra)
+let CAST_OFF = 0, SOFT_OFF = 0, shCv = null, shCx = null, shS = 0;
+const SH_OX = 80, SH_OY = 118, SH_W = 200, SH_H = 126;                         // molde (em px do jogo): pés em (SH_OX, SH_OY)
+const shadeFade = () => CITY.on ? Math.max(0, 1 - cityShadeK * 1.15) : 1;      // 1 = ao sol, 0 = totalmente na sombra de um prédio
+function shadowLight() {                                                       // direção e comprimento da sombra pela posição do sol (ou da lua, bem fraca)
+  const sunny = DAY.sunA >= DAY.moonA * 0.55, lx = sunny ? DAY.sunX : DAY.moonX, e = sunny ? DAY.sunE : 0.55;
+  const str = sunny ? DAY.sunA : DAY.moonA * 0.22;
+  const nx = Math.max(-1, Math.min(1, (lx - 240) / 180));
+  const ratio = Math.min(1.5, 0.28 + 1.9 * Math.pow(1 - e, 1.4));            // comprimento da sombra / altura (curta ao meio-dia, comprida no nascer/pôr do sol)
+  return { str, ls: -nx * ratio };                                            // ls: quanto a sombra se desloca para o lado por px de altura (sol à direita = sombra para a esquerda)
+}
+function fisherSoft(dir) {                                                     // sombrinha de contato sob os pés (a sombra comprida é a projetada, feita em drawFisher)
+  if (SOFT_OFF > 0) return;
+  if (CAST_OFF > 0) { softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3); return; }   // loja/prévia: visual antigo
+  const f = shadeFade(); if (f < 0.02) return;
+  ctx.save(); ctx.globalAlpha *= f; softShadow(0, 1.1, 6.5, 1.5, 0.34, 3); ctx.restore();
+}
+function castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner) {
+  const f = shadeFade(), L = shadowLight(), a = 0.4 * L.str * f;
+  if (a < 0.02) return;
+  if (!shCv) { shCv = document.createElement("canvas"); shCx = shCv.getContext("2d"); }
+  if (shS !== S || shCv.width !== SH_W * S) { shCv.width = SH_W * S; shCv.height = SH_H * S; shS = S; }
+  const main = ctx, c = shCx, hs = (look && look.hs) || 1, top = SH_OY - (FISHER_TOP * hs + 22);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = "source-over"; c.clearRect(0, 0, shCv.width, shCv.height);
+  c.setTransform(S, 0, 0, S, SH_OX * S, (SH_OY - PIER_Y) * S);                 // (0, PIER_Y) cai nos pés do molde
+  CAST_OFF++; SOFT_OFF++; ctx = c;
+  try { inner(0, dir, shirt, hat, amp, pose); } finally { ctx = main; CAST_OFF--; SOFT_OFF--; }
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-in";   // vira silhueta; mais clara (e mais "macia") longe dos pés
+  const g = c.createLinearGradient(0, SH_OY * S, 0, top * S); g.addColorStop(0, "rgba(14,6,30,1)"); g.addColorStop(1, "rgba(14,6,30,.5)");
+  c.fillStyle = g; c.fillRect(0, 0, shCv.width, shCv.height); c.globalCompositeOperation = "source-over";
+  const city = CITY.on, dep = city ? 0.2 : 0.085;                              // profundidade: o cais é estreito (3 px), a rua é larga
+  ctx.save(); ctx.translate(x, PIER_Y);
+  ctx.beginPath(); ctx.rect(city ? -400 : -x - 8, -2, city ? 800 : DECK_END + 8, city ? 40 : 5); ctx.clip();   // no cais não sai do deck
+  ctx.imageSmoothingEnabled = true;
+  const A0 = ctx.globalAlpha;
+  ctx.globalAlpha = A0 * a * 0.62; ctx.save(); ctx.transform(1, 0, -L.ls, -dep, 0, 0.3); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();          // sombra principal
+  ctx.globalAlpha = A0 * a * 0.38; ctx.save(); ctx.transform(1, 0, -L.ls * 1.12, -dep * 1.3, 0, 0.2); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();   // penumbra: um pouco mais comprida e larga
+  ctx.restore();
+}
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
   const lo = look && look.o; CUR_O = lo && typeof lo === "object" ? lo : me.o; SIT = ITEM[CUR_O.shirt] || null; PIT = ITEM[CUR_O.pants] || null;
   if (SIT && SIT.col) shirt = SIT.col;
   const E = ((look && look.hs || 1) - 1) * FISHER_TOP, pants = PIT && PIT.col ? PIT.col : look && /^#[0-9a-f]{6}$/i.test(look.pants) ? look.pants : DEF_PANTS;
   LEGS = [shade(pants, 0.75), pants]; LEGX = E * LEG_SHARE; TORSOX = E - LEGX; AL = 8 + TORSOX;
   const tn = pose && pose.turn, sum = tn ? tn[0] + tn[1] + tn[2] : 0;
-  return tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
+  const inner = (x, dir, shirt, hat, amp, pose) => tn && sum > 0.001 && sum < 2.999 ? drawFisherTurn(x, dir, shirt, hat, tn) : drawFisherBase(x, dir, shirt, hat, amp, pose);
+  if (CAST_OFF <= 0) castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner);   // sombra projetada, por baixo do pescador
+  return inner(x, dir, shirt, hat, amp, pose);
 }
 function drawFisherTurn(x, dir, shirt, hat, tn) {
   const sleeve = shade(shirt, 0.84);                                                   // manga: mais escura que o tronco, o braço não some nele
@@ -581,7 +623,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   const ch = Math.cos(ah), sh = Math.sin(ah), ct = Math.cos(at), st = Math.sin(at), cl = Math.cos(al), sl = Math.sin(al);
   const kt = at / (Math.PI / 2), avg = (tn[0] + tn[1] + tn[2]) / 3;
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
-  softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);
+  fisherSoft(dir);
   ctx.translate(0, Math.sin(performance.now() / 600) * 0.3 * avg);                   // respira (igual ao parado de frente)
   // vara nas costas (atrás de tudo): a ponta de baixo e a de cima giram junto com o tronco
   ctx.strokeStyle = "#3b2a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
@@ -647,7 +689,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const A = s <= 0 ? P.arm : s < SL0 ? spl(K_ARM, s) + P.arm * Math.max(0, 1 - s / 0.3) : s < 0.70 ? RA : lerp(RA, A0 - 2 * Math.PI, spl(K_REL, (s - 0.70) / 0.30));   // o braço cai por trás das costas (não atravessa o rosto)   // sobe, segura no alto e só então solta (com sobra)
   const fk = P.front || 0;                                                         // virando de frente: 0 = de lado ... 1 = de frente
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
-  softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3);        // sombra longa para a esquerda (sol à direita) + sombra de contato nos pés
+  fisherSoft(dir);        // sombra de contato nos pés (a sombra comprida é projetada em drawFisher)
   if (P.cheer !== undefined || fk >= 0.5) {                                          // comemorando (braços pro alto) ou parado (braços caídos): de frente para o jogador
     const wv = P.wv || 0, idle = P.cheer === undefined;
     ctx.translate(0, idle ? Math.sin(performance.now() / 600) * 0.3 : -(P.hop || 0));    // parado: respira de leve
@@ -2808,7 +2850,7 @@ function drawShop(now) {
   t[0] = mv(t[0], g); if (g ? t[0] > TURN_GATE : t[0] < 1 - TURN_GATE) t[1] = mv(t[1], g); if (g ? t[1] > TURN_GATE : t[1] < 1 - TURN_GATE) t[2] = mv(t[2], g);
   const avg = (t[0] + t[1] + t[2]) / 3, b = { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 }; if (avg > .001) { b.front = avg; b.turn = [t[0], t[1], t[2]]; }
   const K = 2.8, fy = 228; ctx.save(); ctx.translate(0, fy - PIER_Y * K); ctx.scale(K, K);
-  drawFisher(cx / K, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h), o: SHOP.tryO || me.o });
+  CAST_OFF++; drawFisher(cx / K, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h), o: SHOP.tryO || me.o }); CAST_OFF--;
   ctx.restore();
   const cur = shopCur();
   if (cur) {
@@ -3751,7 +3793,7 @@ function vClothesBase(D, b, bi, B) {
       ctx.beginPath(); ctx.moveTo(sx - 1.4, wy + 4); ctx.lineTo(sx + 1.4, wy + 4); ctx.lineTo(sx + 11, fy); ctx.lineTo(sx - 11, fy); ctx.closePath(); ctx.fill();
       vEll(sx, fy + 1.2, 9, 1.3, "rgba(255,255,255,.45)");
     });
-    const u = CITY_CHAR * hScale(me.h) / MAX_H / K;                                                                           // manequim com a MESMA altura do meu pescador na cidade (CITY_CHAR e a minha altura); o boneco é desenhado na altura do Malto, então divide por MAX_H, e por K porque a fachada inteira é escalada
+    const u = CITY_CHAR / K;                                                                           // manequim com a MESMA altura do meu pescador na cidade (CITY_CHAR e a minha altura); o boneco é desenhado na altura do Malto, então divide por MAX_H, e por K porque a fachada inteira é escalada
     xs.forEach((sx, i) => vBlockDoll(sx, fy + .6, u, OUT[side][i]));
     ctx.fillStyle = vLG(wx, 0, wx + 3, 0, [[0, "rgba(0,0,0,.5)"], [1, "rgba(0,0,0,0)"]]); ctx.fillRect(wx, wy, 3, gh);              // batente: sombra nas laterais do vidro
     ctx.fillStyle = vLG(wx + ww - 3, 0, wx + ww, 0, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,.5)"]]); ctx.fillRect(wx + ww - 3, wy, 3, gh);
@@ -4858,7 +4900,7 @@ function cityGlass(now, l, r) {
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, c.canvas.width, c.canvas.height);
     c.setTransform(3, 0, 0, 3, (32 - px) * 3, (68 - PIER_Y) * 3);
     ctx = c;
-    try { drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) }); } finally { ctx = main; }
+    CAST_OFF++; SOFT_OFF++; try { drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) }); } finally { ctx = main; CAST_OFF--; SOFT_OFF--; }
     c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-atop"; c.fillStyle = rgba([(64 + sk[2][0]) >> 1, (84 + sk[2][1]) >> 1, (128 + sk[2][2]) >> 1], .5); c.fillRect(0, 0, c.canvas.width, c.canvas.height); c.globalCompositeOperation = "source-over";
   }
   const lampK = DAY.lamp, sunK = DAY.sunA, sNx = Math.max(-1, Math.min(1, (DAY.sunX - 240) / 180)), gl = DAY.lc.map(v => Math.round(v + (255 - v) * .55));
@@ -5063,7 +5105,6 @@ function drawCity(now) {
   const shadeEnd = cityShadeBegin(dt);                                                   // na sombra dos prédios o pescador escurece
   try { DAY.scene(() => {                                                                // o pescador (com a mesma lavagem da hora)
     const CK = CITY_CHAR;
-    ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.beginPath(); ctx.ellipse(px, PIER_Y + 1, 9 * CK, 2.2 * CK, 0, 0, 7); ctx.fill();
     ctx.save(); ctx.translate(px, PIER_Y); ctx.scale(CK, CK); ctx.translate(-px, -PIER_Y);      // pescador reduzido (pés continuam em PIER_Y)
     drawFisher(px, dir, me.shirt, "#d98e04", walkAmp * (1 + 0.45 * runK), movePose(), { pants: me.pants, hs: hScale(me.h) });
     ctx.restore();
@@ -5198,7 +5239,7 @@ function drawPreview(now) {
   rect(sky, 0, 0, PV.W, PV.foot); rect("#7a4e32", 0, PV.foot, PV.W, PV.H - PV.foot); rect("#5a3622", 0, PV.foot, PV.W, 1);
   for (let x = 1; x < PV.W - 1; x += 4) rect("rgba(255,255,255,.55)", x, PV.foot - MALTO_TOP, 2, 1);   // altura do Malto
   pvc.save(); pvc.translate(0, PV.foot - PIER_Y);
-  drawFisher(PV.W / 2, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h) });
+  CAST_OFF++; drawFisher(PV.W / 2, 1, me.shirt, "#d98e04", 0, rodPose(newRod(1), b), { pants: me.pants, hs: hScale(me.h) }); CAST_OFF--;
   pvc.restore(); ctx = prev;
 }
 
