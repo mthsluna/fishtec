@@ -398,13 +398,11 @@ const ITEMS = [
   { id: "bo_triste", cat: "mouth", name: "Triste", price: 0, kind: "sad", desc: "O peixe escapou..." },
   { id: "bo_lingua", cat: "mouth", name: "Língua de Fora", price: 0, kind: "tongue", desc: "Brincalhão." },
   { id: "bo_oh", cat: "mouth", name: "Surpresa", price: 0, kind: "oh", desc: "Beliscou!" },
-  { id: "fk_nenhuma", cat: "frk", name: "Nenhuma", price: 0, eq: "", kind: "none", desc: "Rosto liso." },
-  { id: "fk_nariz", cat: "frk", name: "No Nariz", price: 0, kind: "nose", desc: "Poucas, bem no meio." },
-  { id: "fk_bochechas", cat: "frk", name: "Bochechas", price: 0, kind: "cheeks", desc: "Nas duas bochechas." },
-  { id: "fk_muitas", cat: "frk", name: "Muitas", price: 0, kind: "many", desc: "Um céu estrelado no rosto." },
+  { id: "bl_rosa", cat: "blush", name: "Rosada", price: 0, eq: "", kind: "pink", desc: "Bochechas coradas." },
+  { id: "bl_nenhuma", cat: "blush", name: "Sem Bochecha", price: 0, kind: "none", desc: "Rosto sem corzinha." },
 ];
 const ITEM = Object.create(null); ITEMS.forEach(i => ITEM[i.id] = i);
-const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "", shoes: "", hair: "", eyes: "", mouth: "", frk: "", hairc: "", eyec: "" });   // hairc/eyec: cor (#rrggbb) do cabelo e dos olhos ("" = padrão)
+const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "", shoes: "", hair: "", eyes: "", mouth: "", blush: "", hairc: "", eyec: "" });   // hairc/eyec: cor (#rrggbb) do cabelo e dos olhos ("" = padrão)
 const OWNED = new Set();
 try { (JSON.parse(localStorage.getItem("owned") || "[]") || []).forEach(id => { if (ITEM[id]) OWNED.add(id); }); } catch (e) {}
 const itemSlot = it => it.slot || it.cat, itemEq = it => it.eq !== undefined ? it.eq : it.id;
@@ -535,55 +533,76 @@ function mouthAt(cx, y, mw, kind) {                                             
   else if (kind === "oh") { const w = Math.min(1.6, mw); rect("#5a2a1a", cx - w / 2, y - .4, w, 1.6); }
   else rect(c, x0, y, mw, .8);
 }
-const FRK_NOSE = [[-.9, 5, -28.7], [.6, 5.2, -29], [0, 5, -28]];                  // sardas: [lateral, profundidade, y]; a profundidade é a mesma dos olhos (de lado ela vira o x)
-const FRK_CHEEK = [[-3.3, 4.2, -28.1], [-2.5, 3.6, -27.6], [-3.6, 3.2, -27.2]];
-const FRK_MANY = [[-1.2, 5, -27.9], [1.2, 5, -28.4], [-4, 3, -28.9], [-1.8, 4.6, -26.9]];
 function faceParts(ch, sh, cheer) {                                              // olhos, nariz, sardas e boca; ch = cos / sh = sen do giro da cabeça (0,1 = de frente; 1,0 = de lado)
-  const O = CUR_O, ec = okHex(O.eyec) ? O.eyec : EYE_DEF, ek = (ITEM[O.eyes] || ITEM.ey_padrao).kind, fk = (ITEM[O.frk] || ITEM.fk_nenhuma).kind;
+  const O = CUR_O, ec = okHex(O.eyec) ? O.eyec : EYE_DEF, ek = (ITEM[O.eyes] || ITEM.ey_padrao).kind, blush = (ITEM[O.blush] || ITEM.bl_rosa).kind !== "none";
   const ey = lerp(-30, -30.2, sh);
   for (const w of [-1.8, 1.8]) if (3.3 * sh - w * ch > 0.1) eyeAt(3.3 * ch + w * sh, ey, ec, ek);   // o olho de longe só aparece quando a cabeça já virou
   if (ch > 0.25) rect("#c98d5a", 5 * ch - ch, -27.5, 2 * ch, 1);                  // nariz (some quando fica de frente)
-  if (sh > 0.2) for (const w of [-3.1, 3.1]) if (4.5 * sh - w * ch > 0.1) rect(`rgba(230,120,100,${0.45 * sh})`, 4.5 * ch + w * sh - 0.7, -28.6, 1.4, 1.2);   // bochechas
-  if (fk !== "none") {
-    const pts = fk === "nose" ? FRK_NOSE : fk === "cheeks" ? FRK_CHEEK.concat(FRK_CHEEK.map(([w, d, y]) => [-w, d, y])) : FRK_NOSE.concat(FRK_CHEEK, FRK_CHEEK.map(([w, d, y]) => [-w, d, y]), FRK_MANY);
-    pts.forEach(([w, d, y]) => { if (d * sh - w * ch > 0.1) rect("rgba(140,72,36,.8)", d * ch + w * sh - .35, y, .7, .7); });
-  }
-  if (sh > 0.2 || ch > 0.25) mouthAt(4.7 * ch, -27.4 + 1.7 * ch, lerp(1.6, 2.8, sh), cheer ? "open" : (ITEM[O.mouth] || ITEM.bo_neutra).kind);   // boca (de lado fica mais baixa, embaixo do nariz)
+  if (blush && sh > 0.2) for (const w of [-3.1, 3.1]) if (4.5 * sh - w * ch > 0.1) rect(`rgba(230,120,100,${0.45 * sh})`, 4.5 * ch + w * sh - 0.7, -28.6, 1.4, 1.2);   // bochechas
+  if (sh > 0.2 || ch > 0.25) mouthAt(4.7 * ch, -25.7, lerp(1.6, 2.8, sh), cheer ? "open" : (ITEM[O.mouth] || ITEM.bo_neutra).kind);   // boca (sempre na mesma altura baixa, igual à de lado)
 }
 function hairOf(cx, f) {                                                         // cabelo por cima da cabeça e por baixo do chapéu; cx: centro da cabeça; f: 0 = de frente ... 1 = de lado
   const it = ITEM[CUR_O.hair] || ITEM.hr_curto, k = it.kind; if (k === "bald") return;
-  const c = okHex(CUR_O.hairc) ? CUR_O.hairc : HAIR_DEF, side = f >= .5, o = side ? -.8 : 0;
+  const c = okHex(CUR_O.hairc) ? CUR_O.hairc : HAIR_DEF, side = f >= .5;
   const R = (x, y, w, h, col = c) => rect(col, cx + x, y, w, h);
-  const top = () => { R(side ? -5.1 : -4.9, -35.4, 9.8, side ? 3.3 : 3.4); R(-3.2, -35.1, 4.2, .7, "rgba(255,255,255,.2)"); };
-  const sb = () => { if (side) R(-5.1, -32.1, 2.6, 4.2); else { R(-4.9, -32, 1.2, 2.2); R(3.7, -32, 1.2, 2.2); } };   // costeletas / nuca
-  if (k === "short") { top(); sb(); }
-  else if (k === "long") { top(); if (side) R(-5.8, -32.1, 4.2, 9.8); else { R(-5.4, -32, 2, 9.4); R(3.4, -32, 2, 9.4); } }
-  else if (k === "bob") { top(); if (side) R(-5.5, -32.1, 3.8, 6.2); else { R(-5.3, -32, 1.9, 6); R(3.4, -32, 1.9, 6); } }
-  else if (k === "spiky") {
-    R(-4.7, -35, 9.4, 2.6); [[-4.4, -37.4], [-2.4, -38.8], [-.4, -39.6], [1.6, -38.6], [3.2, -37.4]].forEach(([x, y]) => R(x + o, y, 1.7, -34.6 - y));
-    if (side) R(-5.1, -32.4, 2, 2.4); else { R(-4.9, -32.4, 1, 1.6); R(3.9, -32.4, 1, 1.6); }
+  const H = (x, y, w, h) => R(x, y, w, h, "rgba(255,255,255,.24)"), S = (x, y, w, h) => R(x, y, w, h, "rgba(0,0,0,.22)");   // brilho e sombra dos fios
+  const ca = a => `rgba(${[1, 3, 5].map(i => parseInt(c.substr(i, 2), 16)).join(",")},${a})`;
+  const ball = (x, y, r, col = c) => { for (let i = -Math.floor(r); i <= Math.floor(r); i++) { const w = 2 * Math.sqrt(Math.max(0, r * r - (i + .5) * (i + .5))); R(x - w / 2, y + i, w, 1, col); } };   // bolinha de pixels (cachos, coque)
+  // calota arredondada do crânio (degraus nos cantos), com sombra na raiz e brilho no topo
+  const cap = () => {
+    if (side) { R(-3.8, -36.3, 7.8, .9); R(-4.8, -35.5, 9.6, 1); R(-5.3, -34.5, 10, 2.5); S(-5.3, -32.6, 10, .5); H(-3, -36, 3.4, .6); H(.2, -35.1, 1.6, .5); S(-5.3, -34, .6, 1.4); }
+    else { R(-3.6, -36.3, 7.2, .9); R(-4.6, -35.5, 9.2, 1); R(-5, -34.5, 10, 2.5); S(-5, -32.6, 10, .5); H(-2.6, -36, 3, .6); H(1.2, -35.1, 1.4, .5); }
+  };
+  // franja e costeletas (de frente: mechas de lados diferentes com risca; de lado: franja curta e patilha)
+  const bangs = () => {
+    if (side) { R(2.3, -32, 2.2, 1.1); R(3.3, -30.9, 1.2, 1.3); R(-.7, -32, 1.5, 2.4); S(-.7, -30, 1.5, .5); R(-5.3, -32, 3.4, 4.4); R(-4.8, -27.7, 2.3, 1.2); S(-5.3, -29.5, .6, 2); H(-4.2, -31.4, .5, 2.6); }
+    else { R(-4.9, -32, 3.7, 1.1); R(-4.9, -31, 1.5, 1.5); R(-1.2, -32, 1.4, .7); R(1.7, -32, 3.2, .9); R(3.5, -31.1, 1.4, 1.6); R(.3, -35.4, .5, 3.4, "rgba(0,0,0,.28)"); H(-4.4, -31.6, .4, 1.4); }
+  };
+  if (k === "short") { cap(); bangs(); }
+  else if (k === "long") {
+    cap(); bangs();
+    if (side) { R(-5.9, -33, 4.7, 10.6); S(-5.9, -31, .7, 8.4); H(-4.6, -30, .5, 5); H(-3.2, -27, .5, 3.4); R(-5.4, -22.4, 3.7, .9); R(-4.6, -21.6, 2, .6); }
+    else { for (const sx of [-1, 1]) { const x = sx < 0 ? -5.7 : 3.5; R(x, -33.4, 2.2, 10.6); R(x + (sx < 0 ? .2 : .2), -22.8, 1.8, .9); R(x + .5, -21.9, 1, .6); S(sx < 0 ? x : x + 1.7, -31, .5, 8.4); H(x + .8, -30, .4, 5); } }
+  } else if (k === "bob") {
+    cap(); bangs();
+    if (side) { R(-5.9, -32.8, 4.3, 7.2); S(-5.9, -31, .7, 5); H(-4.4, -30.6, .5, 3); R(-5.5, -25.7, 3.4, 1); R(-4.6, -24.8, 2.4, .6); }
+    else { for (const sx of [-1, 1]) { const x = sx < 0 ? -5.6 : 3.4; R(x, -33.2, 2.2, 7.4); R(sx < 0 ? x + .4 : x - .4, -25.9, 2, 1); H(x + .7, -30.4, .4, 3); } }
+  } else if (k === "spiky") {
+    R(side ? -5.1 : -4.9, -35.2, side ? 9.8 : 9.8, 3.2); S(-4.9, -32.6, 9.8, .5);
+    const lean = side ? 1 : 0;                                                  // de lado as pontas se inclinam para trás
+    [[-4.6, 3.6], [-2.8, 4.8], [-.9, 5.8], [.8, 4.8], [2.7, 3.8]].forEach(([x, h]) => {
+      R(x, -35.2 - h * .4, 1.9, h * .4 + .2); R(x + .3 - lean * h * .08, -35.2 - h * .75, 1.3, h * .38); R(x + .6 - lean * h * .2, -35.2 - h, .7, h * .28);
+      H(x + .2, -35.2 - h * .6, .4, h * .4);
+    });
+    if (side) { R(-5.1, -32.2, 2.4, 3); S(-5.1, -29.4, 2.4, .5); } else { R(-4.9, -32.2, 1.1, 2); R(3.8, -32.2, 1.1, 2); }
   } else if (k === "curly") {
-    R(-4.4 + o, -40.4, 8.8, 1); R(-5.6 + o, -39.4, 11.2, 1); R(-6.4 + o, -38.4, 12.8, 1.2); R(-6.8 + o, -37.2, 13.6, 3.6); R(-6.4 + o, -33.6, 12.8, 1.6); R(-3.5 + o, -39, 3, .8, "rgba(255,255,255,.18)");
-    if (side) R(-7.2, -32, 4.2, 6.2); else { R(-6.4, -32, 2.6, 4.8); R(3.8, -32, 2.6, 4.8); }
+    const o = side ? -1.1 : 0;
+    [[-3.8, -36.2, 2.9], [0, -37.6, 3.5], [3.8, -36.2, 2.9], [-2, -34.6, 3.1], [2, -34.6, 3.1], [-5.4, -33.2, 2.4], [5.4, -33.2, 2.4]].forEach(([x, y, r]) => ball(x + o, y, r));
+    [[-3.8, -36.2], [0, -37.6], [3.8, -36.2]].forEach(([x, y]) => { H(x + o - 1.2, y - 1.6, 1.6, .5); S(x + o - .5, y + 1, 1.6, .5); });   // volume de cada cacho
+    S(-4.6 + o, -33.6, 9, .6);
+    if (side) { ball(-6.5, -31.6, 2.9); ball(-6, -28.4, 2.2); ball(3.5, -33.4, 1.4); S(-7.3, -29.4, 1.8, .5); }
+    else { ball(-6, -30.4, 2.3); ball(6, -30.4, 2.3); ball(-2.8, -32.2, 1.3); ball(.2, -32.1, 1.2); ball(2.8, -32.3, 1.3); }
   } else if (k === "mohawk") {
-    R(-4.7, -34.2, 9.4, 1.2, "rgba(60,40,20,.25)");
-    if (side) { R(-4.6, -36.4, 8.6, 4.2); R(-3.8, -38.4, 6.8, 2.1); R(-2.6, -39.6, 4.4, 1.3); } else { R(-1.2, -39.4, 2.4, 7.6); R(-.4, -39.2, .6, 6, "rgba(255,255,255,.2)"); }
+    R(-4.5, -34.4, 9, 2.4, ca(.3));                                             // laterais raspadas (só a sombra do fio)
+    if (side) { [2, 3.4, 4.6, 5.4, 5.8, 5, 4, 2.6].forEach((h, i) => { const x = -4.4 + i * 1.1; R(x, -33.6 - h, 1.2, h + .8); H(x + .2, -33.4 - h, .4, Math.min(h, 2.2)); }); S(-4.4, -34, 8.9, .5); }   // crista recortada, da testa à nuca
+    else { R(-1.3, -40.2, 2.6, 1); R(-1.7, -39.2, 3.4, 2); R(-2.1, -37.2, 4.2, 5.2); R(-1.7, -32.2, 3.4, .9); H(-.6, -39.4, .5, 6); S(1.2, -37, .6, 4.4); }
   } else if (k === "ponytail") {
-    top(); sb();
-    if (side) { R(-7.4, -34.6, 3, 2.4); R(-8.8, -32.4, 3.8, 7.2); R(-8.2, -25.4, 2.6, 1.6); R(-5.7, -33.8, .9, 2.4, "#d63a5a"); }
+    cap(); bangs();
+    if (side) { R(-8.4, -35.2, 2.6, 2.6); R(-9.5, -32.8, 3.7, 3.4); R(-9.7, -29.6, 3.3, 3.6); R(-8.9, -26.2, 2.5, 2.2); R(-7.9, -24.2, 1.4, 1); H(-8.6, -33, .5, 4.6); S(-7.2, -30, .5, 4); R(-6, -34.3, 1.1, 2.8, "#d63a5a"); R(-6, -34.3, 1.1, .5, "rgba(255,255,255,.3)"); }
   } else if (k === "bun") {
-    top(); sb();
-    if (side) { R(-5.8, -39.4, 4.8, 4.4); R(-5, -40, 3.2, .8); } else { R(-2.3, -39.4, 4.6, 4.2); R(-1.6, -40, 3.2, .8); }
-    R(side ? -4.6 : -1.4, -38.8, 1.6, .7, "rgba(255,255,255,.22)");
+    cap(); bangs();
+    if (side) { ball(-3.4, -39.2, 3.3); R(-5.4, -36.6, 3.8, .8, "#d63a5a"); H(-4.6, -41.2, 1.6, .5); S(-2.6, -37.8, 1.8, .5); }
+    else { ball(0, -39.3, 3.5); R(-2.2, -36.6, 4.4, .8, "#d63a5a"); H(-1.8, -41.4, 1.8, .5); S(.4, -37.8, 1.8, .5); }
   }
 }
 function collarFront(col) {                                                    // gola redonda de frente: barra escura em "U" em volta do pescoço
-  rect(shade(col, 0.76), -3.2, -24.6, 6.4, 4.2);                                                   // barra (ribana), quadrada
-  rect("#e0ac69", -2.2, -24.8, 4.4, 3);                                                            // pescoço aparecendo no decote quadrado
-  rect("rgba(0,0,0,.12)", -2.2, -24.4, 4.4, 0.6);                                                  // sombrinha embaixo do queixo
+  rect(shade(col, 0.76), -2.7, -24.6, 5.4, 3.4);                                                   // barra (ribana), quadrada e pequena
+  rect("#e0ac69", -1.8, -24.8, 3.6, 2.4);                                                          // pescoço aparecendo no decote quadrado
+  rect("rgba(0,0,0,.12)", -1.8, -24.4, 3.6, 0.6);                                                  // sombrinha embaixo do queixo
 }
 function collarSide(col) {                                                     // gola redonda de lado: barra fina em volta da base do pescoço
-  rect(shade(col, 0.76), -3.2, -24.3, 5, 1.8);
+  rect(shade(col, 0.62), -3.3, -24.5, 4.9, 2.3);                                                   // um pouquinho de gola aparecendo de lado (mais escura que a camiseta, senão some)
+  rect("rgba(255,255,255,.18)", -3.3, -22.4, 4.9, .5);
 }
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
   ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
@@ -5406,14 +5425,14 @@ function drawCity(now) {
   present();
 }
 
-// ---------- Personalizar personagem (no estilo da loja): apelido, cabelo, olhos, boca, sardas e altura ----------
+// ---------- Personalizar personagem (no estilo da loja): apelido, cabelo, olhos, boca, bochecha e altura ----------
 // Abre ao clicar em JOGAR e depois pelo celular (F -> "Personalizar personagem" -> E). Cada opção já vale na hora; Cancelar desfaz tudo.
 // Teclado: ← → abas, ↑ ↓ opções (na aba Altura ajustam a altura), C troca a cor, Enter confirma, Esc cancela. Clique no boneco para girar.
 const UI = { open: false, first: true, snap: null };
 const CUST_CATS = [
   { id: "hair", name: "Cabelo", ck: "hairc", def: HAIR_DEF, cols: ["#3a2616", "#17120f", "#7a4a22", "#d9b44a", "#b5502a", "#9a9a9a", "#eee8dd", "#3a6fd6", "#e86aa8", "#3fa85a"] },
   { id: "eyes", name: "Olhos", ck: "eyec", def: EYE_DEF, cols: ["#2a1a10", "#17120f", "#8a5a2b", "#3a7bd5", "#3f9a58", "#7a8a99", "#8e44ad"] },
-  { id: "mouth", name: "Boca" }, { id: "frk", name: "Sardas" }, { id: "height", name: "Altura" },
+  { id: "mouth", name: "Boca" }, { id: "blush", name: "Corada" }, { id: "height", name: "Altura" },
 ];
 const CZ = { cat: 0, sel: [0, 0, 0, 0, 0], top: [0, 0, 0, 0, 0], t: [1, 1, 1], goal: 1, last: 0, geo: null, drag: false };
 const CUST_ROWS = 5, CUST_RH = 25;
