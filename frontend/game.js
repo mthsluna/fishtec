@@ -489,8 +489,13 @@ function shoulder(sx, y, col) {                                                 
 // ---------- Roupas no pescador: estampas da camiseta, bermuda/calça, chapéus, óculos/bigode e lenço/gravata ----------
 const SKIN_LEG = "#e3b273";
 let CUR_O = DEF_O, SIT = null, PIT = null;                        // roupa do pescador que está sendo desenhado agora (itens da camiseta e da calça)
-function shirtDeco(cx) {                                          // estampa da camiseta (o tronco já foi pintado com a cor base)
+function shirtDeco(cx, tw = TW) {                                // estampa da camiseta (o tronco já foi pintado com a cor base); tw = meia largura atual do tronco
   if (!SIT || !SIT.pat) return;
+  ctx.save(); ctx.beginPath(); ctx.rect(-tw, -24, tw * 2, 14 + TORSOX); ctx.clip();   // a estampa nunca passa da borda do tronco (de lado/girando ela vazava)
+  if (tw < TW) ctx.scale(tw / TW, 1);                                                  // de lado o desenho fica "achatado", como no tecido de verdade
+  try { shirtDecoBody(cx); } finally { ctx.restore(); }
+}
+function shirtDecoBody(cx) {
   const p = SIT.pat, y0 = -24, h = 14 + TORSOX, c2 = SIT.c2, c3 = SIT.c3;
   if (p === "stripes") for (let y = y0 + 1.4; y < y0 + h - 1; y += 3.4) rect(c2, -TW, y, TW * 2, 1.4);
   else if (p === "plaid") {
@@ -523,7 +528,14 @@ function legBlock(col, lx, w) {                                   // perna de fr
   }
 }
 function headgear(hatCol, cx, hw, f) { headgearOf(ITEM[CUR_O.hat], hatCol, cx, hw, f); }
+const HAT_DY = { cap: 1.2, straw: .7, beanie: 1.6, top: 1.3, crown: 2.6 };   // desce cada chapéu até encostar na cabeça (antes a coroa, a cartola, o gorro etc. flutuavam 1 a 2,6 px acima)
 function headgearOf(it, hatCol, cx, hw, f) {                     // cx: centro da cabeça; hw: meia-aba; f: 0 = de frente ... 1 = de lado
+  const dy = HAT_DY[it && it.kind] || 0;
+  if (!dy) { headgearBody(it, hatCol, cx, hw, f); return; }
+  ctx.save(); ctx.translate(0, dy);
+  try { headgearBody(it, hatCol, cx, hw, f); } finally { ctx.restore(); }
+}
+function headgearBody(it, hatCol, cx, hw, f) {
   const k = it && it.kind || "fisher", c = it && it.col, c2 = it && it.c2;
   if (k === "fisher") { rect(hatCol, cx - hw, -35.5, hw * 2, 3); rect(hatCol, cx - 4.5, -40, 9, 5); rect("rgba(0,0,0,.25)", cx - hw, -34, hw * 2, 1.2); rect("rgba(255,255,255,.35)", cx - 4.5, -36.5, 9, 1.2); }
   else if (k === "none") {
@@ -561,10 +573,11 @@ function faceGear(eyes, temple, stache) {                         // eyes: centr
 function neckGear(cx, f) {                                        // lenço ou gravata borboleta no pescoço; cx: centro do pescoço; f: 0 = de frente ... 1 = de lado
   const it = ITEM[CUR_O.neck]; if (!it) return;
   if (it.kind === "scarf") {
-    rect(it.col, cx - 3.6, -26.4, 7.2, 3.2); rect("rgba(0,0,0,.2)", cx - 3.6, -24, 7.2, .8); rect("rgba(255,255,255,.22)", cx - 3.6, -26.4, 7.2, .6);
-    const tx = cx - 2.8 - 1.6 * f; rect(it.col, tx, -23.6, 2.4, 5.6); rect("rgba(0,0,0,.2)", tx, -19, 2.4, .8);
+    const sw = 7.2 - 2.4 * f;                                      // de lado o lenço é mais estreito (acompanha o pescoço)
+    rect(it.col, cx - sw / 2, -25.4, sw, 3.2); rect("rgba(0,0,0,.2)", cx - sw / 2, -22.6, sw, .8); rect("rgba(255,255,255,.22)", cx - sw / 2, -25.4, sw, .6);
+    const tx = cx - 2.8 + 4.2 * f; rect(it.col, tx, -22.4, 2.4, 5.2); rect("rgba(0,0,0,.2)", tx, -17.8, 2.4, .8);   // ponta caindo no peito (de lado fica na frente do tronco, não atrás das costas)
   } else if (it.kind === "bow") {
-    const w = 2.8 - f * 1; rect(it.col, cx - w - .8, -26, w, 2.6); rect(it.col, cx + .8, -26, w, 2.6); rect(shade(it.col, .6), cx - .8, -25.8, 1.6, 2.2); rect("rgba(255,255,255,.22)", cx - w - .8, -26, w * 2 + 1.6, .5);
+    const w = 2.8 - f * 1; rect(it.col, cx - w - .8, -25, w, 2.6); rect(it.col, cx + .8, -25, w, 2.6); rect(shade(it.col, .6), cx - .8, -24.8, 1.6, 2.2); rect("rgba(255,255,255,.22)", cx - w - .8, -25, w * 2 + 1.6, .5);
   }
 }
 // ---------- Sombra do pescador: silhueta projetada no chão (some na sombra dos prédios) ----------
@@ -689,21 +702,21 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   // braço de longe (atrás do tronco; só aparece de fora quando já está bem de frente)
   const arm = (sx, y, a, alpha) => {
     ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(sx, y); ctx.rotate(a);
-    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
+    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
     ctx.restore();
   };
-  const farX = AW * st, farA = mix(1.4, 1.45, st), farY = mix(-22, -21.5, st);
+  const farX = AW * st, farA = mix(1.4, Math.PI / 2 - 0.03, st), farY = mix(-22, -21.5, st);
   arm(farX, farY, farA, 1); shoulder(farX, farY, sleeve);
   // tronco (a largura vai de fino, de lado, a normal, de frente)
   const TWt = TWM(TWS, TW, st);
-  rect(shirt, -TWt, -24, TWt * 2, 14 + TORSOX); shirtDeco(2 * ch);
+  rect(shirt, -TWt, -24, TWt * 2, 14 + TORSOX); shirtDeco(2 * ch, TWt);
   rect("rgba(0,0,0,.25)", -TWt, -24, mix(3.5, 2.5, kt), 14 + TORSOX); rect("rgba(255,255,255,.18)", mix(TWt - 3, TWt - 2.5, kt), -24, mix(2, 2.5, kt), 14 + TORSOX);
   if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TWt * ct - 0.3, -24, 0.6, 12 + TORSOX);        // costura da frente deslizando para o meio
   rect("#5a3b22", -TWt, -12 + TORSOX, TWt * 2, 2);
   if (st > 0.15) rect("#e8c34a", TWt * ct - st, -12 + TORSOX, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
   if (fa > 0) { arm(farX, farY, farA, fa); ctx.globalAlpha *= fa; shoulder(farX, farY, sleeve); ctx.globalAlpha /= fa; }                                                // de frente: o braço do outro lado passa a ficar por cima
-  arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, 1.69, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
+  arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, Math.PI / 2 + 0.03, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
   // pescoço, cabeça e rosto (a cabeça gira antes do resto)
   const hx = ch, nx = -ch;
   rect("#e0ac69", nx - 2, -26, 4, 2.5);
@@ -750,7 +763,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); shirtDeco(0); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TORSOX);
     rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
-      rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
+      rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
     if (idle) { arm(-AW, Math.PI / 2 + 0.03); arm(AW, Math.PI / 2 - 0.03); }
     else { arm(-AW, -Math.PI + 1.0 - wv * 0.12); arm(AW, -1.0 + wv * 0.12); }
     shoulder(-AW, -21.5, sleeve); shoulder(AW, -21.5, sleeve);
@@ -792,12 +805,12 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const ra = P.rod - P.flex * 0.25;                                  // a ponta da vara atrasa quando ela chicoteia
   let tx = hx + RL * Math.cos(ra), ty = hy + RL * Math.sin(ra);
   const kS = s < SL0 ? 0 : ease3(Math.min(1, (s - SL0) / (SL1 - SL0)));   // quanto a vara já deslizou para as costas
-  rect(shirt, -TWS, -24, TWS * 2, 14 + TORSOX); shirtDeco(1.5);
+  rect(shirt, -TWS, -24, TWS * 2, 14 + TORSOX); shirtDeco(1.5, TWS);
   rect("rgba(0,0,0,.25)", -TWS, -24, 2.6, 14 + TORSOX); rect("rgba(255,255,255,.18)", TWS - 2.2, -24, 1.6, 14 + TORSOX);
   rect("#5a3b22", -TWS, -12 + TORSOX, TWS * 2, 2);
   const foreArm = () => {
     ctx.save(); ctx.translate(SHX, SHY); ctx.rotate(A);                                // antebraço gira no ombro (no centro do tronco)
-    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.8); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
+    rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5);
     ctx.restore();
     shoulder(SHX, SHY, sleeve);
   };
@@ -2914,15 +2927,15 @@ function shopBg(now, cx, pxL) {                                                /
   const hats = ITEMS.filter(i => i.cat === "hat" && i.kind !== "none"), sx0 = 16, shw = pxL - 32;
   rect("#7a5636", 8, 86, pxL - 16, 3); rect("#a47a50", 8, 86, pxL - 16, 1); rect("rgba(0,0,0,.22)", 8, 89, pxL - 16, 3);
   [14, pxL - 18].forEach(bx => { ctx.fillStyle = "#5d4128"; ctx.beginPath(); ctx.moveTo(bx, 89); ctx.lineTo(bx + 4, 89); ctx.lineTo(bx, 96); ctx.fill(); });
-  hats.forEach((h, i) => { ctx.save(); ctx.translate(sx0 + (i + .5) * shw / hats.length, 86 + 33.5); headgearOf(h, "#d98e04", 0, 6, .25); ctx.restore(); });
+  hats.forEach((h, i) => { ctx.save(); ctx.translate(sx0 + (i + .5) * shw / hats.length, 86.5 + 32.4); headgearOf(h, "#d98e04", 0, 6, .25); ctx.restore(); });
   // camisetas dobradas nas laterais, em mesinhas
   [[12, "#2b5d9b", "#b83a35", "#f4f1e8"], [pxL - 42, "#1f9d8a", "#b9a46a", "#4aa3c7"]].forEach(([fx, a, b, c]) => {
-    rect("#5d4128", fx + 1, 143, 2, 46); rect("#5d4128", fx + 27, 143, 2, 46); rect("#7a5636", fx - 2, 140, 34, 3); rect("#a47a50", fx - 2, 140, 34, 1);
-    [a, b, c].forEach((cc, i) => { const yy = 134 - i * 5; rect(cc, fx, yy, 30, 5); rect("rgba(255,255,255,.2)", fx + 1, yy + .5, 28, .8); rect("rgba(0,0,0,.2)", fx, yy + 4, 30, 1); });
+    rect("#5d4128", fx + 1, 143, 2, 58); rect("#5d4128", fx + 27, 143, 2, 58); rect("rgba(30,14,4,.32)", fx - 1, 200, 6, 2); rect("rgba(30,14,4,.32)", fx + 25, 200, 6, 2);   // pés no chão, com sombrinha rect("#7a5636", fx - 2, 140, 34, 3); rect("#a47a50", fx - 2, 140, 34, 1);
+    [a, b, c].forEach((cc, i) => { const yy = 135 - i * 5; rect(cc, fx, yy, 30, 5); rect("rgba(255,255,255,.2)", fx + 1, yy + .5, 28, .8); rect("rgba(0,0,0,.2)", fx, yy + 4, 30, 1); });
   });
   // vaso de planta no canto
-  { const px0 = pxL - 14; rect("#9a4b32", px0 - 6, 176, 12, 12); rect("#b9623f", px0 - 6, 176, 12, 2.5); rect("rgba(0,0,0,.18)", px0 - 6, 186, 12, 2);
-    [[-5, -9, 4], [0, -13, 5], [5, -8, 4], [-2, -6, 4], [3, -4, 3]].forEach(([dx, dy, r], i) => { ctx.fillStyle = ["#3f7d3a", "#4f9a46", "#2f6a34"][i % 3]; ctx.beginPath(); ctx.ellipse(px0 + dx, 176 + dy, r * .8, r * 1.35, dx * .08, 0, 6.2832); ctx.fill(); }); }
+  { const px0 = pxL - 14; ctx.save(); ctx.translate(0, 12); rect("rgba(30,14,4,.3)", px0 - 8, 187, 16, 3); rect("#9a4b32", px0 - 6, 176, 12, 12); rect("#b9623f", px0 - 6, 176, 12, 2.5); rect("rgba(0,0,0,.18)", px0 - 6, 186, 12, 2);
+    [[-5, -9, 4], [0, -13, 5], [5, -8, 4], [-2, -6, 4], [3, -4, 3]].forEach(([dx, dy, r], i) => { ctx.fillStyle = ["#3f7d3a", "#4f9a46", "#2f6a34"][i % 3]; ctx.beginPath(); ctx.ellipse(px0 + dx, 176 + dy, r * .8, r * 1.35, dx * .08, 0, 6.2832); ctx.fill(); }); ctx.restore(); }
   // luz ambiente, spot e vinheta
   const lg = ctx.createRadialGradient(cx, 40, 4, cx, 150, 150); lg.addColorStop(0, "rgba(255,238,200,.35)"); lg.addColorStop(1, "rgba(255,238,200,0)"); ctx.fillStyle = lg; ctx.fillRect(0, 0, pxL, H);
   const cg = ctx.createLinearGradient(0, 0, 0, 232); cg.addColorStop(0, "rgba(255,244,214,.22)"); cg.addColorStop(1, "rgba(255,244,214,.04)");
