@@ -575,17 +575,17 @@ function shadowLight() {                                                       /
   const sunny = DAY.sunA >= DAY.moonA * 0.55, lx = sunny ? DAY.sunX : DAY.moonX, e = sunny ? DAY.sunE : 0.55;
   const str = sunny ? DAY.sunA : DAY.moonA * 0.22;
   const nx = Math.max(-1, Math.min(1, (lx - 240) / 180));
-  const ratio = Math.min(1.5, 0.28 + 1.9 * Math.pow(1 - e, 1.4));            // comprimento da sombra / altura (curta ao meio-dia, comprida no nascer/pôr do sol)
-  return { str, ls: -nx * ratio };                                            // ls: quanto a sombra se desloca para o lado por px de altura (sol à direita = sombra para a esquerda)
+  const ratio = Math.min(1.6, 0.2 + 2.0 * Math.pow(1 - e, 1.4));            // comprimento da sombra / altura (curta ao meio-dia, comprida no nascer/pôr do sol)
+  return { str, ls: -nx * ratio, dz: ratio * (0.2 + 0.8 * Math.sqrt(1 - nx * nx)) };   // dz: quanto ela avança para a frente (para quem olha); ao meio-dia é curta e fica colada nos pés                                            // ls: quanto a sombra se desloca para o lado por px de altura (sol à direita = sombra para a esquerda)
 }
 function fisherSoft(dir) {                                                     // sombrinha de contato sob os pés (a sombra comprida é a projetada, feita em drawFisher)
   if (SOFT_OFF > 0) return;
   if (CAST_OFF > 0) { softShadow(-7 * dir, 1.4, 17, 2.6, 0.34, 3); softShadow(0, 1.1, 8, 1.7, 0.5, 3); return; }   // loja/prévia: visual antigo
   const f = shadeFade(); if (f < 0.02) return;
-  ctx.save(); ctx.globalAlpha *= f; softShadow(0, 1.1, 6.5, 1.5, 0.34, 3); ctx.restore();
+  ctx.save(); ctx.globalAlpha *= f; softShadow(0, 1.2, 7, 1.7, 0.42, 3); ctx.restore();
 }
 function castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner) {
-  const f = shadeFade(), L = shadowLight(), a = 0.4 * L.str * f;
+  const f = shadeFade(), L = shadowLight(), a = 0.62 * L.str * f;
   if (a < 0.02) return;
   if (!shCv) { shCv = document.createElement("canvas"); shCx = shCv.getContext("2d"); }
   if (shS !== S || shCv.width !== SH_W * S) { shCv.width = SH_W * S; shCv.height = SH_H * S; shS = S; }
@@ -597,13 +597,13 @@ function castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner) {
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = "source-in";   // vira silhueta; mais clara (e mais "macia") longe dos pés
   const g = c.createLinearGradient(0, SH_OY * S, 0, top * S); g.addColorStop(0, "rgba(14,6,30,1)"); g.addColorStop(1, "rgba(14,6,30,.5)");
   c.fillStyle = g; c.fillRect(0, 0, shCv.width, shCv.height); c.globalCompositeOperation = "source-over";
-  const city = CITY.on, dep = city ? 0.2 : 0.085;                              // profundidade: o cais é estreito (3 px), a rua é larga
+  const city = CITY.on, dep = (city ? 0.3 : 0.1) * L.dz;                              // profundidade: o cais é estreito (3 px), a rua é larga
   ctx.save(); ctx.translate(x, PIER_Y);
   ctx.beginPath(); ctx.rect(city ? -400 : -x - 8, -2, city ? 800 : DECK_END + 8, city ? 40 : 5); ctx.clip();   // no cais não sai do deck
   ctx.imageSmoothingEnabled = true;
   const A0 = ctx.globalAlpha;
-  ctx.globalAlpha = A0 * a * 0.62; ctx.save(); ctx.transform(1, 0, -L.ls, -dep, 0, 0.3); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();          // sombra principal
-  ctx.globalAlpha = A0 * a * 0.38; ctx.save(); ctx.transform(1, 0, -L.ls * 1.12, -dep * 1.3, 0, 0.2); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();   // penumbra: um pouco mais comprida e larga
+  ctx.globalAlpha = A0 * a * 0.62; ctx.save(); ctx.transform(1, 0, -L.ls, -dep, 0, 0.6); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();          // sombra principal
+  ctx.globalAlpha = A0 * a * 0.38; ctx.save(); ctx.transform(1, 0, -L.ls * 1.12, -dep * 1.3, 0, 0.4); ctx.drawImage(shCv, -SH_OX, -SH_OY, SH_W, SH_H); ctx.restore();   // penumbra: um pouco mais comprida e larga
   ctx.restore();
 }
 function drawFisher(x, dir, shirt, hat, amp = 0, pose = null, look = null) {
