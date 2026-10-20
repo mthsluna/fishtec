@@ -480,6 +480,14 @@ function rodPose(R, b) {                                   // soma a animação 
 // mantêm o tamanho (só sobem). Nada é esticado: cada parte é desenhada já com o comprimento certo dentro de drawFisherBase/Turn.
 const LEG_SHARE = 0.73;                                                         // fatia do ganho de altura que vai para as pernas (o resto vai para o tronco)
 let LEGX = 0, TORSOX = 0, AL = 8;                                               // AL: comprimento do braço (cresce com a altura, junto com as pernas)
+const BREATH_AMP = 0.7;                                                        // quanto o peito sobe ao inspirar (px do jogo; 0 desliga a respiração)
+const breath = () => BREATH_AMP * (0.5 - 0.5 * Math.cos(performance.now() / 700));   // 0 (expirou) ... BREATH_AMP (peito cheio), suave nas duas pontas
+function torsoBreath(br, fn) {                                                 // desenha o tronco esticando só para cima: a base (quadril, cinto) fica parada
+  if (br < 0.001) { fn(); return; }
+  const H = 14 + TORSOX, pv = -10 + TORSOX;
+  ctx.save(); ctx.translate(0, pv); ctx.scale(1, 1 + br / H); ctx.translate(0, -pv);
+  try { fn(); } finally { ctx.restore(); }
+}
 function collarFront(col) {                                                    // gola redonda de frente: barra escura em "U" em volta do pescoço
   rect(shade(col, 0.76), -3.2, -24.6, 6.4, 4.2);                                                   // barra (ribana), quadrada
   rect("#e0ac69", -2.2, -24.8, 4.4, 3);                                                            // pescoço aparecendo no decote quadrado
@@ -699,7 +707,7 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
   const kt = at / (Math.PI / 2), avg = (tn[0] + tn[1] + tn[2]) / 3;
   ctx.save(); ctx.translate(x, PIER_Y); ctx.scale(dir, 1);
   fisherSoft(dir);
-  ctx.translate(0, Math.sin(performance.now() / 600) * 0.3 * avg);                   // respira (igual ao parado de frente)
+  const br = breath() * avg;                                                          // respira (igual ao parado de frente): só o peito sobe, o corpo todo não flutua
   // vara nas costas (atrás de tudo): a ponta de baixo e a de cima giram junto com o tronco
   const UP = LEGX + TORSOX;
   if (false) {                                                                        // (vara das costas removida) só existe de lado: some enquanto vira de frente
@@ -720,14 +728,17 @@ function drawFisherTurn(x, dir, shirt, hat, tn) {
     ctx.restore();
   };
   const farX = AW * st, farA = mix(1.4, Math.PI / 2 - 0.03, st), farY = mix(-22, -21.5, st);
-  arm(farX, farY, farA, 1); shoulder(farX, farY, sleeve);
+  ctx.save(); ctx.translate(0, -br); arm(farX, farY, farA, 1); shoulder(farX, farY, sleeve); ctx.restore();
   // tronco (a largura vai de fino, de lado, a normal, de frente)
   const TWt = TWM(TWS, TW, st);
+  torsoBreath(br, () => {
   rect(shirt, -TWt, -24, TWt * 2, 14 + TORSOX); shirtDeco(2 * ch, TWt);
   rect("rgba(0,0,0,.25)", -TWt, -24, mix(3.5, 2.5, kt), 14 + TORSOX); rect("rgba(255,255,255,.18)", mix(TWt - 3, TWt - 2.5, kt), -24, mix(2, 2.5, kt), 14 + TORSOX);
   if (st > 0.3) rect(`rgba(0,0,0,${0.5 * st * ct})`, TWt * ct - 0.3, -24, 0.6, 12 + TORSOX);        // costura da frente deslizando para o meio
+  });
   rect("#5a3b22", -TWt, -12 + TORSOX, TWt * 2, 2);
   if (st > 0.15) rect("#e8c34a", TWt * ct - st, -12 + TORSOX, 2 * st, 2);                          // fivela aparece quando a frente vira para nós
+  ctx.translate(0, -br);                                                              // daqui para cima (braços, pescoço, cabeça, chapéu) sobe junto com o peito
   const fa = Math.min(1, Math.max(0, (st - 0.8) / 0.2));
   if (fa > 0) { arm(farX, farY, farA, fa); ctx.globalAlpha *= fa; shoulder(farX, farY, sleeve); ctx.globalAlpha /= fa; }                                                // de frente: o braço do outro lado passa a ficar por cima
   arm(SHX * ct - AW * st, mix(-20.25, -21.5, st), mix(1.4, Math.PI / 2 + 0.03, st), 1); shoulder(SHX * ct - AW * st, mix(-20.25, -21.5, st), sleeve);                // braço de perto
@@ -770,12 +781,14 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   fisherSoft(dir);        // sombra de contato nos pés (a sombra comprida é projetada em drawFisher)
   if (P.cheer !== undefined || fk >= 0.5) {                                          // comemorando (braços pro alto) ou parado (braços caídos): de frente para o jogador
     const wv = P.wv || 0, idle = P.cheer === undefined;
-    ctx.translate(0, idle ? Math.sin(performance.now() / 600) * 0.3 : -(P.hop || 0));    // parado: respira de leve
+    if (!idle) ctx.translate(0, -(P.hop || 0));                                         // (parado: o corpo fica no chão; quem respira é só o peito, abaixo)
     const lg = (lx, col) => { legBlock(col, lx, 4); shoe(lx - 0.5, -2.5, 5, 2.5); };
     lg(-4.6, LEGS[0]); lg(0.6, LEGS[1]);
     ctx.translate(0, -(LEGX + TORSOX));                                              // tudo de cima (tronco, braços, cabeça) sobe
-    rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); shirtDeco(0); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TORSOX);
+    const br = idle ? breath() : 0;
+    torsoBreath(br, () => { rect(shirt, -TW, -24, TW * 2, 14 + TORSOX); shirtDeco(0); rect("rgba(0,0,0,.2)", -TW, -24, 2.5, 14 + TORSOX); rect("rgba(255,255,255,.18)", TW - 2.5, -24, 2.5, 14 + TORSOX); });
     rect("#5a3b22", -TW, -12 + TORSOX, TW * 2, 2); rect("#e8c34a", -1, -12 + TORSOX, 2, 2);
+    ctx.translate(0, -br);                                                            // ombros, braços, cabeça e chapéu sobem com o peito
     const arm = (sx, ang) => { ctx.save(); ctx.translate(sx, -21.5); ctx.rotate(ang);
       rect(sleeve, 0, -1.75, AL, 3.5); rect("rgba(0,0,0,.2)", 0, 1.25, AL, 0.5); rect("#f1c27d", AL - 0.5, -1.75, 3, 3.5); ctx.restore(); };
     if (idle) { arm(-AW, Math.PI / 2 + 0.03); arm(AW, Math.PI / 2 - 0.03); }
