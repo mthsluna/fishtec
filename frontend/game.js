@@ -609,7 +609,7 @@ function castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner) {
 }
 // ---------- Estilo "rabisco": o pescador ganha contorno de caneta (que treme de leve, como desenho à mão), hachuras e tênis ----------
 // Ajuste em SK: on (liga/desliga), ink (cor do traço), w (espessura do contorno em px do jogo), wob (quanto o traço treme, 0 a 1), hatch (força dos rabiscos de sombra, 0 = nenhum)
-const SK = { on: true, ink: "#17120f", w: 1.5, wob: 0.7, hatch: 0.06 };
+const SK = { on: true, ink: "#17120f", w: 1.1, wob: 0.42, hatch: 0.06 };
 const SK_W = 120, SK_H = 100, SK_OX = 60, SK_OY = 88;                           // quadro do boneco (px do jogo): pés em (SK_OX, SK_OY)
 const SKC = { k: 0, spr: null, tint: null, fin: null };
 const skHatch = (() => { let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647;
@@ -641,7 +641,7 @@ function sketchFisher(x, dir, shirt, hat, amp, pose, look, inner, hop) {
   t.setTransform(1, 0, 0, 1, 0, 0); t.globalCompositeOperation = "source-over"; t.clearRect(0, 0, w, h); t.drawImage(SKC.spr, 0, 0);
   t.globalCompositeOperation = "source-in"; t.fillStyle = SK.ink; t.fillRect(0, 0, w, h); t.globalCompositeOperation = "source-over";
   f.setTransform(1, 0, 0, 1, 0, 0); f.globalAlpha = 1; f.clearRect(0, 0, w, h);
-  const ph = (performance.now() / 75 | 0) % 5, r0 = SK.w * k;
+  const ph = (performance.now() / 100 | 0) % 4, r0 = SK.w * k;
   for (let i = 0; i < 8; i++) {
     const a = i * Math.PI / 4 + 0.4, n = Math.abs(Math.sin((i + 1) * 12.9898 + ph * 78.233) * 43758.5453) % 1, rr = r0 * (1 + SK.wob * (n - 0.5) * 2);
     f.drawImage(SKC.tint, Math.cos(a) * rr, Math.sin(a) * rr);
@@ -3990,12 +3990,13 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
     const dx = b.g === "door" ? x + ri(10, Math.max(10, w - 30)) : x + 8; doorAt(dx, true);
     if (b.g === "door") { if (dx - x > 18 && r() < .8) vPot(dx - 9, false, B, r, pk); if (x + w - dx > 40 && r() < .8) vPot(dx + 24, false, B, r, pk); }
     if (b.g === "sign") {                                                    // grafite desgastado do caminho do cais: peixe + "CAIS" + seta (a saída da cidade)
-      const cx = CITY.MAX - 40 + 23, by = B - 38, hs = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+      const G = Math.min(.92, (w - 38) / 86), cx = x + 33 + 44 * G, by = B - 38, hs = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
       const OW = 112, OH = 58, ox = cx - 52, oy = by - 30, main = ctx, tfm = main.getTransform(), kq = Math.max(1, Math.min(10, Math.hypot(tfm.a, tfm.b)));
       const oc = document.createElement("canvas"); oc.width = Math.ceil(OW * kq); oc.height = Math.ceil(OH * kq); const o2 = oc.getContext("2d");
       o2.setTransform(kq, 0, 0, kq, -ox * kq, -oy * kq);
       ctx = o2;                                                                  // pinta o grafite à parte para poder "gastar" a tinta sem apagar a parede
       try {
+        ctx.save(); ctx.translate(cx, by); ctx.scale(G, G); ctx.translate(-cx, -by);                                   // cabe entre a porta (com o lampião) e a borda do prédio
         const INK = "#0d141b", BONE = "#e9e3cf", RUST = "#a8432c";
         ctx.save(); ctx.translate(cx, by); ctx.scale(1.9, .9); vBlot(0, 0, 26, "14,34,52", .5); ctx.restore();   // névoa de spray escura atrás (dá contraste)
         // peixe: atum/serra realista (dorso escuro, ventre prateado, nadadeiras em espinhos, cauda furcada)
@@ -4035,9 +4036,10 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
         const ay = by + 12, arrow = () => { ctx.beginPath(); ctx.moveTo(cx - 8, ay - 1.9); ctx.lineTo(cx + 30, ay - 1.9); ctx.lineTo(cx + 30, ay - 6.2); ctx.lineTo(cx + 42, ay); ctx.lineTo(cx + 30, ay + 6.2); ctx.lineTo(cx + 30, ay + 1.9); ctx.lineTo(cx - 8, ay + 1.9); ctx.closePath(); };
         ctx.save(); ctx.translate(1.3, 1.5); arrow(); ctx.fillStyle = RUST; ctx.fill(); ctx.restore();
         arrow(); ctx.fillStyle = vLG(0, ay - 6, 0, ay + 6, [[0, "#f4efdd"], [1, "#cdc5a8"]]); ctx.fill(); ctx.lineWidth = 1.5; ctx.lineJoin = "round"; ctx.strokeStyle = INK; ctx.stroke();
+        ctx.restore();
         // ---- desgaste (~55%): tinta lascada, rachaduras, escorridos de chuva, mancha de umidade embaixo ----
         ctx.globalCompositeOperation = "destination-out";
-        for (let k = 0; k < 1700; k++) { const x = ox + hs(k) * OW, y = oy + hs(k + 2000) * OH, q = .22 + Math.pow(hs(k + 5000), 2) * 1.25; ctx.fillStyle = `rgba(0,0,0,${.45 + .55 * hs(k + 7000)})`; ctx.fillRect(x, y, q * 1.4, q); }
+        for (let k = 0; k < 520; k++) { const x = ox + hs(k) * OW, y = oy + hs(k + 2000) * OH, q = .3 + Math.pow(hs(k + 5000), 2) * 1.5; ctx.fillStyle = vRG(x, y, 0, q, [[0, `rgba(0,0,0,${.35 + .4 * hs(k + 7000)})`], [1, "rgba(0,0,0,0)"]]); ctx.beginPath(); ctx.arc(x, y, q, 0, 6.3); ctx.fill(); }   // lascas macias (nada de quadradinhos)
         for (let k = 0; k < 22; k++) { const x = ox + 6 + hs(k + 100) * (OW - 12), y = oy + 4 + hs(k + 200) * (OH - 8), q = 2.5 + hs(k + 300) * 6.5; ctx.fillStyle = vRG(x, y, 0, q, [[0, "rgba(0,0,0,.9)"], [.6, "rgba(0,0,0,.45)"], [1, "rgba(0,0,0,0)"]]); ctx.beginPath(); ctx.ellipse(x, y, q * 1.3, q * .8, hs(k + 400) * 3, 0, 6.3); ctx.fill(); }
         for (let k = 0; k < 14; k++) { const x = ox + 4 + hs(k + 500) * (OW - 8), y = oy + hs(k + 600) * 14, w2 = .5 + hs(k + 700) * 1.3, h2 = 12 + hs(k + 800) * 26; ctx.fillStyle = vLG(0, y, 0, y + h2, [[0, "rgba(0,0,0,.65)"], [1, "rgba(0,0,0,0)"]]); ctx.fillRect(x, y, w2, h2); }
         ctx.strokeStyle = "rgba(0,0,0,.9)"; ctx.lineWidth = .32; ctx.lineCap = "round";
