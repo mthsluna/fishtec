@@ -724,10 +724,10 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   const rk = P.run || 0;
   const ph = P.gait !== undefined ? P.gait : x * dir / (11 + 3 * rk + LEGX * 0.5);   // fase da passada: avança com o chão percorrido (pernas mais longas dão passadas mais longas)
   const gs = Math.sin(ph), gc = Math.cos(ph);
-  const GA = amp * (0.5 + 0.2 * rk), KB = amp * (0.38 + 0.85 * rk), LG = 11 + LEGX;       // GA: abertura da coxa; KB: quanto o joelho dobra na perna que vai pra frente; LG: comprimento da perna
+  const GA = amp * 0.5, KB = amp * (0.2 + 0.45 * rk), LG = 11 + LEGX;       // GA: abertura da coxa; KB: quanto o joelho dobra na perna que vai pra frente; LG: comprimento da perna
   const sw = P.brake ? 0.85 * P.brake : gs * amp;                                    // freando: pernas abertas e firmes
-  const bob = (P.brake ? 1.1 * P.brake : LG * (1 - Math.cos(GA * gs)) * (1 - 0.35 * rk) - rk * 2.4 * Math.abs(gc) - (1 - rk) * 0.5 * amp * Math.abs(gc) * 0.6) + (P.sb || 0);   // o quadril desce quando as pernas abrem (pé sempre no chão) e quica ao correr
-  const armSw = (P.brake ? 0 : gs * amp) * (0.42 + 0.5 * rk);                       // braço balança CONTRA a perna do mesmo lado (antes balançava junto, e por isso parecia torto)
+  const bob = (P.brake ? 1.1 * P.brake : LG * (1 - Math.cos(GA * gs)) * (1 - 0.35 * rk) - rk * 1.2 * Math.abs(gc)) + (P.sb || 0);   // o quadril desce quando as pernas abrem (pé sempre no chão) e quica ao correr
+  const armSw = (P.brake ? 0 : gs * amp) * (0.35 + 0.2 * rk);                       // braço balança CONTRA a perna do mesmo lado (antes balançava junto, e por isso parecia torto)
   const s = P.stow !== undefined ? P.stow : 0;                                      // vara: 0 na mão ... 1 nas costas
   const sv = P.sv || 0, wig = P.wig || 0;
   const h1x = SHX + AL * Math.cos(RA), h1y = SHY + AL * Math.sin(RA);               // mão atrás do ombro (onde a vara é segurada para deslizar)
@@ -765,10 +765,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
   if (P.crank === undefined) {                                                     // braço livre, desenhado ANTES das pernas: fica atrás delas e não atravessa a calça (na hora de puxar o peixe ele gira a manivela)
     const ak = AL / 8;
     ctx.save(); ctx.translate(0, -(LEGX + TORSOX) - 22 + bob); ctx.rotate((P.brake ? -sw * 0.6 : armSw) + 0.1 + (P.off || 0));   // braço livre: oposto ao braço da vara (e contrapeso no arremesso)
-    const eb = P.brake ? 0.1 : 0.22 + 0.95 * rk + 0.25 * amp * Math.max(0, Math.sin(ph) * 0.6) * (1 + rk);   // cotovelo dobra (mais ao correr, mais quando o braço vai pra frente)
-    rect(sleeve, -1.7, 0, 3.4, 4.8 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 4.8 * ak);
-    ctx.translate(0, 4.6 * ak); ctx.rotate(-eb);
-    rect(sleeve, -1.7, 0, 3.4, 4.4 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 4.4 * ak); rect("#d9ab6f", -1.7, 4 * ak, 3.4, 3);
+    rect(sleeve, -1.7, 0, 3.4, 9 * ak); rect("rgba(0,0,0,.2)", -1.7, 0, 3.4, 9 * ak); rect("#d9ab6f", -1.7, 8.5 * ak, 3.4, 3);
     ctx.restore();
   }
   const leg = (th, kn, col) => {                                                 // coxa gira no quadril; a canela gira no joelho (dobra para trás)
@@ -777,8 +774,7 @@ function drawFisherBase(x, dir, shirt, hat, amp = 0, pose = null) {
     rect(col, -2.3, 0, 4.6, Lt + 0.4);
     ctx.translate(0, Lt); ctx.rotate(kn);
     rect(PIT && PIT.shorts ? shade(SKIN_LEG, col === LEGS[0] ? .82 : 1) : col, -2.3, 0, 4.6, Lt); if (PIT && PIT.shorts) rect("rgba(0,0,0,.25)", -2.3, -.5, 4.6, .7);
-    const sw2 = KB > 0.001 ? Math.min(1, kn / KB) : 0, ank = -(th + kn) * (th > 0 && sw2 < 0.3 ? 0.6 : 0.88);   // tornozelo: pé quase reto no chão; calcanhar levanta só quando a perna fica atrás
-    ctx.save(); ctx.translate(0, Lt); ctx.rotate(ank); ctx.translate(0, -Lt); shoe(-3, Lt - 0.5, 6.6, 2.5); ctx.restore();
+    shoe(-3, Lt - 0.5, 6.6, 2.5);
     ctx.restore();
   };
   if (P.brake) { leg(-0.64 * P.brake, 0, LEGS[0]); leg(0.64 * P.brake, 0, LEGS[1]); }   // freando: pernas abertas e retas
@@ -1904,8 +1900,8 @@ function movePose() {                                                           
   if (state !== "walk") return null;
   let base = null;
   if (brake > 0.08) base = { rod: REST, arm: -0.4, lean: -0.24 * brake, off: 2.5, flex: 0, run: 0, brake };
-  else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.3 * runK + 0.04 * Math.sin(gaitPh * 2), off: 0, flex: 0, run: runK };   // corrida: inclinado e o tronco pulsa a cada passada
-  const b = base || { rod: REST, arm: 0, lean: 0.045 * walkAmp + 0.012 * walkAmp * Math.sin(gaitPh * 2 - 0.6), off: 0, flex: 0 };   // andar: leve inclinação pra frente com balanço do tronco
+  else if (runK > 0.05) base = { rod: REST, arm: 0, lean: 0.22 * runK, off: 0, flex: 0, run: runK };
+  const b = base || { rod: REST, arm: 0, lean: 0, off: 0, flex: 0 };
   if (frontK > 0.001) { b.front = frontK; b.turn = [turnH, turnT, turnL]; }
   b.gait = gaitPh;
   if (PH.hold > 0.001) { b.phone = PH.hold; b.lean = (b.lean || 0) + 0.05 * PH.hold; }   // celular na mão: braço erguido, cabeça baixa, tronco levemente inclinado
@@ -3993,11 +3989,51 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
   if (b.g === "door" || b.g === "sign" || b.g === "shrine") {
     const dx = b.g === "door" ? x + ri(10, Math.max(10, w - 30)) : x + 8; doorAt(dx, true);
     if (b.g === "door") { if (dx - x > 18 && r() < .8) vPot(dx - 9, false, B, r, pk); if (x + w - dx > 40 && r() < .8) vPot(dx + 24, false, B, r, pk); }
-    if (b.g === "sign") {                                                    // placa azul do caminho do cais (a saída da cidade)
-      const sx = CITY.MAX - 40;
-      vRR(sx - 1.4, B - 55, 49, 17, 2.6, "#eef2e6"); vRR(sx, B - 53.6, 46.2, 14.2, 1.8, vLG(0, B - 54, 0, B - 39, [[0, "#2d6cb0"], [1, "#1a4a85"]]));
-      vSoft(sx - 1, B - 38, 48, 4, .28);
-      vText("CAIS  >", sx + 23, B - 43, "#ffffff", 8.4, 40, "rgba(0,0,30,.4)");
+    if (b.g === "sign") {                                                    // grafite do caminho do cais: peixe + "CAIS" + seta (a saída da cidade)
+      const cx = CITY.MAX - 40 + 23, by = B - 38, hs = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+      ctx.save();
+      ctx.save(); ctx.translate(cx, by); ctx.scale(1.9, .9); vBlot(0, 0, 26, "20,64,120", .62); ctx.restore();           // névoa de spray azul atrás de tudo
+      ctx.save(); ctx.translate(cx - 18, by + 3); ctx.scale(1.2, .8); vBlot(0, 0, 18, "30,190,180", .28); ctx.restore();
+      ctx.save(); ctx.translate(cx + 20, by - 2); ctx.scale(1.2, .8); vBlot(0, 0, 18, "255,120,60", .22); ctx.restore();
+      const INK = "#0b1830";
+      // peixe (olhando pra direita, pro cais)
+      ctx.save(); ctx.translate(cx - 19, by - 1); ctx.scale(.82, .82); ctx.lineJoin = "round"; ctx.lineCap = "round";
+      const body = () => { ctx.beginPath(); ctx.moveTo(15, 0); ctx.bezierCurveTo(9, -10, -4, -9, -11, -2.2); ctx.lineTo(-19, -9); ctx.quadraticCurveTo(-15.5, 0, -19, 9); ctx.lineTo(-11, 2.2); ctx.bezierCurveTo(-4, 9, 9, 10, 15, 0); ctx.closePath(); };
+      ctx.translate(1.1, 1.4); body(); ctx.fillStyle = "rgba(5,10,30,.55)"; ctx.fill(); ctx.translate(-1.1, -1.4);          // sombra desalinhada (estilo adesivo)
+      ctx.beginPath(); ctx.moveTo(4, -8); ctx.lineTo(-3, -15); ctx.lineTo(-8, -5); ctx.closePath();                                          // nadadeira de cima
+      ctx.fillStyle = "#ff8a1f"; ctx.fill(); ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
+      body(); ctx.fillStyle = vLG(0, -9, 0, 9, [[0, "#3df0d0"], [.55, "#1fa8dc"], [1, "#1c63c4"]]); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.save(); body(); ctx.clip();
+      ctx.beginPath(); ctx.moveTo(-19, -9); ctx.lineTo(-11, 0); ctx.lineTo(-19, 9); ctx.lineTo(-23, 9); ctx.lineTo(-23, -9); ctx.closePath(); ctx.fillStyle = "#ff8a1f"; ctx.fill();   // cauda laranja
+      ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.lineWidth = .9;
+      for (let c = -6; c <= 6; c += 4.2) for (let rr = -4; rr <= 4; rr += 4) { ctx.beginPath(); ctx.arc(c + (rr ? 2 : 0), rr, 2.1, -1.2, 1.2); ctx.stroke(); }   // escamas
+      ctx.beginPath(); ctx.ellipse(2, -5.2, 8, 1.6, -.12, 0, 6.3); ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fill();                      // brilho
+      ctx.restore();
+      ctx.beginPath(); ctx.moveTo(-1.5, -6.5); ctx.quadraticCurveTo(-4.8, 0, -1.5, 6.5); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke();   // guelra
+      vCirc(8, -2.4, 3.1, "#fff"); ctx.lineWidth = 1.1; ctx.strokeStyle = INK; ctx.beginPath(); ctx.arc(8, -2.4, 3.1, 0, 6.3); ctx.stroke(); vCirc(8.7, -2.2, 1.5, INK); vCirc(9.2, -2.9, .55, "#fff");   // olho
+      ctx.beginPath(); ctx.moveTo(14.3, 1.3); ctx.quadraticCurveTo(11.5, 3, 9.5, 2.4); ctx.lineWidth = 1; ctx.stroke();                          // boca
+      ctx.beginPath(); ctx.moveTo(-2, 5.5); ctx.lineTo(-6, 11); ctx.lineTo(2.5, 7.2); ctx.closePath(); ctx.fillStyle = "#ff8a1f"; ctx.fill(); ctx.lineWidth = 1.2; ctx.stroke();   // nadadeira de baixo
+      ctx.restore();
+      [[cx - 3, by - 13, 1.5], [cx - 6, by - 18, 1], [cx - 1, by - 21, .8]].forEach(([bx2, by2, q]) => { ctx.beginPath(); ctx.arc(bx2, by2, q, 0, 6.3); ctx.lineWidth = .7; ctx.strokeStyle = "rgba(220,250,255,.85)"; ctx.stroke(); });   // bolhas
+      // "CAIS" em letras grossas de grafite: contorno escuro, degradê amarelo->rosa, sombra deslocada e brilho
+      ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round";
+      let fs = 19; ctx.font = fs + "px " + UI_FONT; const tw = ctx.measureText("CAIS").width; if (tw > 36) { fs *= 36 / tw; ctx.font = fs + "px " + UI_FONT; }
+      const tx0 = cx + 16, ty0 = by + 2;
+      ctx.fillStyle = "rgba(5,10,30,.6)"; ctx.strokeStyle = "rgba(5,10,30,.6)"; ctx.lineWidth = 3.4; ctx.strokeText("CAIS", tx0 + 1.4, ty0 + 1.6); ctx.fillText("CAIS", tx0 + 1.4, ty0 + 1.6);
+      ctx.strokeStyle = INK; ctx.lineWidth = 3.2; ctx.strokeText("CAIS", tx0, ty0);
+      ctx.fillStyle = vLG(0, ty0 - fs * .8, 0, ty0, [[0, "#fff176"], [.5, "#ffb13b"], [1, "#ff4f8b"]]); ctx.fillText("CAIS", tx0, ty0);
+      ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = .7; ctx.strokeText("CAIS", tx0 - .25, ty0 - .3);
+      ctx.restore();
+      [[-12, 1.2], [-2, 1.8], [9, 1], [18, 1.5]].forEach(([dx2, q], k) => { const dl = 3 + hs(k + 3) * 5; vRR(tx0 + dx2 - q / 2, ty0 + .5, q, dl, q / 2, "#ff6a8a"); vCirc(tx0 + dx2, ty0 + .5 + dl, q * .75, "#ff6a8a"); });   // pingos de tinta escorrendo
+      // seta de spray embaixo, apontando pro cais
+      const ay = by + 12;
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.moveTo(cx - 8, ay + 1); ctx.quadraticCurveTo(cx + 12, ay - 3, cx + 30, ay); ctx.lineWidth = 4.4; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + 27, ay - 6); ctx.lineTo(cx + 40, ay); ctx.lineTo(cx + 27, ay + 6); ctx.lineWidth = 4.4; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - 8, ay + 1); ctx.quadraticCurveTo(cx + 12, ay - 3, cx + 30, ay); ctx.lineWidth = 2.4; ctx.strokeStyle = "#fff3a0"; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + 27, ay - 6); ctx.lineTo(cx + 40, ay); ctx.lineTo(cx + 27, ay + 6); ctx.lineWidth = 2.4; ctx.stroke();
+      for (let k = 0; k < 26; k++) { const a = hs(k) * 6.283, d = 20 + hs(k + 40) * 26; vCirc(cx + 6 + Math.cos(a) * d * 1.5, by + 1 + Math.sin(a) * d * .5, .25 + hs(k + 90) * .35, k % 3 ? "rgba(255,255,255,.55)" : "rgba(255,140,170,.6)"); }   // respingos de spray
+      ctx.restore();
     }
     // (o nicho com a santa e as velinhas foi removido: o prédio "shrine" agora é só uma porta comum)
   } else if (b.g === "shop") {
