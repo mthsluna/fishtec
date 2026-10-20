@@ -609,7 +609,7 @@ function castFisherShadow(x, dir, shirt, hat, amp, pose, look, inner) {
 }
 // ---------- Estilo "rabisco": o pescador ganha contorno de caneta (que treme de leve, como desenho à mão), hachuras e tênis ----------
 // Ajuste em SK: on (liga/desliga), ink (cor do traço), w (espessura do contorno em px do jogo), wob (quanto o traço treme, 0 a 1), hatch (força dos rabiscos de sombra, 0 = nenhum)
-const SK = { on: true, ink: "#17120f", w: 0.8, wob: 0.12, hatch: 0.06 };
+const SK = { on: true, ink: "#17120f", w: 1.5, wob: 0.7, hatch: 0.06 };
 const SK_W = 120, SK_H = 100, SK_OX = 60, SK_OY = 88;                           // quadro do boneco (px do jogo): pés em (SK_OX, SK_OY)
 const SKC = { k: 0, spr: null, tint: null, fin: null };
 const skHatch = (() => { let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647;
@@ -641,7 +641,7 @@ function sketchFisher(x, dir, shirt, hat, amp, pose, look, inner, hop) {
   t.setTransform(1, 0, 0, 1, 0, 0); t.globalCompositeOperation = "source-over"; t.clearRect(0, 0, w, h); t.drawImage(SKC.spr, 0, 0);
   t.globalCompositeOperation = "source-in"; t.fillStyle = SK.ink; t.fillRect(0, 0, w, h); t.globalCompositeOperation = "source-over";
   f.setTransform(1, 0, 0, 1, 0, 0); f.globalAlpha = 1; f.clearRect(0, 0, w, h);
-  const ph = (performance.now() / 140 | 0) % 3, r0 = SK.w * k;
+  const ph = (performance.now() / 75 | 0) % 5, r0 = SK.w * k;
   for (let i = 0; i < 8; i++) {
     const a = i * Math.PI / 4 + 0.4, n = Math.abs(Math.sin((i + 1) * 12.9898 + ph * 78.233) * 43758.5453) % 1, rr = r0 * (1 + SK.wob * (n - 0.5) * 2);
     f.drawImage(SKC.tint, Math.cos(a) * rr, Math.sin(a) * rr);
@@ -3989,51 +3989,64 @@ function vBuilding(D, b, bi, B, r, ri, pk) {
   if (b.g === "door" || b.g === "sign" || b.g === "shrine") {
     const dx = b.g === "door" ? x + ri(10, Math.max(10, w - 30)) : x + 8; doorAt(dx, true);
     if (b.g === "door") { if (dx - x > 18 && r() < .8) vPot(dx - 9, false, B, r, pk); if (x + w - dx > 40 && r() < .8) vPot(dx + 24, false, B, r, pk); }
-    if (b.g === "sign") {                                                    // grafite do caminho do cais: peixe + "CAIS" + seta (a saída da cidade)
-      const cx = CITY.MAX - 40 + 23, by = B - 38, hs = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
-      ctx.save();
-      ctx.save(); ctx.translate(cx, by); ctx.scale(1.9, .9); vBlot(0, 0, 26, "20,64,120", .62); ctx.restore();           // névoa de spray azul atrás de tudo
-      ctx.save(); ctx.translate(cx - 18, by + 3); ctx.scale(1.2, .8); vBlot(0, 0, 18, "30,190,180", .28); ctx.restore();
-      ctx.save(); ctx.translate(cx + 20, by - 2); ctx.scale(1.2, .8); vBlot(0, 0, 18, "255,120,60", .22); ctx.restore();
-      const INK = "#0b1830";
-      // peixe (olhando pra direita, pro cais)
-      ctx.save(); ctx.translate(cx - 19, by - 1); ctx.scale(.82, .82); ctx.lineJoin = "round"; ctx.lineCap = "round";
-      const body = () => { ctx.beginPath(); ctx.moveTo(15, 0); ctx.bezierCurveTo(9, -10, -4, -9, -11, -2.2); ctx.lineTo(-19, -9); ctx.quadraticCurveTo(-15.5, 0, -19, 9); ctx.lineTo(-11, 2.2); ctx.bezierCurveTo(-4, 9, 9, 10, 15, 0); ctx.closePath(); };
-      ctx.translate(1.1, 1.4); body(); ctx.fillStyle = "rgba(5,10,30,.55)"; ctx.fill(); ctx.translate(-1.1, -1.4);          // sombra desalinhada (estilo adesivo)
-      ctx.beginPath(); ctx.moveTo(4, -8); ctx.lineTo(-3, -15); ctx.lineTo(-8, -5); ctx.closePath();                                          // nadadeira de cima
-      ctx.fillStyle = "#ff8a1f"; ctx.fill(); ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
-      body(); ctx.fillStyle = vLG(0, -9, 0, 9, [[0, "#3df0d0"], [.55, "#1fa8dc"], [1, "#1c63c4"]]); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke();
-      ctx.save(); body(); ctx.clip();
-      ctx.beginPath(); ctx.moveTo(-19, -9); ctx.lineTo(-11, 0); ctx.lineTo(-19, 9); ctx.lineTo(-23, 9); ctx.lineTo(-23, -9); ctx.closePath(); ctx.fillStyle = "#ff8a1f"; ctx.fill();   // cauda laranja
-      ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.lineWidth = .9;
-      for (let c = -6; c <= 6; c += 4.2) for (let rr = -4; rr <= 4; rr += 4) { ctx.beginPath(); ctx.arc(c + (rr ? 2 : 0), rr, 2.1, -1.2, 1.2); ctx.stroke(); }   // escamas
-      ctx.beginPath(); ctx.ellipse(2, -5.2, 8, 1.6, -.12, 0, 6.3); ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fill();                      // brilho
-      ctx.restore();
-      ctx.beginPath(); ctx.moveTo(-1.5, -6.5); ctx.quadraticCurveTo(-4.8, 0, -1.5, 6.5); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke();   // guelra
-      vCirc(8, -2.4, 3.1, "#fff"); ctx.lineWidth = 1.1; ctx.strokeStyle = INK; ctx.beginPath(); ctx.arc(8, -2.4, 3.1, 0, 6.3); ctx.stroke(); vCirc(8.7, -2.2, 1.5, INK); vCirc(9.2, -2.9, .55, "#fff");   // olho
-      ctx.beginPath(); ctx.moveTo(14.3, 1.3); ctx.quadraticCurveTo(11.5, 3, 9.5, 2.4); ctx.lineWidth = 1; ctx.stroke();                          // boca
-      ctx.beginPath(); ctx.moveTo(-2, 5.5); ctx.lineTo(-6, 11); ctx.lineTo(2.5, 7.2); ctx.closePath(); ctx.fillStyle = "#ff8a1f"; ctx.fill(); ctx.lineWidth = 1.2; ctx.stroke();   // nadadeira de baixo
-      ctx.restore();
-      [[cx - 3, by - 13, 1.5], [cx - 6, by - 18, 1], [cx - 1, by - 21, .8]].forEach(([bx2, by2, q]) => { ctx.beginPath(); ctx.arc(bx2, by2, q, 0, 6.3); ctx.lineWidth = .7; ctx.strokeStyle = "rgba(220,250,255,.85)"; ctx.stroke(); });   // bolhas
-      // "CAIS" em letras grossas de grafite: contorno escuro, degradê amarelo->rosa, sombra deslocada e brilho
-      ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round";
-      let fs = 19; ctx.font = fs + "px " + UI_FONT; const tw = ctx.measureText("CAIS").width; if (tw > 36) { fs *= 36 / tw; ctx.font = fs + "px " + UI_FONT; }
-      const tx0 = cx + 16, ty0 = by + 2;
-      ctx.fillStyle = "rgba(5,10,30,.6)"; ctx.strokeStyle = "rgba(5,10,30,.6)"; ctx.lineWidth = 3.4; ctx.strokeText("CAIS", tx0 + 1.4, ty0 + 1.6); ctx.fillText("CAIS", tx0 + 1.4, ty0 + 1.6);
-      ctx.strokeStyle = INK; ctx.lineWidth = 3.2; ctx.strokeText("CAIS", tx0, ty0);
-      ctx.fillStyle = vLG(0, ty0 - fs * .8, 0, ty0, [[0, "#fff176"], [.5, "#ffb13b"], [1, "#ff4f8b"]]); ctx.fillText("CAIS", tx0, ty0);
-      ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = .7; ctx.strokeText("CAIS", tx0 - .25, ty0 - .3);
-      ctx.restore();
-      [[-12, 1.2], [-2, 1.8], [9, 1], [18, 1.5]].forEach(([dx2, q], k) => { const dl = 3 + hs(k + 3) * 5; vRR(tx0 + dx2 - q / 2, ty0 + .5, q, dl, q / 2, "#ff6a8a"); vCirc(tx0 + dx2, ty0 + .5 + dl, q * .75, "#ff6a8a"); });   // pingos de tinta escorrendo
-      // seta de spray embaixo, apontando pro cais
-      const ay = by + 12;
-      ctx.lineCap = "round"; ctx.lineJoin = "round";
-      ctx.beginPath(); ctx.moveTo(cx - 8, ay + 1); ctx.quadraticCurveTo(cx + 12, ay - 3, cx + 30, ay); ctx.lineWidth = 4.4; ctx.strokeStyle = INK; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx + 27, ay - 6); ctx.lineTo(cx + 40, ay); ctx.lineTo(cx + 27, ay + 6); ctx.lineWidth = 4.4; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx - 8, ay + 1); ctx.quadraticCurveTo(cx + 12, ay - 3, cx + 30, ay); ctx.lineWidth = 2.4; ctx.strokeStyle = "#fff3a0"; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx + 27, ay - 6); ctx.lineTo(cx + 40, ay); ctx.lineTo(cx + 27, ay + 6); ctx.lineWidth = 2.4; ctx.stroke();
-      for (let k = 0; k < 26; k++) { const a = hs(k) * 6.283, d = 20 + hs(k + 40) * 26; vCirc(cx + 6 + Math.cos(a) * d * 1.5, by + 1 + Math.sin(a) * d * .5, .25 + hs(k + 90) * .35, k % 3 ? "rgba(255,255,255,.55)" : "rgba(255,140,170,.6)"); }   // respingos de spray
-      ctx.restore();
+    if (b.g === "sign") {                                                    // grafite desgastado do caminho do cais: peixe + "CAIS" + seta (a saída da cidade)
+      const cx = CITY.MAX - 40 + 23, by = B - 38, hs = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+      const OW = 112, OH = 58, ox = cx - 52, oy = by - 30, main = ctx, tfm = main.getTransform(), kq = Math.max(1, Math.min(10, Math.hypot(tfm.a, tfm.b)));
+      const oc = document.createElement("canvas"); oc.width = Math.ceil(OW * kq); oc.height = Math.ceil(OH * kq); const o2 = oc.getContext("2d");
+      o2.setTransform(kq, 0, 0, kq, -ox * kq, -oy * kq);
+      ctx = o2;                                                                  // pinta o grafite à parte para poder "gastar" a tinta sem apagar a parede
+      try {
+        const INK = "#0d141b", BONE = "#e9e3cf", RUST = "#a8432c";
+        ctx.save(); ctx.translate(cx, by); ctx.scale(1.9, .9); vBlot(0, 0, 26, "14,34,52", .5); ctx.restore();   // névoa de spray escura atrás (dá contraste)
+        // peixe: atum/serra realista (dorso escuro, ventre prateado, nadadeiras em espinhos, cauda furcada)
+        ctx.save(); ctx.translate(cx - 22, by - 1); ctx.scale(1.12, 1.12); ctx.lineJoin = "round"; ctx.lineCap = "round";
+        const body = () => { ctx.beginPath(); ctx.moveTo(17.5, .6); ctx.bezierCurveTo(13, -4.2, 5, -7.6, -3.5, -6.3); ctx.bezierCurveTo(-7.5, -5.5, -10.5, -3, -12.5, -1.5); ctx.lineTo(-19.5, -8); ctx.quadraticCurveTo(-16.2, 0, -19.5, 8); ctx.lineTo(-12.5, 1.5);
+          ctx.bezierCurveTo(-10, 3.2, -7, 5.8, -3, 6.8); ctx.bezierCurveTo(6, 7.6, 13, 5, 17.5, 1.3); ctx.closePath(); };
+        const fin = (pts, col) => { ctx.beginPath(); pts.forEach(([x, y], q) => q ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = .7; ctx.strokeStyle = INK; ctx.stroke(); };
+        ctx.save(); ctx.translate(.9, 1.1); body(); ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.fill(); ctx.restore();           // sombra de estêncil
+        fin([[4, -6.3], [2.6, -10.2], [1.2, -6.6], [-.2, -9.6], [-1.6, -6.2], [-2.8, -8.6], [-3.8, -6.1]], "#2b4352");   // 1ª dorsal (espinhos)
+        fin([[-7.5, -5], [-9.8, -8.6], [-12, -3.6]], "#2b4352"); fin([[-7, 5.2], [-9.8, 8.6], [-11.4, 2.8]], "#9fb0b3");     // 2ª dorsal e anal
+        for (let f = 0; f < 4; f++) fin([[-13 + f * 1.2, -1.4 - f * .1], [-14 + f * 1.2, -3.2], [-12 + f * 1.2, -1.2]], "#c9b84a");   // pínulas amarelas
+        body(); ctx.fillStyle = vLG(0, -7.6, 0, 7.4, [[0, "#14262f"], [.36, "#35566a"], [.52, "#9db3b8"], [.7, "#dfe6e2"], [1, "#f3f5ef"]]); ctx.fill(); ctx.lineWidth = .95; ctx.strokeStyle = INK; ctx.stroke();
+        ctx.save(); body(); ctx.clip();
+        ctx.strokeStyle = "rgba(8,18,26,.5)"; ctx.lineWidth = .7;
+        for (let q = 0; q < 7; q++) { ctx.beginPath(); ctx.moveTo(8 - q * 3.1, -7); ctx.quadraticCurveTo(7 - q * 3.1, -4.2, 5.4 - q * 3.1, -1.4); ctx.stroke(); }   // listras escuras no dorso
+        ctx.strokeStyle = "rgba(255,255,255,.2)"; ctx.lineWidth = .45;
+        for (let q = 0; q < 7; q++) for (let r2 = 0; r2 < 3; r2++) { ctx.beginPath(); ctx.arc(7 - q * 2.9 + (r2 % 2) * 1.4, -.2 + r2 * 2.5, 1.4, -1.2, 1.2); ctx.stroke(); }   // escamas só sugeridas
+        ctx.beginPath(); ctx.moveTo(10, -.9); ctx.quadraticCurveTo(-2, -1.6, -12.5, -.6); ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.lineWidth = .5; ctx.stroke();   // linha lateral
+        ctx.fillStyle = "rgba(255,255,255,.14)"; ctx.beginPath(); ctx.ellipse(3, 3.6, 10, 1.6, .05, 0, 6.3); ctx.fill();
+        ctx.fillStyle = "#1d3340"; ctx.beginPath(); ctx.moveTo(-12.4, -1.6); ctx.lineTo(-19.5, -8); ctx.quadraticCurveTo(-16.2, 0, -19.5, 8); ctx.lineTo(-12.4, 1.6); ctx.closePath(); ctx.fill();   // cauda escura
+        ctx.restore();
+        ctx.beginPath(); ctx.moveTo(7, -5.4); ctx.quadraticCurveTo(4.4, .2, 7, 5.6); ctx.lineWidth = .8; ctx.strokeStyle = "rgba(10,20,28,.85)"; ctx.stroke();           // opérculo
+        ctx.beginPath(); ctx.moveTo(17.3, .9); ctx.lineTo(13.8, 1.7); ctx.lineWidth = .6; ctx.strokeStyle = INK; ctx.stroke();                                          // boca
+        vCirc(12.2, -1.4, 1.5, "#d6d0b4"); vCirc(12.3, -1.4, 1.05, INK); vCirc(12.6, -1.8, .3, "#fff");                                                           // olho pequeno e frio
+        fin([[5.8, 2.4], [1.6, 7.4], [3.2, 2.6]], "#6e8790");                                                                                                      // peitoral
+        ctx.restore();
+        // "CAIS": letras grossas cor de osso, contorno escuro e extrusão ferrugem (estilo estêncil de rua)
+        ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round";
+        let fs = 19; ctx.font = fs + "px " + UI_FONT; const tw = ctx.measureText("CAIS").width; if (tw > 36) { fs *= 36 / tw; ctx.font = fs + "px " + UI_FONT; }
+        const tx0 = cx + 16, ty0 = by + 2;
+        ctx.fillStyle = RUST; ctx.strokeStyle = RUST; ctx.lineWidth = 3; ctx.strokeText("CAIS", tx0 + 1.5, ty0 + 1.7); ctx.fillText("CAIS", tx0 + 1.5, ty0 + 1.7);
+        ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeText("CAIS", tx0, ty0);
+        ctx.fillStyle = vLG(0, ty0 - fs * .8, 0, ty0, [[0, "#f4efdd"], [1, "#cdc5a8"]]); ctx.fillText("CAIS", tx0, ty0);
+        ctx.restore();
+        [[-3, 1.1, 5], [11, 1.4, 8]].forEach(([dx2, q, dl]) => { vRR(tx0 + dx2 - q / 2, ty0 + .5, q, dl, q / 2, BONE); vCirc(tx0 + dx2, ty0 + .5 + dl, q * .7, BONE); });       // dois pingos discretos
+        // seta reta de estêncil
+        const ay = by + 12, arrow = () => { ctx.beginPath(); ctx.moveTo(cx - 8, ay - 1.9); ctx.lineTo(cx + 30, ay - 1.9); ctx.lineTo(cx + 30, ay - 6.2); ctx.lineTo(cx + 42, ay); ctx.lineTo(cx + 30, ay + 6.2); ctx.lineTo(cx + 30, ay + 1.9); ctx.lineTo(cx - 8, ay + 1.9); ctx.closePath(); };
+        ctx.save(); ctx.translate(1.3, 1.5); arrow(); ctx.fillStyle = RUST; ctx.fill(); ctx.restore();
+        arrow(); ctx.fillStyle = vLG(0, ay - 6, 0, ay + 6, [[0, "#f4efdd"], [1, "#cdc5a8"]]); ctx.fill(); ctx.lineWidth = 1.5; ctx.lineJoin = "round"; ctx.strokeStyle = INK; ctx.stroke();
+        // ---- desgaste (~55%): tinta lascada, rachaduras, escorridos de chuva, mancha de umidade embaixo ----
+        ctx.globalCompositeOperation = "destination-out";
+        for (let k = 0; k < 1700; k++) { const x = ox + hs(k) * OW, y = oy + hs(k + 2000) * OH, q = .22 + Math.pow(hs(k + 5000), 2) * 1.25; ctx.fillStyle = `rgba(0,0,0,${.45 + .55 * hs(k + 7000)})`; ctx.fillRect(x, y, q * 1.4, q); }
+        for (let k = 0; k < 22; k++) { const x = ox + 6 + hs(k + 100) * (OW - 12), y = oy + 4 + hs(k + 200) * (OH - 8), q = 2.5 + hs(k + 300) * 6.5; ctx.fillStyle = vRG(x, y, 0, q, [[0, "rgba(0,0,0,.9)"], [.6, "rgba(0,0,0,.45)"], [1, "rgba(0,0,0,0)"]]); ctx.beginPath(); ctx.ellipse(x, y, q * 1.3, q * .8, hs(k + 400) * 3, 0, 6.3); ctx.fill(); }
+        for (let k = 0; k < 14; k++) { const x = ox + 4 + hs(k + 500) * (OW - 8), y = oy + hs(k + 600) * 14, w2 = .5 + hs(k + 700) * 1.3, h2 = 12 + hs(k + 800) * 26; ctx.fillStyle = vLG(0, y, 0, y + h2, [[0, "rgba(0,0,0,.65)"], [1, "rgba(0,0,0,0)"]]); ctx.fillRect(x, y, w2, h2); }
+        ctx.strokeStyle = "rgba(0,0,0,.9)"; ctx.lineWidth = .32; ctx.lineCap = "round";
+        for (let k = 0; k < 9; k++) { let x = ox + hs(k + 900) * OW, y = oy + hs(k + 950) * OH; ctx.beginPath(); ctx.moveTo(x, y); for (let m = 0; m < 6; m++) { x += (hs(k * 9 + m + 1000) - .5) * 7; y += (hs(k * 9 + m + 1100) - .3) * 5; ctx.lineTo(x, y); } ctx.stroke(); }
+        ctx.fillStyle = vLG(0, oy, 0, oy + OH, [[0, "rgba(0,0,0,0)"], [.55, "rgba(0,0,0,.08)"], [1, "rgba(0,0,0,.5)"]]); ctx.fillRect(ox, oy, OW, OH);
+        ctx.globalCompositeOperation = "source-atop"; ctx.fillStyle = "rgba(112,126,128,.3)"; ctx.fillRect(ox, oy, OW, OH);          // tinta desbotada pelo sol
+        ctx.globalCompositeOperation = "source-over";
+      } finally { ctx = main; }
+      main.save(); main.globalAlpha *= .8; main.imageSmoothingEnabled = true; main.drawImage(oc, 0, 0, oc.width, oc.height, ox, oy, OW, OH); main.restore();
     }
     // (o nicho com a santa e as velinhas foi removido: o prédio "shrine" agora é só uma porta comum)
   } else if (b.g === "shop") {
