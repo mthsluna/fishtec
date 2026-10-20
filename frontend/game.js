@@ -366,12 +366,18 @@ const ITEMS = [
   { id: "ac_sol", cat: "acc", slot: "face", name: "Óculos de Sol", price: 2500, kind: "sun", col: "#15151b", desc: "Contra o brilho da água." },
   { id: "ac_redondo", cat: "acc", slot: "face", name: "Óculos Redondo", price: 2000, kind: "round", col: "#c9a227", desc: "Armação dourada." },
   { id: "ac_bigode", cat: "acc", slot: "face", name: "Bigode", price: 1200, kind: "stache", col: "#3a2616", desc: "Bigodão de pescador." },
+  { id: "no_shoes", cat: "shoes", name: "Seu tênis", price: 0, eq: "", desc: "O tênis branco de sempre." },
+  { id: "sp_tenis_verm", cat: "shoes", name: "Tênis Vermelho", price: 2200, kind: "sneaker", col: "#d63a2f", c2: "#f4f1e8", desc: "Esportivo e chamativo." },
+  { id: "sp_tenis_preto", cat: "shoes", name: "Tênis Preto", price: 2600, kind: "sneaker", col: "#26262c", c2: "#9a9aa4", desc: "Combina com tudo." },
+  { id: "sp_chinelo", cat: "shoes", name: "Chinelo", price: 1200, kind: "flip", col: "#2f6fd6", c2: "#f4f1e8", desc: "Pé livre, estilo praiano." },
+  { id: "sp_bota", cat: "shoes", name: "Bota de Pesca", price: 4200, kind: "boot", col: "#3f6b3a", c2: "#1f2a1c", desc: "Impermeável até a canela." },
+  { id: "sp_social", cat: "shoes", name: "Sapato Social", price: 4800, kind: "dress", col: "#1b1512", c2: "#0d0a08", desc: "Engraxado, claro." },
   { id: "no_neck", cat: "acc", slot: "neck", name: "Sem lenço/gravata", price: 0, eq: "", desc: "Pescoço livre." },
   { id: "ac_lenco", cat: "acc", slot: "neck", name: "Lenço Vermelho", price: 1400, kind: "scarf", col: "#d63a2f", desc: "Estilo marinheiro." },
   { id: "ac_gravata", cat: "acc", slot: "neck", name: "Gravata Borboleta", price: 1600, kind: "bow", col: "#1f2a6b", desc: "Chique até na pesca." },
 ];
 const ITEM = Object.create(null); ITEMS.forEach(i => ITEM[i.id] = i);
-const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "" });
+const DEF_O = Object.freeze({ shirt: "", pants: "", hat: "fisher", face: "", neck: "", shoes: "" });
 const OWNED = new Set();
 try { (JSON.parse(localStorage.getItem("owned") || "[]") || []).forEach(id => { if (ITEM[id]) OWNED.add(id); }); } catch (e) {}
 const itemSlot = it => it.slot || it.cat, itemEq = it => it.eq !== undefined ? it.eq : it.id;
@@ -475,12 +481,12 @@ function rodPose(R, b) {                                   // soma a animação 
 const LEG_SHARE = 0.73;                                                         // fatia do ganho de altura que vai para as pernas (o resto vai para o tronco)
 let LEGX = 0, TORSOX = 0, AL = 8;                                               // AL: comprimento do braço (cresce com a altura, junto com as pernas)
 function collarFront(col) {                                                    // gola redonda de frente: barra escura em "U" em volta do pescoço
-  ctx.fillStyle = shade(col, 0.76); roundPath(-2.7, -24.6, 5.4, 3.8, 1.7); ctx.fill();                 // barra (ribana)
-  ctx.fillStyle = "#e0ac69"; roundPath(-1.8, -24.8, 3.6, 2.5, 1.2); ctx.fill();                    // pescoço aparecendo no decote
-  rect("rgba(0,0,0,.12)", -1.8, -24.4, 3.6, 0.6);                                                  // sombrinha embaixo do queixo
+  rect(shade(col, 0.76), -3.2, -24.6, 6.4, 4.2);                                                   // barra (ribana), quadrada
+  rect("#e0ac69", -2.2, -24.8, 4.4, 3);                                                            // pescoço aparecendo no decote quadrado
+  rect("rgba(0,0,0,.12)", -2.2, -24.4, 4.4, 0.6);                                                  // sombrinha embaixo do queixo
 }
 function collarSide(col) {                                                     // gola redonda de lado: barra fina em volta da base do pescoço
-  ctx.fillStyle = shade(col, 0.76); roundPath(-3.2, -24.3, 5, 1.8, 0.8); ctx.fill();
+  rect(shade(col, 0.76), -3.2, -24.3, 5, 1.8);
 }
 function shoulder(sx, y, col) {                                                 // ombrinho: capa arredondada por cima da junta do braço (some o "degrau" no canto do tronco)
   ctx.fillStyle = col; roundPath(sx - 1.8, y - 2.5, 3.6, 4.6, 1.4); ctx.fill();   // mesma largura do braço e topo na linha do ombro: sem "calombo"
@@ -628,7 +634,15 @@ const SK_W = 120, SK_H = 100, SK_OX = 60, SK_OY = 88;                           
 const SKC = { k: 0, spr: null, tint: null, fin: null };
 const skHatch = (() => { let sd = 777; const r = () => (sd = sd * 16807 % 2147483647) / 2147483647;
   return Array.from({ length: 64 }, (_, i) => { const x = -24 + r() * 48, y = -(3 + r() * 66), l = 2.5 + r() * 4.5, a = -0.95 + (r() - .5) * .35; return { x, y, x2: x + l * Math.cos(a), y2: y + l * Math.sin(a), g: i % 3 }; }); })();
-function shoe(x, y, w, h) { rect("#ecebe3", x, y, w, h - 1); rect("rgba(0,0,0,.13)", x, y, w, .7); rect("#2a2623", x, y + h - 1, w, 1); }   // tênis branco com sola escura
+function shoe(x, y, w, h) { shoeOf(ITEM[CUR_O && CUR_O.shoes], x, y, w, h); }
+function shoeOf(it, x, y, w, h) {                                // x, y, w, h: o pé; cada tipo cabe dentro desse retângulo (a bota sobe pela canela)
+  const k = it && it.kind, c = it && it.col, c2 = it && it.c2;
+  if (k === "sneaker") { rect(c, x, y, w, h - 1); rect("rgba(255,255,255,.22)", x, y, w, .6); rect(c2, x + w * .34, y + .5, w * .32, .8); rect(c2, x, y + h - 1, w, 1); }
+  else if (k === "dress") { rect(c, x, y, w, h - 1); rect("rgba(255,255,255,.4)", x + .5, y + .4, Math.max(.8, w * .4), .5); rect(c2, x, y + h - 1, w, 1); }
+  else if (k === "flip") { rect(SKIN_LEG, x + .3, y + .2, w - .6, h - 1.2); rect(c, x + w * .38, y, 1.1, h - 1); rect(c2, x, y + h - 1, w, 1); }
+  else if (k === "boot") { const uw = Math.min(w - .6, 5.2), ux = x + (w - uw) / 2; rect(c, ux, y - 4.2, uw, 4.4); rect(c2, ux, y - 4.2, uw, 1); rect("rgba(255,255,255,.18)", ux + .4, y - 3, .6, 2.6); rect(c, x, y, w, h - 1); rect(c2, x, y + h - 1, w, 1); }
+  else { rect("#ecebe3", x, y, w, h - 1); rect("rgba(0,0,0,.13)", x, y, w, .7); rect("#2a2623", x, y + h - 1, w, 1); }   // tênis branco com sola escura (padrão)
+}   // tênis branco com sola escura
 function skAlloc(k) {
   const w = Math.ceil(SK_W * k), h = Math.ceil(SK_H * k);
   if (!SKC.spr) ["spr", "tint", "fin"].forEach(n => { SKC[n] = document.createElement("canvas"); SKC[n].c = SKC[n].getContext("2d"); });
@@ -2814,8 +2828,8 @@ function drawTrans() {
 
 // ---------- Interior da BUTIQUE (FINSHION): entra com fade, compra e veste roupas por seções ----------
 // E/Enter compra (ou veste), A/D troca de seção, W/S escolhe o item, R gira o boneco, ESC sai. Também funciona com toque/clique.
-const SHOP = { on: false, cat: 0, sel: [0, 0, 0, 0], top: [0, 0, 0, 0], tryO: null, tn: [1, 1, 1], goal: 1, last: 0, geo: null, msg: "", msgT: 0 };
-const SHOP_CATS = [{ id: "shirt", name: "Camisetas" }, { id: "pants", name: "Calças" }, { id: "hat", name: "Chapéus" }, { id: "acc", name: "Acessórios" }];
+const SHOP = { on: false, cat: 0, sel: [0, 0, 0, 0, 0], top: [0, 0, 0, 0, 0], tryO: null, tn: [1, 1, 1], goal: 1, last: 0, geo: null, msg: "", msgT: 0 };
+const SHOP_CATS = [{ id: "shirt", name: "Camisas" }, { id: "pants", name: "Calças" }, { id: "shoes", name: "Sapatos" }, { id: "hat", name: "Chapéus" }, { id: "acc", name: "Acess." }];
 const SHOP_ROWS = 6, SHOP_RH = 25, SHOP_PW = 276;
 const shopList = () => ITEMS.filter(i => i.cat === SHOP_CATS[SHOP.cat].id);
 const shopCur = () => shopList()[SHOP.sel[SHOP.cat]] || null;
@@ -2826,7 +2840,7 @@ function saveOutfit() {
 function shopSay(m) { SHOP.msg = m; SHOP.msgT = 2.6; }
 function shopSync() { const it = shopCur(); SHOP.tryO = { ...me.o }; if (it) SHOP.tryO[itemSlot(it)] = itemEq(it); }   // o boneco já aparece provando o item destacado
 function shopEnter() {
-  SHOP.on = true; SHOP.cat = 0; SHOP.top = [0, 0, 0, 0]; SHOP.goal = 1; SHOP.tn = [1, 1, 1]; SHOP.last = 0; SHOP.geo = null;
+  SHOP.on = true; SHOP.cat = 0; SHOP.top = [0, 0, 0, 0, 0]; SHOP.goal = 1; SHOP.tn = [1, 1, 1]; SHOP.last = 0; SHOP.geo = null;
   SHOP_CATS.forEach((c, i) => { const k = ITEMS.filter(x => x.cat === c.id).findIndex(x => me.o[itemSlot(x)] === itemEq(x)); SHOP.sel[i] = Math.max(0, k); });
   for (const k in keys) keys[k] = false;
   shopSay("Bem-vindo à FINSHION!"); shopSync();
@@ -2894,6 +2908,8 @@ function itemIcon(it, x, y) {                                                  /
     if (sh) { rect(SKIN_LEG, x + 3, y + 8, 5, 4); rect(SKIN_LEG, x + 12, y + 8, 5, 4); }
     else if (it.deco === "cargo") { rect(shade(col, .75), x + 3, y + 6, 5, 3); rect(shade(col, .75), x + 12, y + 6, 5, 3); }
     else if (it.deco === "crease") { rect("rgba(255,255,255,.2)", x + 5, y + 3, 1, lh); rect("rgba(255,255,255,.2)", x + 14, y + 3, 1, lh); }
+  } else if (k === "shoes") {
+    ctx.save(); ctx.translate(x + 10, y + 13); ctx.scale(2.3, 2.3); shoeOf(it.kind ? it : null, -3, -2.5, 6, 2.5); ctx.restore();
   } else if (it.kind || k === "hat") {
     if (k === "hat" && it.kind === "none") { rect("#5a3b22", x + 4, y + 1, 12, 5); rect("#f1c27d", x + 5, y + 5, 10, 9); return; }
     if (k === "acc") rect("#e9dfc6", x + 1, y, 18, 15);                         // fundo claro: bigode e óculos escuros somem no painel escuro
@@ -2961,11 +2977,11 @@ function drawShop(now) {
     else text(on ? "Vestindo" : own ? "Seu (E veste)" : fmtMoney(cur.price), cx, H - 13, on ? "#8be28b" : own ? "#9fd3ff" : (money >= cur.price ? "#8be28b" : "#ff8a80"), "center");
   }
   // painel de compras
-  const x = pxL, exitR = { x: pxL - 62, y: 5, w: 54, h: 14 };
+  const x = pxL, exitR = { x: -99, y: -99, w: 0, h: 0 };   // sem botão "Sair": ESC ou B saem da loja
   ctx.globalAlpha = .96; rect(accC, x - 1, py - 1, pw + 2, ph + 2); rect("#0f1624", x, py, pw, ph); ctx.globalAlpha = 1;
   text("FINSHION", x + 8, py + 15, accC); text(fmtMoney(money), x + pw - 8, py + 15, "#8be28b", "right");
   rect("rgba(255,255,255,.18)", x + 6, py + 21, pw - 12, 1);
-  const tabs = SHOP_CATS.map((c, i) => ({ x: x + 4 + i * (pw - 8) / 4, y: py + 25, w: (pw - 8) / 4, h: 17 }));
+  const tabs = SHOP_CATS.map((c, i) => ({ x: x + 4 + i * (pw - 8) / SHOP_CATS.length, y: py + 25, w: (pw - 8) / SHOP_CATS.length, h: 17 }));
   SHOP_CATS.forEach((c, i) => { const r = tabs[i], sel = i === cat; if (sel) rect(accC, r.x + 1, r.y, r.w - 2, r.h); else rect("rgba(255,255,255,.07)", r.x + 1, r.y, r.w - 2, r.h); text(c.name, r.x + r.w / 2, r.y + 12, sel ? "#0f1624" : "#9aa6b8", "center"); });
   const rowY = py + 48; let top = SHOP.top[cat], sel = SHOP.sel[cat];
   if (sel < top) top = sel; if (sel > top + SHOP_ROWS - 1) top = sel - SHOP_ROWS + 1; top = Math.max(0, Math.min(top, Math.max(0, list.length - SHOP_ROWS))); SHOP.top[cat] = top;
@@ -2985,7 +3001,6 @@ function drawShop(now) {
   rect("rgba(255,255,255,.18)", x + 6, fyy - 3, pw - 12, 1);
   if (cur) text(cur.desc || "", x + 8, fyy + 10, "#cfd8e6");
   // botão sair (toque)
-  rect("rgba(15,22,36,.85)", exitR.x, exitR.y, exitR.w, exitR.h); text("< Sair", exitR.x + exitR.w / 2, exitR.y + 11, "#ffd166", "center");
   SHOP.geo = { px: x, pw, rowY, tabs, exit: exitR };
   drawTrans(); present();
 }
