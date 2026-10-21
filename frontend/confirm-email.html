@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Confirme seu e-mail no FISHTEC</title>
+</head>
+<body style="margin:0;padding:0;background-color:#14202b;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#14202b" style="background-color:#14202b;">
+  <tr><td align="center" style="padding:24px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#241a45" style="width:100%;max-width:600px;background-color:#241a45;border:3px solid #ffe0a8;">
+      <tr><td style="font-size:0;line-height:0;">
+        <img src="https://fishtec.vercel.app/assets/imgs/email-banner.png" width="600" alt="FISHTEC" style="display:block;width:100%;max-width:600px;height:auto;border:0;">
+      </td></tr>
+      <tr><td align="center" style="padding:32px 28px 8px;font-family:'Trebuchet MS',Arial,Helvetica,sans-serif;color:#ffe0a8;">
+        <h1 style="margin:0 0 12px;font-size:26px;line-height:1.25;font-weight:bold;color:#ffe0a8;">Falta pouco, pescador!</h1>
+        <p style="margin:0;font-size:16px;line-height:1.55;color:#e9dcff;">Confirme seu e-mail para ativar sua conta e começar a pescar no cais.</p>
+      </td></tr>
+      <tr><td align="center" style="padding:24px 28px 8px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td align="center" bgcolor="#ffe0a8" style="background-color:#ffe0a8;border-bottom:5px solid #b83f6a;">
+            <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:14px 34px;font-family:'Trebuchet MS',Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;letter-spacing:2px;color:#241a45;text-decoration:none;">CONFIRMAR E-MAIL</a>
+          </td>
+        </tr></table>
+      </td></tr>
+      <tr><td align="center" style="padding:20px 28px 32px;font-family:'Trebuchet MS',Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:#b9a8dc;">
+        Se o botão não abrir, copie este link e cole no navegador:<br>
+        <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#f4a261;word-break:break-all;">{{ .ConfirmationURL }}</a>
+      </td></tr>
+      <tr><td align="center" bgcolor="#160f2c" style="padding:18px 28px;background-color:#160f2c;font-family:'Trebuchet MS',Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#b9a8dc;">
+        Você recebeu este e-mail porque alguém criou uma conta no FISHTEC com o endereço {{ .Email }}.<br>
+        Se não foi você, é só ignorar esta mensagem.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>
