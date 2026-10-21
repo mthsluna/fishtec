@@ -1723,7 +1723,7 @@ const priceOf = f => f ? (f.price != null ? f.price : PRICE_BY_DIFF[f.difficulty
 const fmtMoney = c => { c = Math.max(0, Math.round(c)); return "F$" + String(Math.floor(c / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + String(c % 100).padStart(2, "0"); };
 let money = 0, inv = {};
 try { money = Math.max(0, parseInt(localStorage.getItem("money"), 10) || 0); const sv = JSON.parse(localStorage.getItem("inv") || "{}"); for (const k in sv) if (sv[k] > 0) inv[k] = sv[k] | 0; } catch (e) {}
-const saveWallet = () => { try { localStorage.setItem("money", String(money)); localStorage.setItem("inv", JSON.stringify(inv)); } catch (e) {} };
+const saveWallet = () => { try { localStorage.setItem("money", String(money)); localStorage.setItem("inv", JSON.stringify(inv)); } catch (e) {} if (window.CLOUD) CLOUD.save(); };
 const invCount = () => Object.values(inv).reduce((a, b) => a + b, 0);
 const fishById = id => fishList.find(f => f.id === id);
 const invValue = () => Object.keys(inv).reduce((a, id) => a + inv[id] * priceOf(fishById(id)), 0);
@@ -3011,6 +3011,7 @@ const shopList = () => ITEMS.filter(i => i.cat === SHOP_CATS[SHOP.cat].id);
 const shopCur = () => shopList()[SHOP.sel[SHOP.cat]] || null;
 function saveOutfit() {
   try { localStorage.setItem("owned", JSON.stringify([...OWNED])); const sv = JSON.parse(localStorage.getItem("look") || "{}"); sv.o = { ...me.o }; localStorage.setItem("look", JSON.stringify(sv)); } catch (e) {}
+  if (window.CLOUD) CLOUD.save();
   if (typeof ready !== "undefined" && ready && socket && socket.connected) socket.emit("look", lookPayload());
 }
 function shopSay(m) { SHOP.msg = m; SHOP.msgT = 2.6; }
@@ -5535,6 +5536,7 @@ function closeCustomizer(save) {
   if (save) {
     myName = czName.value.trim().slice(0, 14) || myName || "Pescador" + (100 + Math.random() * 900 | 0);
     try { localStorage.setItem("look", JSON.stringify(lookPayload())); } catch (e) {}
+    if (window.CLOUD) CLOUD.save();
     if (socket && socket.connected) socket.emit(ready ? "look" : "join", lookPayload());   // 1ª vez: entra na sala; depois só atualiza a aparência
     ready = true;
   } else if (UI.snap) { myName = UI.snap.name; me.shirt = UI.snap.shirt; me.pants = UI.snap.pants; me.h = UI.snap.h; me.o = UI.snap.o; }
@@ -5775,6 +5777,7 @@ cfgEl.innerHTML = `<div class="hp-box" role="dialog" aria-label="Configurações
   <div class="hp-row"><span>Efeitos</span><input id="cfg-sfx" type="range" min="0" max="150" step="5"><span class="vv" id="cfg-sfxv"></span></div>
   <div class="hp-row"><span>Música</span><input id="cfg-mus" type="range" min="0" max="150" step="5"><span class="vv" id="cfg-musv"></span></div>
   <div class="hp-row" id="cfg-keyrow"><span>Tecla de voltar</span><button id="cfg-key" type="button"></button></div>
+  <div class="hp-row" id="cfg-acctrow" style="display:none"><span>Conta</span><button id="cfg-logout" type="button">SAIR</button></div>
   <div class="hp-btns"><button id="cfg-close" type="button">Voltar</button></div></div>`;
 document.body.appendChild(cfgEl);
 const cfgBtn = introEl.querySelector("#intro-config"), cfgSnd = cfgEl.querySelector("#cfg-snd"), cfgShk = cfgEl.querySelector("#cfg-shk"), cfgClose = cfgEl.querySelector("#cfg-close"), cfgKeyRow = cfgEl.querySelector("#cfg-keyrow"), cfgKey = cfgEl.querySelector("#cfg-key");
@@ -5786,9 +5789,10 @@ function cfgSync() {
   cfgShk.textContent = SHAKE_ON ? "LIGADO" : "DESLIGADO"; cfgShk.classList.toggle("off", !SHAKE_ON);
   cfgKey.textContent = rebinding ? "PRESSIONE..." : keyLabel(RESUME_KEY);
 }
-function openCfg() { cfgKeyRow.style.display = INTRO.active ? "none" : ""; cfgSync(); if (PAUSED) pzEl.classList.remove("on"); cfgEl.classList.add("on"); cfgClose.focus(); }
+function openCfg() { cfgEl.querySelector("#cfg-acctrow").style.display = window.CLOUD && CLOUD.active ? "" : "none"; cfgKeyRow.style.display = INTRO.active ? "none" : ""; cfgSync(); if (PAUSED) pzEl.classList.remove("on"); cfgEl.classList.add("on"); cfgClose.focus(); }
 function closeCfg() { if (!cfgEl.classList.contains("on")) return; cfgEl.classList.remove("on"); if (PAUSED) { pzEl.classList.add("on"); pzBack.focus(); } else cfgBtn.focus(); }
 cfgBtn.onclick = openCfg; cfgClose.onclick = closeCfg;
+cfgEl.querySelector("#cfg-logout").onclick = () => { if (window.CLOUD) CLOUD.logout(); };
 cfgKey.onclick = () => { rebinding = true; cfgSync(); };
 cfgSnd.onclick = () => { SND.toggleMute(); cfgSync(); };
 cfgSfx.oninput = () => { SND.unlock(); SND.setSfxVol(cfgSfx.value / 100); cfgSync(); };

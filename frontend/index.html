@@ -16,10 +16,11 @@
 <body>
 <canvas id="g" tabindex="0" aria-label="Jogo de pesca"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="protect.js"></script>
 <script src="config.js"></script>
 <script src="audio.js"></script>
 <script src="daycycle.js"></script>
-<script src="game.js"></script>
+<script src="auth.js"></script>   <!-- login/conta; o game.js é carregado por ele depois de entrar -->
 </body>
 </html>
